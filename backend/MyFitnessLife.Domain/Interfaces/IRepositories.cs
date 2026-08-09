@@ -45,6 +45,21 @@ public interface IRefreshTokenRepository
     Task RevokeAllForUserAsync(Guid userId);
 }
 
+public interface IPatientRepository
+{
+    Task<IEnumerable<Patient>> GetByTenantAsync(
+        Guid tenantId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 20);
+    Task<int> CountByTenantAsync(Guid tenantId, string? search = null);
+    Task<Patient?> GetByIdAsync(Guid id);
+    Task<Patient?> GetByEmailAsync(Guid tenantId, string email);
+    Task AddAsync(Patient patient);
+    Task UpdateAsync(Patient patient);
+    Task DeleteAsync(Patient patient);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -59,5 +74,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IInvitationRepository Invitations { get; }
     IRefreshTokenRepository RefreshTokens { get; }
     IAuditLogRepository AuditLogs { get; }
+    IPatientRepository Patients { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

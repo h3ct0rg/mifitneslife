@@ -79,3 +79,17 @@ public class AuditLog : BaseEntity
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string? IpAddress { get; set; }
 }
+
+public class Patient : BaseEntityTenant
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? ProfilePhotoUrl { get; set; }
+    public string? Notes { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+
+    public string FullName => $"{FirstName} {LastName}".Trim();
+}

@@ -78,3 +78,40 @@ export const ROLES: Record<number, string> = {
   3: 'Trainer',
   4: 'Patient',
 }
+
+export interface PatientDto {
+  id: string
+  tenantId: string
+  firstName: string
+  lastName: string
+  fullName: string
+  email: string
+  phone?: string
+  dateOfBirth?: string
+  profilePhotoUrl?: string
+  notes?: string
+  status: string
+  createdAt: string
+}
+
+export interface PagedResult<T> {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+  items: T[]
+}
+
+export interface CreatePatientRequest {
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  dateOfBirth?: string
+  profilePhotoUrl?: string
+  notes?: string
+}
+
+export interface UpdatePatientRequest extends CreatePatientRequest {
+  status: string
+}

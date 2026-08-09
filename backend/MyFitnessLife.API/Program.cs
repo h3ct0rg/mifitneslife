@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,11 @@ builder.Services.AddSerilog((services, cfg) =>
        .WriteTo.File("logs/myfitnesslife-.log", rollingInterval: RollingInterval.Day);
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -108,6 +113,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseMiddleware<MyFitnessLife.API.Middleware.ExceptionHandlingMiddleware>();
+
+// Archivos subidos (fotos de perfil, etc.)
+app.UseStaticFiles();
 
 // CORS debe ejecutarse antes de redirecciones HTTPS para no romper los preflight OPTIONS
 app.UseCors("Frontend");

@@ -1,4 +1,5 @@
 using AutoMapper;
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.Users;
 using MyFitnessLife.Domain.Entities;
 
@@ -10,6 +11,10 @@ public class MappingProfile : Profile
     {
         CreateMap<ApplicationUser, UserListItemDto>()
             .ForMember(d => d.Role, o => o.MapFrom(s => s.Role.ToString()))
+            .ForMember(d => d.Status, o => o.MapFrom(s => s.Status.ToString()));
+
+        CreateMap<Patient, PatientDto>()
+            .ForMember(d => d.FullName, o => o.MapFrom(s => s.FullName))
             .ForMember(d => d.Status, o => o.MapFrom(s => s.Status.ToString()));
     }
 }
