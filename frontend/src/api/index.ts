@@ -2,12 +2,16 @@ import { api } from './client'
 import type {
   AdminDashboardDto,
   AuthResponse,
+  CreateMeasurementRequest,
   InviteRequest,
   InviteResponse,
+  MeasurementDashboardDto,
+  MeasurementDto,
   PagedResult,
   PatientDto,
   CreatePatientRequest,
   UpdatePatientRequest,
+  UpdateMeasurementRequest,
   TenantActivityDto,
   TenantDto,
   UserListItem,
@@ -57,6 +61,21 @@ export const patientsApi = {
   update: (id: string, payload: UpdatePatientRequest) =>
     api.put<PatientDto>(`/patients/${id}`, payload).then((r) => r.data),
   remove: (id: string) => api.delete(`/patients/${id}`).then(() => undefined),
+}
+
+export const measurementsApi = {
+  list: (patientId: string, params: { page?: number; pageSize?: number }) =>
+    api.get<PagedResult<MeasurementDto>>(`/patients/${patientId}/measurements`, { params }).then((r) => r.data),
+  getById: (patientId: string, id: string) =>
+    api.get<MeasurementDto>(`/patients/${patientId}/measurements/${id}`).then((r) => r.data),
+  dashboard: (patientId: string) =>
+    api.get<MeasurementDashboardDto>(`/patients/${patientId}/measurements/dashboard`).then((r) => r.data),
+  create: (patientId: string, payload: CreateMeasurementRequest) =>
+    api.post<MeasurementDto>(`/patients/${patientId}/measurements`, payload).then((r) => r.data),
+  update: (patientId: string, id: string, payload: UpdateMeasurementRequest) =>
+    api.put<MeasurementDto>(`/patients/${patientId}/measurements/${id}`, payload).then((r) => r.data),
+  remove: (patientId: string, id: string) =>
+    api.delete(`/patients/${patientId}/measurements/${id}`).then(() => undefined),
 }
 
 export async function uploadImage(file: File): Promise<string> {

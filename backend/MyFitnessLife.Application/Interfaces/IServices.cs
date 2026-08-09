@@ -1,7 +1,9 @@
 using MyFitnessLife.Application.DTOs.Admin;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.Users;
+using MyFitnessLife.Domain.Entities;
 
 namespace MyFitnessLife.Application.Interfaces;
 
@@ -50,4 +52,19 @@ public interface IPatientService
     Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request);
     Task<PatientDto> UpdateAsync(Guid tenantId, Guid id, UpdatePatientRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);
+}
+
+public interface IMeasurementService
+{
+    Task<PagedResult<MeasurementDto>> GetByPatientAsync(
+        Guid tenantId,
+        Guid patientId,
+        int page = 1,
+        int pageSize = 20);
+    Task<MeasurementDto> GetByIdAsync(Guid tenantId, Guid patientId, Guid id);
+    Task<MeasurementDto> CreateAsync(Guid tenantId, Guid patientId, CreateMeasurementRequest request);
+    Task<MeasurementDto> UpdateAsync(Guid tenantId, Guid patientId, Guid id, UpdateMeasurementRequest request);
+    Task DeleteAsync(Guid tenantId, Guid patientId, Guid id);
+    Task<MeasurementDashboardDto> GetDashboardAsync(Guid tenantId, Guid patientId);
+    Task<MeasurementIndexDto> ComputeIndexesAsync(Measurement measurement);
 }

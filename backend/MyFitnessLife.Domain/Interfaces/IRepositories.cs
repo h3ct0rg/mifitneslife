@@ -60,6 +60,21 @@ public interface IPatientRepository
     Task DeleteAsync(Patient patient);
 }
 
+public interface IMeasurementRepository
+{
+    Task<IEnumerable<Measurement>> GetByPatientAsync(
+        Guid patientId,
+        int page = 1,
+        int pageSize = 50);
+    Task<int> CountByPatientAsync(Guid patientId);
+    Task<Measurement?> GetByIdAsync(Guid id);
+    Task<Measurement?> GetLatestAsync(Guid patientId);
+    Task<IEnumerable<Measurement>> GetHistoryAsync(Guid patientId, int take = 100);
+    Task AddAsync(Measurement measurement);
+    Task UpdateAsync(Measurement measurement);
+    Task DeleteAsync(Measurement measurement);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -75,5 +90,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IRefreshTokenRepository RefreshTokens { get; }
     IAuditLogRepository AuditLogs { get; }
     IPatientRepository Patients { get; }
+    IMeasurementRepository Measurements { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -5,6 +5,7 @@ import { getErrorMessage } from '../api/client'
 import type { PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
+import MeasurementDashboard from '../components/MeasurementDashboard'
 
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
@@ -112,6 +113,9 @@ export default function PatientProfile() {
           <button type="button" className="btn-ghost" onClick={() => navigate('/pacientes')}>
             ← Volver
           </button>
+          <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
+            Historial
+          </button>
           <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
             Editar
           </button>
@@ -119,6 +123,11 @@ export default function PatientProfile() {
             Eliminar
           </button>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Evolución antropométrica</h2>
+        <MeasurementDashboard patientId={patient.id} />
       </div>
 
       <div className="card">
