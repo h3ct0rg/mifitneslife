@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
+import PatientProfile from './pages/PatientProfile'
 import Agenda from './pages/Agenda'
 import Diets from './pages/Diets'
 import TrainingPlans from './pages/TrainingPlans'
@@ -35,6 +36,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="pacientes" element={<Patients />} />
+          <Route path="pacientes/:id" element={<PatientProfile />} />
           <Route path="agenda" element={<Agenda />} />
           <Route path="dietas" element={<Diets />} />
           <Route path="planes-entrenamiento" element={<TrainingPlans />} />

@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Minio;
 using MyFitnessLife.Application.Interfaces;
+using MyFitnessLife.Domain.Constants;
 using MyFitnessLife.Domain.Interfaces;
 using MyFitnessLife.Infrastructure.Auth;
 using MyFitnessLife.Infrastructure.Data;
 using MyFitnessLife.Infrastructure.Repositories;
+using MyFitnessLife.Infrastructure.Services;
 
 namespace MyFitnessLife.Infrastructure;
 
@@ -34,6 +37,17 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
+
+        services.Configure<MinioSettings>(configuration.GetSection("Minio"));
+        services.AddScoped<IMinioService, MinioService>();
+
+        var minioSection = configuration.GetSection("Minio");
+        var minioOptions = minioSection.Get<MinioSettings>() ?? new MinioSettings();
+        services.AddSingleton<IMinioClient>(sp => new MinioClient()
+            .WithEndpoint(minioOptions.Endpoint)
+            .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
+            .WithSSL(minioOptions.UseSSL)
+            .Build());
 
         return services;
     }

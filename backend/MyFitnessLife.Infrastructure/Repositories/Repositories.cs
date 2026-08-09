@@ -180,3 +180,72 @@ public class AuditLogRepository : IAuditLogRepository
             .Take(take)
             .ToListAsync();
 }
+
+public class PatientRepository : IPatientRepository
+{
+    private readonly AppDbContext _context;
+
+    public PatientRepository(AppDbContext context) => _context = context;
+
+    private IQueryable<Patient> ApplySearch(IQueryable<Patient> query, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return query;
+
+        var term = search.Trim();
+        return query.Where(p =>
+            p.FirstName.Contains(term) ||
+            p.LastName.Contains(term) ||
+            (p.FirstName + " " + p.LastName).Contains(term) ||
+            (p.Phone != null && p.Phone.Contains(term)) ||
+            p.Email.Contains(term));
+    }
+
+    public async Task<IEnumerable<Patient>> GetByTenantAsync(
+        Guid tenantId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        var query = _context.Patients.AsNoTracking()
+            .Where(p => p.TenantId == tenantId);
+
+        query = ApplySearch(query, search);
+
+        return await query
+            .OrderBy(p => p.FirstName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<int> CountByTenantAsync(Guid tenantId, string? search = null)
+    {
+        var query = _context.Patients.AsNoTracking()
+            .Where(p => p.TenantId == tenantId);
+
+        query = ApplySearch(query, search);
+
+        return await query.CountAsync();
+    }
+
+    public Task<Patient?> GetByIdAsync(Guid id)
+        => _context.Patients.FirstOrDefaultAsync(p => p.Id == id);
+
+    public Task<Patient?> GetByEmailAsync(Guid tenantId, string email)
+        => _context.Patients.FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Email == email);
+
+    public async Task AddAsync(Patient patient)
+        => await _context.Patients.AddAsync(patient);
+
+    public Task UpdateAsync(Patient patient)
+    {
+        _context.Patients.Update(patient);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Patient patient)
+    {
+        _context.Patients.Remove(patient);
+        return Task.CompletedTask;
+    }
+}

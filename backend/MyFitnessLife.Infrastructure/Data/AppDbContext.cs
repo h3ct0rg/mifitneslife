@@ -15,6 +15,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Patient> Patients => Set<Patient>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -68,6 +69,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.Property(a => a.Entity).HasMaxLength(100).IsRequired();
             e.HasIndex(a => a.TenantId);
             e.HasIndex(a => a.Timestamp);
+        });
+
+        builder.Entity<Patient>(e =>
+        {
+            e.Property(p => p.FirstName).HasMaxLength(100).IsRequired();
+            e.Property(p => p.LastName).HasMaxLength(100).IsRequired();
+            e.Property(p => p.Email).HasMaxLength(256).IsRequired();
+            e.Property(p => p.Phone).HasMaxLength(30);
+            e.Property(p => p.ProfilePhotoUrl).HasMaxLength(500);
+            e.Property(p => p.Notes).HasMaxLength(2000);
+            e.HasIndex(p => p.TenantId);
+            e.HasIndex(p => new { p.TenantId, p.Email }).IsUnique();
         });
     }
 }

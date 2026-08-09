@@ -1,5 +1,6 @@
 using MyFitnessLife.Application.DTOs.Admin;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.Users;
 
 namespace MyFitnessLife.Application.Interfaces;
@@ -36,4 +37,17 @@ public interface ITenantActivityService
     Task RecordLoginAsync(Guid? tenantId, string email);
     Task RecordCreateTenantAsync(Guid tenantId, string name);
     Task RecordEntityAsync(Guid tenantId, string action, string entity, string? entityId, string? email);
+}
+
+public interface IPatientService
+{
+    Task<PagedResult<PatientDto>> GetPagedAsync(
+        Guid tenantId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 20);
+    Task<PatientDto> GetByIdAsync(Guid tenantId, Guid id);
+    Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request);
+    Task<PatientDto> UpdateAsync(Guid tenantId, Guid id, UpdatePatientRequest request);
+    Task DeleteAsync(Guid tenantId, Guid id);
 }

@@ -4,6 +4,10 @@ import type {
   AuthResponse,
   InviteRequest,
   InviteResponse,
+  PagedResult,
+  PatientDto,
+  CreatePatientRequest,
+  UpdatePatientRequest,
   TenantActivityDto,
   TenantDto,
   UserListItem,
@@ -42,4 +46,29 @@ export const adminApi = {
     api.post<TenantDto>('/admin/tenants', { name, description }).then((r) => r.data),
   tenantActivity: (tenantId: string) =>
     api.get<TenantActivityDto[]>(`/admin/tenants/${tenantId}/activity`).then((r) => r.data),
+}
+
+export const patientsApi = {
+  list: (params: { search?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<PatientDto>>('/patients', { params }).then((r) => r.data),
+  getById: (id: string) => api.get<PatientDto>(`/patients/${id}`).then((r) => r.data),
+  create: (payload: CreatePatientRequest) =>
+    api.post<PatientDto>('/patients', payload).then((r) => r.data),
+  update: (id: string, payload: UpdatePatientRequest) =>
+    api.put<PatientDto>(`/patients/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/patients/${id}`).then(() => undefined),
+}
+
+export async function uploadImage(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.post<{ fileName: string }>('/uploads', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data.fileName
+}
+
+export async function getImageUrl(fileName: string): Promise<string> {
+  const { data } = await api.get(`/uploads/${fileName}`, { responseType: 'blob' })
+  return URL.createObjectURL(data)
 }

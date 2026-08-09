@@ -14,7 +14,7 @@ public static class DbSeeder
         RoleManager<ApplicationRole> roleManager,
         IConfiguration configuration)
     {
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
 
         var allRoles = Enum.GetValues<UserRole>();
         foreach (var role in allRoles)
