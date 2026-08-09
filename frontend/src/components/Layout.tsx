@@ -7,7 +7,11 @@ const MAIN_NAV = [
   { to: '/pacientes', label: 'Pacientes' },
   { to: '/agenda', label: 'Agenda' },
   { to: '/citas', label: 'Citas' },
-  { to: '/planes-entrenamiento', label: 'Planes de entrenamiento' },
+]
+
+const TRAINING_NAV = [
+  { to: '/entrenamiento/ejercicios', label: 'Ejercicios' },
+  { to: '/entrenamiento/planes', label: 'Planes de entrenamiento' },
 ]
 
 const DIET_NAV = [
@@ -28,6 +32,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const [configOpen, setConfigOpen] = useState(false)
   const [dietOpen, setDietOpen] = useState(false)
+  const [trainingOpen, setTrainingOpen] = useState(false)
 
   if (!user) return null
 
@@ -55,6 +60,34 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+
+          <div className="nav-group">
+            <NavLink
+              to="/entrenamiento/ejercicios"
+              onClick={() => setTrainingOpen(true)}
+              className={({ isActive }) =>
+                `nav-link nav-sub-toggle ${trainingOpen || isActive ? 'open' : ''}`
+              }
+            >
+              Entrenamiento
+              <span className="nav-chevron">▾</span>
+            </NavLink>
+            {trainingOpen && (
+              <div className="nav-submenu">
+                {TRAINING_NAV.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      isActive ? 'nav-link sub active' : 'nav-link sub'
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="nav-group">
             <NavLink

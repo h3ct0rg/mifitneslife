@@ -75,5 +75,6 @@ public static class DbSeeder
         }
 
         await FoodSeeder.SeedFoodsAsync(context);
+        await ExerciseSeeder.SeedExercisesAsync(context);
     }
 }

@@ -10,7 +10,8 @@ import Agenda from './pages/Agenda'
 import Citas from './pages/Citas'
 import FoodCatalog from './pages/FoodCatalog'
 import DietPlans from './pages/DietPlans'
-import TrainingPlans from './pages/TrainingPlans'
+import Exercises from './pages/Exercises'
+import WorkoutPlans from './pages/WorkoutPlans'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
 import Roles from './pages/Roles'
@@ -45,7 +46,8 @@ export default function App() {
           <Route path="citas" element={<Citas />} />
           <Route path="dieta/catalogo" element={<FoodCatalog />} />
           <Route path="dieta/planes" element={<DietPlans />} />
-          <Route path="planes-entrenamiento" element={<TrainingPlans />} />
+          <Route path="entrenamiento/ejercicios" element={<Exercises />} />
+          <Route path="entrenamiento/planes" element={<WorkoutPlans />} />
           <Route path="configuracion" element={<Settings />} />
           <Route path="configuracion/usuarios" element={<Users />} />
           <Route path="configuracion/roles" element={<Roles />} />

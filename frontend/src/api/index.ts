@@ -9,7 +9,13 @@ import type {
   CreateMeasurementRequest,
   CreatePatientRequest,
   DietDto,
+  ExerciseDto,
   FoodDto,
+  CreateExerciseRequest,
+  CreateWorkoutPlanRequest,
+  UpdateExerciseRequest,
+  UpdateWorkoutPlanRequest,
+  WorkoutPlanDto,
   InviteRequest,
   InviteResponse,
   MeasurementDashboardDto,
@@ -128,6 +134,31 @@ export const dietsApi = {
   remove: (id: string) => api.delete(`/diets/${id}`).then(() => undefined),
 }
 
+export const exercisesApi = {
+  list: (params: { search?: string; category?: string; equipment?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<ExerciseDto>>('/exercises', { params }).then((r) => r.data),
+  categories: () => api.get<string[]>('/exercises/categories').then((r) => r.data),
+  equipment: () => api.get<string[]>('/exercises/equipment').then((r) => r.data),
+  getById: (id: string) => api.get<ExerciseDto>(`/exercises/${id}`).then((r) => r.data),
+  create: (payload: CreateExerciseRequest) =>
+    api.post<ExerciseDto>('/exercises', payload).then((r) => r.data),
+  update: (id: string, payload: UpdateExerciseRequest) =>
+    api.put<ExerciseDto>(`/exercises/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/exercises/${id}`).then(() => undefined),
+}
+
+export const workoutPlansApi = {
+  list: () => api.get<WorkoutPlanDto[]>('/workout-plans').then((r) => r.data),
+  getById: (id: string) => api.get<WorkoutPlanDto>(`/workout-plans/${id}`).then((r) => r.data),
+  getByPatient: (patientId: string) =>
+    api.get<{ assigned: boolean; plan: WorkoutPlanDto | null }>(`/workout-plans/patient/${patientId}`).then((r) => r.data),
+  create: (payload: CreateWorkoutPlanRequest) =>
+    api.post<WorkoutPlanDto>('/workout-plans', payload).then((r) => r.data),
+  update: (id: string, payload: UpdateWorkoutPlanRequest) =>
+    api.put<WorkoutPlanDto>(`/workout-plans/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/workout-plans/${id}`).then(() => undefined),
+}
+
 export async function uploadImage(file: File): Promise<string> {
   const form = new FormData()
   form.append('file', file)
@@ -139,5 +170,15 @@ export async function uploadImage(file: File): Promise<string> {
 
 export async function getImageUrl(fileName: string): Promise<string> {
   const { data } = await api.get(`/uploads/${fileName}`, { responseType: 'blob' })
+  return URL.createObjectURL(data)
+}
+
+export async function getExerciseImageUrl(fileName: string): Promise<string> {
+  const { data } = await api.get(`/uploads/exercise-image/${fileName}`, { responseType: 'blob' })
+  return URL.createObjectURL(data)
+}
+
+export async function getExerciseVideoUrl(fileName: string): Promise<string> {
+  const { data } = await api.get(`/uploads/exercise-video/${fileName}`, { responseType: 'blob' })
   return URL.createObjectURL(data)
 }

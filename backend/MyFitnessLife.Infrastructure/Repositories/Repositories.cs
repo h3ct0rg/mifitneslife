@@ -517,3 +517,148 @@ public class MeasurementRepository : IMeasurementRepository
         return Task.CompletedTask;
     }
 }
+public class ExerciseRepository : IExerciseRepository
+{
+    private readonly AppDbContext _context;
+
+    public ExerciseRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<Exercise>> GetPagedAsync(
+        string? search = null,
+        string? category = null,
+        string? equipment = null,
+        int page = 1,
+        int pageSize = 50)
+    {
+        var query = _context.Exercises.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(e => e.Name.Contains(s) || e.Target!.Contains(s) || e.MuscleGroup!.Contains(s));
+        }
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(e => e.Category == category);
+        if (!string.IsNullOrWhiteSpace(equipment))
+            query = query.Where(e => e.Equipment == equipment);
+
+        return await query
+            .OrderBy(e => e.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public Task<int> CountAsync(string? search = null, string? category = null, string? equipment = null)
+    {
+        var query = _context.Exercises.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(e => e.Name.Contains(s) || e.Target!.Contains(s) || e.MuscleGroup!.Contains(s));
+        }
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(e => e.Category == category);
+        if (!string.IsNullOrWhiteSpace(equipment))
+            query = query.Where(e => e.Equipment == equipment);
+
+        return query.CountAsync();
+    }
+
+    public async Task<IEnumerable<string>> GetCategoriesAsync()
+        => await _context.Exercises.AsNoTracking()
+            .Select(e => e.Category)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+    public async Task<IEnumerable<string>> GetEquipmentAsync()
+        => await _context.Exercises.AsNoTracking()
+            .Select(e => e.Equipment)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+    public Task<Exercise?> GetByIdAsync(Guid id)
+        => _context.Exercises.FirstOrDefaultAsync(e => e.Id == id);
+
+    public Task<Exercise?> GetByNameAsync(string name)
+        => _context.Exercises.FirstOrDefaultAsync(e => e.Name == name);
+
+    public async Task AddAsync(Exercise exercise)
+        => await _context.Exercises.AddAsync(exercise);
+
+    public Task UpdateAsync(Exercise exercise)
+    {
+        _context.Exercises.Update(exercise);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Exercise exercise)
+    {
+        _context.Exercises.Remove(exercise);
+        return Task.CompletedTask;
+    }
+}
+
+public class WorkoutPlanRepository : IWorkoutPlanRepository
+{
+    private readonly AppDbContext _context;
+
+    public WorkoutPlanRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<WorkoutPlan>> GetByTenantAsync(Guid tenantId)
+        => await _context.WorkoutPlans.AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
+            .Include(p => p.Patient)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+    public Task<WorkoutPlan?> GetByIdAsync(Guid id)
+        => _context.WorkoutPlans.AsSplitQuery()
+            .Include(p => p.Patient)
+            .Include(p => p.Days)
+                .ThenInclude(d => d.Exercises)
+                    .ThenInclude(e => e.Exercise)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+    public Task<WorkoutPlan?> GetByPatientAsync(Guid patientId)
+        => _context.WorkoutPlans.AsSplitQuery()
+            .Include(p => p.Patient)
+            .Include(p => p.Days)
+                .ThenInclude(d => d.Exercises)
+                    .ThenInclude(e => e.Exercise)
+            .FirstOrDefaultAsync(p => p.PatientId == patientId);
+
+    public async Task AddAsync(WorkoutPlan plan)
+        => await _context.WorkoutPlans.AddAsync(plan);
+
+    public Task UpdateAsync(WorkoutPlan plan)
+    {
+        _context.Entry(plan).State = EntityState.Modified;
+        return Task.CompletedTask;
+    }
+
+    public async Task ReplaceDaysAsync(WorkoutPlan plan, List<WorkoutDay> days)
+    {
+        var currentDays = await _context.WorkoutDays
+            .Include(d => d.Exercises)
+            .Where(d => d.PlanId == plan.Id)
+            .ToListAsync();
+
+        _context.WorkoutDays.RemoveRange(currentDays);
+
+        foreach (var day in days)
+        {
+            day.PlanId = plan.Id;
+            _context.WorkoutDays.Add(day);
+        }
+    }
+
+    public Task DeleteAsync(WorkoutPlan plan)
+    {
+        _context.WorkoutPlans.Remove(plan);
+        return Task.CompletedTask;
+    }
+}

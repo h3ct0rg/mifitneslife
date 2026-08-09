@@ -120,6 +120,35 @@ public interface IPatientDietRepository
     Task UpdateAsync(PatientDiet patientDiet);
 }
 
+public interface IExerciseRepository
+{
+    Task<IEnumerable<Exercise>> GetPagedAsync(
+        string? search = null,
+        string? category = null,
+        string? equipment = null,
+        int page = 1,
+        int pageSize = 50);
+    Task<int> CountAsync(string? search = null, string? category = null, string? equipment = null);
+    Task<IEnumerable<string>> GetCategoriesAsync();
+    Task<IEnumerable<string>> GetEquipmentAsync();
+    Task<Exercise?> GetByIdAsync(Guid id);
+    Task<Exercise?> GetByNameAsync(string name);
+    Task AddAsync(Exercise exercise);
+    Task UpdateAsync(Exercise exercise);
+    Task DeleteAsync(Exercise exercise);
+}
+
+public interface IWorkoutPlanRepository
+{
+    Task<IEnumerable<WorkoutPlan>> GetByTenantAsync(Guid tenantId);
+    Task<WorkoutPlan?> GetByIdAsync(Guid id);
+    Task<WorkoutPlan?> GetByPatientAsync(Guid patientId);
+    Task AddAsync(WorkoutPlan plan);
+    Task UpdateAsync(WorkoutPlan plan);
+    Task ReplaceDaysAsync(WorkoutPlan plan, List<WorkoutDay> days);
+    Task DeleteAsync(WorkoutPlan plan);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -140,5 +169,7 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IFoodRepository Foods { get; }
     IDietRepository Diets { get; }
     IPatientDietRepository PatientDiets { get; }
+    IExerciseRepository Exercises { get; }
+    IWorkoutPlanRepository WorkoutPlans { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -228,3 +228,56 @@ public class PatientDiet : BaseEntityTenant
     public Patient? Patient { get; set; }
     public Diet? Diet { get; set; }
 }
+
+public class Exercise : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string BodyPart { get; set; } = string.Empty;
+    public string Equipment { get; set; } = string.Empty;
+    public string? Target { get; set; }
+    public string? MuscleGroup { get; set; }
+    public string? SecondaryMuscles { get; set; }
+    public string? Instructions { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? GifUrl { get; set; }
+    public string? MediaId { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+}
+
+public class WorkoutPlan : BaseEntityTenant
+{
+    public string Name { get; set; } = string.Empty;
+    public Guid? PatientId { get; set; }
+    public string? Objective { get; set; }
+    public string? Observations { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+
+    public Patient? Patient { get; set; }
+    public ICollection<WorkoutDay> Days { get; set; } = new List<WorkoutDay>();
+}
+
+public class WorkoutDay : BaseEntityTenant
+{
+    public Guid PlanId { get; set; }
+    public string DayName { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public int SortOrder { get; set; }
+
+    public WorkoutPlan? Plan { get; set; }
+    public ICollection<WorkoutExercise> Exercises { get; set; } = new List<WorkoutExercise>();
+}
+
+public class WorkoutExercise : BaseEntityTenant
+{
+    public Guid DayId { get; set; }
+    public Guid ExerciseId { get; set; }
+    public int? Sets { get; set; }
+    public string? Reps { get; set; }
+    public int? RestSeconds { get; set; }
+    public string? Notes { get; set; }
+    public int SortOrder { get; set; }
+
+    public WorkoutDay? Day { get; set; }
+    public Exercise? Exercise { get; set; }
+}

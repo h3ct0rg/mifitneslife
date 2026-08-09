@@ -23,6 +23,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<Meal> Meals => Set<Meal>();
     public DbSet<MealItem> MealItems => Set<MealItem>();
     public DbSet<PatientDiet> PatientDiets => Set<PatientDiet>();
+    public DbSet<Exercise> Exercises => Set<Exercise>();
+    public DbSet<WorkoutPlan> WorkoutPlans => Set<WorkoutPlan>();
+    public DbSet<WorkoutDay> WorkoutDays => Set<WorkoutDay>();
+    public DbSet<WorkoutExercise> WorkoutExercises => Set<WorkoutExercise>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -195,6 +199,49 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.HasOne(pd => pd.Diet)
                 .WithMany()
                 .HasForeignKey(pd => pd.DietId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Exercise>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(250).IsRequired();
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.BodyPart).HasMaxLength(100);
+            e.Property(x => x.Equipment).HasMaxLength(100);
+            e.Property(x => x.Target).HasMaxLength(150);
+            e.Property(x => x.MuscleGroup).HasMaxLength(150);
+            e.Property(x => x.ImageUrl).HasMaxLength(500);
+            e.Property(x => x.GifUrl).HasMaxLength(500);
+            e.HasIndex(x => x.Name);
+        });
+
+        builder.Entity<WorkoutPlan>(e =>
+        {
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.HasOne(p => p.Patient)
+                .WithMany()
+                .HasForeignKey(p => p.PatientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<WorkoutDay>(e =>
+        {
+            e.Property(d => d.DayName).HasMaxLength(100).IsRequired();
+            e.HasOne(d => d.Plan)
+                .WithMany(p => p.Days)
+                .HasForeignKey(d => d.PlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WorkoutExercise>(e =>
+        {
+            e.HasOne(we => we.Day)
+                .WithMany(d => d.Exercises)
+                .HasForeignKey(we => we.DayId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(we => we.Exercise)
+                .WithMany()
+                .HasForeignKey(we => we.ExerciseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
