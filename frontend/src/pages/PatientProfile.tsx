@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { patientsApi } from '../api'
+import { dietsApi, patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { PatientDto } from '../api/types'
+import type { DietDto, PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
 import MeasurementDashboard from '../components/MeasurementDashboard'
+import DietDashboard from '../components/DietDashboard'
+import DietHistory from '../components/DietHistory'
 
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
@@ -16,6 +18,10 @@ export default function PatientProfile() {
   const [editing, setEditing] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showDiet, setShowDiet] = useState(false)
+  const [dietList, setDietList] = useState<DietDto[]>([])
+  const [dietSaving, setDietSaving] = useState(false)
+  const [dietVersion, setDietVersion] = useState(0)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -70,6 +76,32 @@ export default function PatientProfile() {
     }
   }
 
+  const openDietModal = async () => {
+    setShowDiet(true)
+    setMessage(null)
+    try {
+      setDietList(await dietsApi.list())
+    } catch (err) {
+      setMessage({ type: 'err', text: getErrorMessage(err) })
+    }
+  }
+
+  const handleAssignDiet = async (dietId: string) => {
+    if (!id) return
+    setDietSaving(true)
+    setMessage(null)
+    try {
+      await dietsApi.assign(id, dietId || undefined)
+      setShowDiet(false)
+      setDietVersion((v) => v + 1)
+      setMessage({ type: 'ok', text: dietId ? 'Dieta asignada al paciente.' : 'Se quitó la dieta asignada.' })
+    } catch (err) {
+      setMessage({ type: 'err', text: getErrorMessage(err) })
+    } finally {
+      setDietSaving(false)
+    }
+  }
+
   if (loading) return <div className="page"><p>Cargando...</p></div>
 
   if (!patient) {
@@ -116,6 +148,9 @@ export default function PatientProfile() {
           <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
             Historial
           </button>
+          <button type="button" className="btn-ghost" onClick={openDietModal}>
+            Dieta
+          </button>
           <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
             Editar
           </button>
@@ -129,6 +164,9 @@ export default function PatientProfile() {
         <h2>Evolución antropométrica</h2>
         <MeasurementDashboard patientId={patient.id} />
       </div>
+
+      <DietDashboard key={dietVersion} patientId={patient.id} />
+      <DietHistory patientId={patient.id} version={dietVersion} />
 
       <div className="card">
         <h2>Información</h2>
@@ -176,6 +214,53 @@ export default function PatientProfile() {
           onSubmit={handleUpdate}
           onCancel={() => setEditing(false)}
         />
+      )}
+
+      {showDiet && (
+        <div className="modal-overlay" onClick={() => !dietSaving && setShowDiet(false)}>
+          <div className="modal modal-diet-assign" onClick={(e) => e.stopPropagation()}>
+            <h2>Asignar dieta</h2>
+            <p className="modal-subtitle">
+              Elige una dieta para <strong>{patient.fullName}</strong>. Se mostrará en su perfil con
+              los valores nutricionales diarios.
+            </p>
+
+            <div className="diet-assign-list">
+              <button
+                type="button"
+                className="diet-assign-option"
+                onClick={() => handleAssignDiet('')}
+                disabled={dietSaving}
+              >
+                <span className="diet-assign-name">Sin dieta asignada</span>
+                <span className="diet-assign-meta">Quitar la dieta actual del paciente</span>
+              </button>
+              {dietList.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  className="diet-assign-option"
+                  onClick={() => handleAssignDiet(d.id)}
+                  disabled={dietSaving}
+                >
+                  <span className="diet-assign-name">{d.name}</span>
+                  <span className="diet-assign-meta">
+                    {d.objective ?? 'Sin objetivo'} · {Math.round(d.calories)} kcal/día
+                  </span>
+                </button>
+              ))}
+              {dietList.length === 0 && (
+                <p className="meal-empty">No hay planes de dieta creados todavía.</p>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="btn-ghost" onClick={() => setShowDiet(false)} disabled={dietSaving}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showDelete && (

@@ -6,8 +6,13 @@ const MAIN_NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/pacientes', label: 'Pacientes' },
   { to: '/agenda', label: 'Agenda' },
-  { to: '/dietas', label: 'Dietas' },
+  { to: '/citas', label: 'Citas' },
   { to: '/planes-entrenamiento', label: 'Planes de entrenamiento' },
+]
+
+const DIET_NAV = [
+  { to: '/dieta/catalogo', label: 'Catálogo alimenticio' },
+  { to: '/dieta/planes', label: 'Planes de dieta' },
 ]
 
 const CONFIG_NAV = [
@@ -22,6 +27,7 @@ export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [configOpen, setConfigOpen] = useState(false)
+  const [dietOpen, setDietOpen] = useState(false)
 
   if (!user) return null
 
@@ -49,6 +55,34 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+
+          <div className="nav-group">
+            <NavLink
+              to="/dieta/catalogo"
+              onClick={() => setDietOpen(true)}
+              className={({ isActive }) =>
+                `nav-link nav-sub-toggle ${dietOpen || isActive ? 'open' : ''}`
+              }
+            >
+              Dieta
+              <span className="nav-chevron">▾</span>
+            </NavLink>
+            {dietOpen && (
+              <div className="nav-submenu">
+                {DIET_NAV.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      isActive ? 'nav-link sub active' : 'nav-link sub'
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="nav-group">
             <button

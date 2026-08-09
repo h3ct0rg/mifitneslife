@@ -1,6 +1,8 @@
 using MyFitnessLife.Application.DTOs.Admin;
 using MyFitnessLife.Application.DTOs.Appointments;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.DTOs.Diets;
+using MyFitnessLife.Application.DTOs.Foods;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.Users;
@@ -77,4 +79,31 @@ public interface IAppointmentService
     Task<AppointmentDto> UpdateAsync(Guid tenantId, Guid id, UpdateAppointmentRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);
     Task<IEnumerable<ProfessionalDto>> GetProfessionalsAsync(Guid tenantId);
+}
+
+public interface IFoodService
+{
+    Task<PagedResult<FoodDto>> GetByTenantAsync(
+        Guid tenantId,
+        string? search = null,
+        string? category = null,
+        int page = 1,
+        int pageSize = 50);
+    Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId);
+    Task<FoodDto> GetByIdAsync(Guid tenantId, Guid id);
+    Task<FoodDto> CreateAsync(Guid tenantId, CreateFoodRequest request);
+    Task<FoodDto> UpdateAsync(Guid tenantId, Guid id, UpdateFoodRequest request);
+    Task DeleteAsync(Guid tenantId, Guid id);
+}
+
+public interface IDietService
+{
+    Task<IEnumerable<DietDto>> GetByTenantAsync(Guid tenantId);
+    Task<DietDto> GetByIdAsync(Guid tenantId, Guid id);
+    Task<DietDto?> GetByPatientAsync(Guid tenantId, Guid patientId);
+    Task<IEnumerable<PatientDietDto>> GetHistoryByPatientAsync(Guid tenantId, Guid patientId);
+    Task<DietDto> CreateAsync(Guid tenantId, CreateDietRequest request);
+    Task<DietDto> UpdateAsync(Guid tenantId, Guid id, UpdateDietRequest request);
+    Task AssignToPatientAsync(Guid tenantId, Guid patientId, Guid? dietId);
+    Task DeleteAsync(Guid tenantId, Guid id);
 }

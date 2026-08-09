@@ -138,6 +138,7 @@ public static class Mappers
         {
             PatientId = request.PatientId,
             ProfessionalId = request.ProfessionalId,
+            DietId = request.DietId,
             StartAt = request.StartAt,
             EndAt = request.EndAt,
             Title = request.Title,
@@ -148,6 +149,7 @@ public static class Mappers
     {
         appointment.PatientId = request.PatientId;
         appointment.ProfessionalId = request.ProfessionalId;
+        appointment.DietId = request.DietId;
         appointment.StartAt = request.StartAt;
         appointment.EndAt = request.EndAt;
         appointment.Title = request.Title;

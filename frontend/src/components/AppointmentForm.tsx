@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { AppointmentDto, CreateAppointmentRequest, PatientDto, ProfessionalDto } from '../api/types'
+import type { AppointmentDto, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
 
 interface Props {
   title: string
@@ -7,6 +7,7 @@ interface Props {
   initial?: AppointmentDto
   patients: PatientDto[]
   professionals: ProfessionalDto[]
+  diets: DietDto[]
   onSubmit: (payload: CreateAppointmentRequest) => Promise<void>
   onDelete?: () => void
   onCancel: () => void
@@ -28,12 +29,14 @@ export default function AppointmentForm({
   initial,
   patients,
   professionals,
+  diets,
   onSubmit,
   onDelete,
   onCancel,
 }: Props) {
   const [patientId, setPatientId] = useState('')
   const [professionalId, setProfessionalId] = useState('')
+  const [dietId, setDietId] = useState('')
   const [startAt, setStartAt] = useState('')
   const [endAt, setEndAt] = useState('')
   const [titleValue, setTitleValue] = useState('')
@@ -45,6 +48,7 @@ export default function AppointmentForm({
     if (initial) {
       setPatientId(initial.patientId)
       setProfessionalId(initial.professionalId)
+      setDietId(initial.dietId ?? '')
       setStartAt(toLocalInput(new Date(initial.startAt)))
       setEndAt(initial.endAt ? toLocalInput(new Date(initial.endAt)) : '')
       setTitleValue(initial.title ?? '')
@@ -98,6 +102,7 @@ export default function AppointmentForm({
       await onSubmit({
         patientId,
         professionalId,
+        dietId: dietId || undefined,
         startAt,
         endAt: end,
         title: titleValue.trim() || undefined,
@@ -157,6 +162,19 @@ export default function AppointmentForm({
             {professionals.length === 1 && (
               <span className="hint">Solo hay un profesional en el sistema; se asignó automáticamente.</span>
             )}
+          </label>
+
+          <label>
+            Dieta asignada (opcional)
+            <select value={dietId} onChange={(e) => setDietId(e.target.value)}>
+              <option value="">Sin dieta asignada</option>
+              {diets.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}{d.objective ? ` · ${d.objective}` : ''}
+                </option>
+              ))}
+            </select>
+            <span className="hint">Puedes asignar o cambiar la dieta del paciente desde aquí.</span>
           </label>
 
           <label>

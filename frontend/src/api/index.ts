@@ -4,18 +4,25 @@ import type {
   AppointmentDto,
   AuthResponse,
   CreateAppointmentRequest,
+  CreateDietRequest,
+  CreateFoodRequest,
   CreateMeasurementRequest,
   CreatePatientRequest,
+  DietDto,
+  FoodDto,
   InviteRequest,
   InviteResponse,
   MeasurementDashboardDto,
   MeasurementDto,
   PatientDto,
+  PatientDietDto,
   PagedResult,
   ProfessionalDto,
   TenantActivityDto,
   TenantDto,
   UpdateAppointmentRequest,
+  UpdateDietRequest,
+  UpdateFoodRequest,
   UpdateMeasurementRequest,
   UpdatePatientRequest,
   UserListItem,
@@ -91,6 +98,34 @@ export const appointmentsApi = {
   update: (id: string, payload: UpdateAppointmentRequest) =>
     api.put<AppointmentDto>(`/appointments/${id}`, payload).then((r) => r.data),
   remove: (id: string) => api.delete(`/appointments/${id}`).then(() => undefined),
+}
+
+export const foodsApi = {
+  list: (params: { search?: string; category?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<FoodDto>>('/foods', { params }).then((r) => r.data),
+  categories: () => api.get<string[]>('/foods/categories').then((r) => r.data),
+  getById: (id: string) => api.get<FoodDto>(`/foods/${id}`).then((r) => r.data),
+  create: (payload: CreateFoodRequest) =>
+    api.post<FoodDto>('/foods', payload).then((r) => r.data),
+  update: (id: string, payload: UpdateFoodRequest) =>
+    api.put<FoodDto>(`/foods/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/foods/${id}`).then(() => undefined),
+}
+
+export const dietsApi = {
+  list: () => api.get<DietDto[]>('/diets').then((r) => r.data),
+  getById: (id: string) => api.get<DietDto>(`/diets/${id}`).then((r) => r.data),
+  getByPatient: (patientId: string) =>
+    api.get<{ assigned: boolean; diet: DietDto | null }>(`/diets/patient/${patientId}`).then((r) => r.data),
+  getHistoryByPatient: (patientId: string) =>
+    api.get<PatientDietDto[]>(`/diets/patient/${patientId}/history`).then((r) => r.data),
+  assign: (patientId: string, dietId?: string) =>
+    api.put<DietDto | null>('/diets/assign', { patientId, dietId: dietId || null }).then((r) => r.data),
+  create: (payload: CreateDietRequest) =>
+    api.post<DietDto>('/diets', payload).then((r) => r.data),
+  update: (id: string, payload: UpdateDietRequest) =>
+    api.put<DietDto>(`/diets/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/diets/${id}`).then(() => undefined),
 }
 
 export async function uploadImage(file: File): Promise<string> {

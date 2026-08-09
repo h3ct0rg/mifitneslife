@@ -1,0 +1,889 @@
+[
+  {
+    "name": "Arroz blanco cocido",
+    "category": "Cereales",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 130,
+      "protein": 2.7,
+      "carbohydrates": 28.2,
+      "fat": 0.3,
+      "fiber": 0.4,
+      "micronutrients": {
+        "sugars": 0.1,
+        "sodium": 1,
+        "potassium": 35,
+        "cholesterol": 0,
+        "iron": 0.2,
+        "calcium": 10
+      }
+    }
+  },
+  {
+    "name": "Arroz blanco crudo",
+    "category": "Cereales",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 365,
+      "protein": 7.1,
+      "carbohydrates": 80.0,
+      "fat": 0.7,
+      "fiber": 1.3,
+      "micronutrients": {
+        "sugars": 0.1,
+        "sodium": 5,
+        "potassium": 115,
+        "cholesterol": 0,
+        "iron": 0.8,
+        "calcium": 28
+      }
+    }
+  },
+  {
+    "name": "Pechuga de pollo sin piel",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 165,
+      "protein": 31.0,
+      "carbohydrates": 0.0,
+      "fat": 3.6,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 74,
+        "potassium": 256,
+        "cholesterol": 85,
+        "iron": 1.0,
+        "calcium": 15
+      }
+    }
+  },
+  {
+    "name": "Muslo de pollo sin piel",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 177,
+      "protein": 24.0,
+      "carbohydrates": 0.0,
+      "fat": 8.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 84,
+        "potassium": 239,
+        "cholesterol": 93,
+        "iron": 1.1,
+        "calcium": 11
+      }
+    }
+  },
+  {
+    "name": "Carne de res magra",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 170,
+      "protein": 26.0,
+      "carbohydrates": 0.0,
+      "fat": 7.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 60,
+        "potassium": 318,
+        "cholesterol": 65,
+        "iron": 2.6,
+        "calcium": 18
+      }
+    }
+  },
+  {
+    "name": "Carne molida de res",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 215,
+      "protein": 26.0,
+      "carbohydrates": 0.0,
+      "fat": 12.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 66,
+        "potassium": 270,
+        "cholesterol": 71,
+        "iron": 2.4,
+        "calcium": 18
+      }
+    }
+  },
+  {
+    "name": "Lomo de cerdo",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 143,
+      "protein": 26.0,
+      "carbohydrates": 0.0,
+      "fat": 3.5,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 53,
+        "potassium": 421,
+        "cholesterol": 62,
+        "iron": 0.9,
+        "calcium": 19
+      }
+    }
+  },
+  {
+    "name": "Carne de cerdo",
+    "category": "Carnes",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 242,
+      "protein": 27.0,
+      "carbohydrates": 0.0,
+      "fat": 14.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 62,
+        "potassium": 350,
+        "cholesterol": 80,
+        "iron": 1.0,
+        "calcium": 19
+      }
+    }
+  },
+  {
+    "name": "Pescado blanco",
+    "category": "Pescados",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 120,
+      "protein": 23.0,
+      "carbohydrates": 0.0,
+      "fat": 3.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 72,
+        "potassium": 300,
+        "cholesterol": 50,
+        "iron": 0.4,
+        "calcium": 16
+      }
+    }
+  },
+  {
+    "name": "Atún en agua",
+    "category": "Pescados",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 116,
+      "protein": 26.0,
+      "carbohydrates": 0.0,
+      "fat": 0.8,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 338,
+        "potassium": 237,
+        "cholesterol": 30,
+        "iron": 1.0,
+        "calcium": 12
+      }
+    }
+  },
+  {
+    "name": "Huevo de gallina",
+    "category": "Huevos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 143,
+      "protein": 12.6,
+      "carbohydrates": 0.7,
+      "fat": 9.5,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.4,
+        "sodium": 142,
+        "potassium": 138,
+        "cholesterol": 372,
+        "iron": 1.8,
+        "calcium": 56
+      }
+    },
+    "commonServing": {
+      "quantity": 1,
+      "unit": "unidad",
+      "approximateWeightGrams": 50
+    }
+  },
+  {
+    "name": "Papa",
+    "category": "Tubérculos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 77,
+      "protein": 2.0,
+      "carbohydrates": 17.5,
+      "fat": 0.1,
+      "fiber": 2.2,
+      "micronutrients": {
+        "sugars": 0.8,
+        "sodium": 6,
+        "potassium": 421,
+        "cholesterol": 0,
+        "iron": 0.8,
+        "calcium": 12
+      }
+    }
+  },
+  {
+    "name": "Camote",
+    "category": "Tubérculos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 86,
+      "protein": 1.6,
+      "carbohydrates": 20.1,
+      "fat": 0.1,
+      "fiber": 3.0,
+      "micronutrients": {
+        "sugars": 4.2,
+        "sodium": 55,
+        "potassium": 337,
+        "cholesterol": 0,
+        "iron": 0.6,
+        "calcium": 30
+      }
+    }
+  },
+  {
+    "name": "Yuca",
+    "category": "Tubérculos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 160,
+      "protein": 1.4,
+      "carbohydrates": 38.1,
+      "fat": 0.3,
+      "fiber": 1.8,
+      "micronutrients": {
+        "sugars": 1.7,
+        "sodium": 14,
+        "potassium": 271,
+        "cholesterol": 0,
+        "iron": 0.3,
+        "calcium": 16
+      }
+    }
+  },
+  {
+    "name": "Quinua cocida",
+    "category": "Cereales y pseudocereales",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 120,
+      "protein": 4.4,
+      "carbohydrates": 21.3,
+      "fat": 1.9,
+      "fiber": 2.8,
+      "micronutrients": {
+        "sugars": 0.9,
+        "sodium": 7,
+        "potassium": 172,
+        "cholesterol": 0,
+        "iron": 1.5,
+        "calcium": 17
+      }
+    }
+  },
+  {
+    "name": "Quinua cruda",
+    "category": "Cereales y pseudocereales",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 368,
+      "protein": 14.1,
+      "carbohydrates": 64.2,
+      "fat": 6.1,
+      "fiber": 7.0,
+      "micronutrients": {
+        "sugars": 2.6,
+        "sodium": 21,
+        "potassium": 563,
+        "cholesterol": 0,
+        "iron": 4.6,
+        "calcium": 47
+      }
+    }
+  },
+  {
+    "name": "Avena",
+    "category": "Cereales",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 389,
+      "protein": 16.9,
+      "carbohydrates": 66.3,
+      "fat": 6.9,
+      "fiber": 10.6,
+      "micronutrients": {
+        "sugars": 1.0,
+        "sodium": 2,
+        "potassium": 429,
+        "cholesterol": 0,
+        "iron": 4.7,
+        "calcium": 54
+      }
+    }
+  },
+  {
+    "name": "Pan integral",
+    "category": "Panificados",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 247,
+      "protein": 13.0,
+      "carbohydrates": 41.0,
+      "fat": 4.2,
+      "fiber": 6.0,
+      "micronutrients": {
+        "sugars": 5.6,
+        "sodium": 450,
+        "potassium": 250,
+        "cholesterol": 0,
+        "iron": 2.5,
+        "calcium": 107
+      }
+    }
+  },
+  {
+    "name": "Pan blanco",
+    "category": "Panificados",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 266,
+      "protein": 8.9,
+      "carbohydrates": 49.4,
+      "fat": 3.2,
+      "fiber": 2.4,
+      "micronutrients": {
+        "sugars": 5.0,
+        "sodium": 490,
+        "potassium": 115,
+        "cholesterol": 0,
+        "iron": 3.6,
+        "calcium": 144
+      }
+    }
+  },
+  {
+    "name": "Lentejas cocidas",
+    "category": "Legumbres",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 116,
+      "protein": 9.0,
+      "carbohydrates": 20.1,
+      "fat": 0.4,
+      "fiber": 7.9,
+      "micronutrients": {
+        "sugars": 1.8,
+        "sodium": 2,
+        "potassium": 369,
+        "cholesterol": 0,
+        "iron": 3.3,
+        "calcium": 19
+      }
+    }
+  },
+  {
+    "name": "Porotos cocidos",
+    "category": "Legumbres",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 127,
+      "protein": 8.7,
+      "carbohydrates": 22.8,
+      "fat": 0.5,
+      "fiber": 6.4,
+      "micronutrients": {
+        "sugars": 0.6,
+        "sodium": 1,
+        "potassium": 355,
+        "cholesterol": 0,
+        "iron": 2.1,
+        "calcium": 28
+      }
+    }
+  },
+  {
+    "name": "Garbanzos cocidos",
+    "category": "Legumbres",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 164,
+      "protein": 8.9,
+      "carbohydrates": 27.4,
+      "fat": 2.6,
+      "fiber": 7.6,
+      "micronutrients": {
+        "sugars": 4.8,
+        "sodium": 7,
+        "potassium": 291,
+        "cholesterol": 0,
+        "iron": 2.9,
+        "calcium": 49
+      }
+    }
+  },
+  {
+    "name": "Leche entera",
+    "category": "Lácteos",
+    "defaultQuantity": 100,
+    "unit": "ml",
+    "nutritionPer100g": {
+      "calories": 61,
+      "protein": 3.2,
+      "carbohydrates": 4.8,
+      "fat": 3.3,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 5.0,
+        "sodium": 43,
+        "potassium": 132,
+        "cholesterol": 10,
+        "iron": 0.0,
+        "calcium": 113
+      }
+    }
+  },
+  {
+    "name": "Leche descremada",
+    "category": "Lácteos",
+    "defaultQuantity": 100,
+    "unit": "ml",
+    "nutritionPer100g": {
+      "calories": 34,
+      "protein": 3.4,
+      "carbohydrates": 5.0,
+      "fat": 0.1,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 5.0,
+        "sodium": 44,
+        "potassium": 156,
+        "cholesterol": 2,
+        "iron": 0.0,
+        "calcium": 122
+      }
+    }
+  },
+  {
+    "name": "Yogur natural",
+    "category": "Lácteos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 61,
+      "protein": 3.5,
+      "carbohydrates": 4.7,
+      "fat": 3.3,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 4.7,
+        "sodium": 46,
+        "potassium": 155,
+        "cholesterol": 13,
+        "iron": 0.1,
+        "calcium": 121
+      }
+    }
+  },
+  {
+    "name": "Queso fresco",
+    "category": "Lácteos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 264,
+      "protein": 18.0,
+      "carbohydrates": 3.0,
+      "fat": 20.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 2.5,
+        "sodium": 500,
+        "potassium": 100,
+        "cholesterol": 60,
+        "iron": 0.2,
+        "calcium": 500
+      }
+    }
+  },
+  {
+    "name": "Palta",
+    "category": "Frutas",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 160,
+      "protein": 2.0,
+      "carbohydrates": 8.5,
+      "fat": 14.7,
+      "fiber": 6.7,
+      "micronutrients": {
+        "sugars": 0.7,
+        "sodium": 7,
+        "potassium": 485,
+        "cholesterol": 0,
+        "iron": 0.6,
+        "calcium": 12
+      }
+    }
+  },
+  {
+    "name": "Banana",
+    "category": "Frutas",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 89,
+      "protein": 1.1,
+      "carbohydrates": 22.8,
+      "fat": 0.3,
+      "fiber": 2.6,
+      "micronutrients": {
+        "sugars": 12.2,
+        "sodium": 1,
+        "potassium": 358,
+        "cholesterol": 0,
+        "iron": 0.3,
+        "calcium": 5
+      }
+    }
+  },
+  {
+    "name": "Manzana",
+    "category": "Frutas",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 52,
+      "protein": 0.3,
+      "carbohydrates": 13.8,
+      "fat": 0.2,
+      "fiber": 2.4,
+      "micronutrients": {
+        "sugars": 10.4,
+        "sodium": 1,
+        "potassium": 107,
+        "cholesterol": 0,
+        "iron": 0.1,
+        "calcium": 6
+      }
+    }
+  },
+  {
+    "name": "Naranja",
+    "category": "Frutas",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 47,
+      "protein": 0.9,
+      "carbohydrates": 11.8,
+      "fat": 0.1,
+      "fiber": 2.4,
+      "micronutrients": {
+        "sugars": 9.4,
+        "sodium": 0,
+        "potassium": 181,
+        "cholesterol": 0,
+        "iron": 0.1,
+        "calcium": 40
+      }
+    }
+  },
+  {
+    "name": "Papaya",
+    "category": "Frutas",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 43,
+      "protein": 0.5,
+      "carbohydrates": 10.8,
+      "fat": 0.3,
+      "fiber": 1.7,
+      "micronutrients": {
+        "sugars": 7.8,
+        "sodium": 8,
+        "potassium": 182,
+        "cholesterol": 0,
+        "iron": 0.2,
+        "calcium": 20
+      }
+    }
+  },
+  {
+    "name": "Tomate",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 18,
+      "protein": 0.9,
+      "carbohydrates": 3.9,
+      "fat": 0.2,
+      "fiber": 1.2,
+      "micronutrients": {
+        "sugars": 2.6,
+        "sodium": 5,
+        "potassium": 237,
+        "cholesterol": 0,
+        "iron": 0.3,
+        "calcium": 10
+      }
+    }
+  },
+  {
+    "name": "Zanahoria",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 41,
+      "protein": 0.9,
+      "carbohydrates": 9.6,
+      "fat": 0.2,
+      "fiber": 2.8,
+      "micronutrients": {
+        "sugars": 4.7,
+        "sodium": 69,
+        "potassium": 320,
+        "cholesterol": 0,
+        "iron": 0.3,
+        "calcium": 33
+      }
+    }
+  },
+  {
+    "name": "Lechuga",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 15,
+      "protein": 1.4,
+      "carbohydrates": 2.9,
+      "fat": 0.2,
+      "fiber": 1.3,
+      "micronutrients": {
+        "sugars": 0.8,
+        "sodium": 28,
+        "potassium": 194,
+        "cholesterol": 0,
+        "iron": 0.9,
+        "calcium": 36
+      }
+    }
+  },
+  {
+    "name": "Cebolla",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 40,
+      "protein": 1.1,
+      "carbohydrates": 9.3,
+      "fat": 0.1,
+      "fiber": 1.7,
+      "micronutrients": {
+        "sugars": 4.2,
+        "sodium": 4,
+        "potassium": 146,
+        "cholesterol": 0,
+        "iron": 0.2,
+        "calcium": 23
+      }
+    }
+  },
+  {
+    "name": "Brócoli",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 34,
+      "protein": 2.8,
+      "carbohydrates": 6.6,
+      "fat": 0.4,
+      "fiber": 2.6,
+      "micronutrients": {
+        "sugars": 1.7,
+        "sodium": 33,
+        "potassium": 316,
+        "cholesterol": 0,
+        "iron": 0.7,
+        "calcium": 47
+      }
+    }
+  },
+  {
+    "name": "Espinaca",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 23,
+      "protein": 2.9,
+      "carbohydrates": 3.6,
+      "fat": 0.4,
+      "fiber": 2.2,
+      "micronutrients": {
+        "sugars": 0.4,
+        "sodium": 79,
+        "potassium": 558,
+        "cholesterol": 0,
+        "iron": 2.7,
+        "calcium": 99
+      }
+    }
+  },
+  {
+    "name": "Pepino",
+    "category": "Verduras",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 15,
+      "protein": 0.7,
+      "carbohydrates": 3.6,
+      "fat": 0.1,
+      "fiber": 0.5,
+      "micronutrients": {
+        "sugars": 1.7,
+        "sodium": 2,
+        "potassium": 147,
+        "cholesterol": 0,
+        "iron": 0.3,
+        "calcium": 16
+      }
+    }
+  },
+  {
+    "name": "Maní",
+    "category": "Frutos secos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 567,
+      "protein": 25.8,
+      "carbohydrates": 16.1,
+      "fat": 49.2,
+      "fiber": 8.5,
+      "micronutrients": {
+        "sugars": 4.7,
+        "sodium": 18,
+        "potassium": 705,
+        "cholesterol": 0,
+        "iron": 4.6,
+        "calcium": 92
+      }
+    }
+  },
+  {
+    "name": "Almendras",
+    "category": "Frutos secos",
+    "defaultQuantity": 100,
+    "unit": "g",
+    "nutritionPer100g": {
+      "calories": 579,
+      "protein": 21.2,
+      "carbohydrates": 21.6,
+      "fat": 49.9,
+      "fiber": 12.5,
+      "micronutrients": {
+        "sugars": 4.4,
+        "sodium": 1,
+        "potassium": 733,
+        "cholesterol": 0,
+        "iron": 3.7,
+        "calcium": 269
+      }
+    }
+  },
+  {
+    "name": "Aceite de oliva",
+    "category": "Aceites",
+    "defaultQuantity": 100,
+    "unit": "ml",
+    "nutritionPer100g": {
+      "calories": 884,
+      "protein": 0.0,
+      "carbohydrates": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 2,
+        "potassium": 1,
+        "cholesterol": 0,
+        "iron": 0.6,
+        "calcium": 1
+      }
+    }
+  },
+  {
+    "name": "Aceite vegetal",
+    "category": "Aceites",
+    "defaultQuantity": 100,
+    "unit": "ml",
+    "nutritionPer100g": {
+      "calories": 884,
+      "protein": 0.0,
+      "carbohydrates": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "micronutrients": {
+        "sugars": 0.0,
+        "sodium": 0,
+        "potassium": 0,
+        "cholesterol": 0,
+        "iron": 0.0,
+        "calcium": 0
+      }
+    }
+  }
+]

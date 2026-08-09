@@ -73,5 +73,7 @@ public static class DbSeeder
             await userManager.CreateAsync(tenantAdmin, demoPassword);
             await userManager.AddToRoleAsync(tenantAdmin, UserRole.Admin.ToString());
         }
+
+        await FoodSeeder.SeedFoodsAsync(context);
     }
 }
