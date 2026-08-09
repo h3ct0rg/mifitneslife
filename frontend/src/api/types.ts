@@ -115,3 +115,97 @@ export interface CreatePatientRequest {
 export interface UpdatePatientRequest extends CreatePatientRequest {
   status: string
 }
+
+export interface MeasurementDto {
+  id: string
+  patientId: string
+  visitDate: string
+  weightKg?: number
+  heightCm?: number
+  bodyFatPct?: number
+  muscleMassKg?: number
+  boneMassKg?: number
+  bodyWaterPct?: number
+  basalMetabolism?: number
+  chestCm?: number
+  waistCm?: number
+  hipCm?: number
+  armCm?: number
+  forearmCm?: number
+  thighCm?: number
+  calfCm?: number
+  neckCm?: number
+  heartRateBpm?: number
+  systolicMmHg?: number
+  diastolicMmHg?: number
+  oxygenSaturationPct?: number
+  respiratoryRate?: number
+  temperatureC?: number
+  notes?: string
+  createdAt: string
+  imc?: number
+  imcRange: string
+  waistHipRatio?: number
+  waistHipRange: string
+  iac?: number
+  iacRange: string
+}
+
+export interface MeasurementIndexDto {
+  imc?: number
+  imcRange: string
+  waistHipRatio?: number
+  waistHipRange: string
+  iac?: number
+  iacRange: string
+}
+
+export interface MeasurementDeltaDto {
+  label: string
+  first?: number
+  last?: number
+  change?: number
+  unit: string
+}
+
+export interface MeasurementSeriesPointDto {
+  date: string
+  value?: number
+}
+
+export interface MeasurementDashboardDto {
+  latestIndexes?: MeasurementIndexDto
+  weightSeries: MeasurementSeriesPointDto[]
+  imcSeries: MeasurementSeriesPointDto[]
+  bodyFatSeries: MeasurementSeriesPointDto[]
+  waistSeries: MeasurementSeriesPointDto[]
+  deltas: MeasurementDeltaDto[]
+}
+
+export interface CreateMeasurementRequest {
+  visitDate: string
+  weightKg?: number
+  heightCm?: number
+  bodyFatPct?: number
+  muscleMassKg?: number
+  boneMassKg?: number
+  bodyWaterPct?: number
+  basalMetabolism?: number
+  chestCm?: number
+  waistCm?: number
+  hipCm?: number
+  armCm?: number
+  forearmCm?: number
+  thighCm?: number
+  calfCm?: number
+  neckCm?: number
+  heartRateBpm?: number
+  systolicMmHg?: number
+  diastolicMmHg?: number
+  oxygenSaturationPct?: number
+  respiratoryRate?: number
+  temperatureC?: number
+  notes?: string
+}
+
+export type UpdateMeasurementRequest = CreateMeasurementRequest

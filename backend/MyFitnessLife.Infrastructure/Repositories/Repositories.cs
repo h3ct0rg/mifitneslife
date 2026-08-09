@@ -249,3 +249,60 @@ public class PatientRepository : IPatientRepository
         return Task.CompletedTask;
     }
 }
+
+public class MeasurementRepository : IMeasurementRepository
+{
+    private readonly AppDbContext _context;
+
+    public MeasurementRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<Measurement>> GetByPatientAsync(
+        Guid patientId,
+        int page = 1,
+        int pageSize = 50)
+    {
+        return await _context.Measurements.AsNoTracking()
+            .Where(m => m.PatientId == patientId)
+            .OrderByDescending(m => m.VisitDate)
+            .ThenByDescending(m => m.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public async Task<int> CountByPatientAsync(Guid patientId)
+        => await _context.Measurements.CountAsync(m => m.PatientId == patientId);
+
+    public Task<Measurement?> GetByIdAsync(Guid id)
+        => _context.Measurements.FirstOrDefaultAsync(m => m.Id == id);
+
+    public Task<Measurement?> GetLatestAsync(Guid patientId)
+        => _context.Measurements.AsNoTracking()
+            .Where(m => m.PatientId == patientId)
+            .OrderByDescending(m => m.VisitDate)
+            .ThenByDescending(m => m.CreatedAt)
+            .FirstOrDefaultAsync();
+
+    public async Task<IEnumerable<Measurement>> GetHistoryAsync(Guid patientId, int take = 100)
+        => await _context.Measurements.AsNoTracking()
+            .Where(m => m.PatientId == patientId)
+            .OrderBy(m => m.VisitDate)
+            .ThenBy(m => m.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+
+    public async Task AddAsync(Measurement measurement)
+        => await _context.Measurements.AddAsync(measurement);
+
+    public Task UpdateAsync(Measurement measurement)
+    {
+        _context.Measurements.Update(measurement);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Measurement measurement)
+    {
+        _context.Measurements.Remove(measurement);
+        return Task.CompletedTask;
+    }
+}

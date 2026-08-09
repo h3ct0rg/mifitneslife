@@ -16,6 +16,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Patient> Patients => Set<Patient>();
+    public DbSet<Measurement> Measurements => Set<Measurement>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -81,6 +82,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.Property(p => p.Notes).HasMaxLength(2000);
             e.HasIndex(p => p.TenantId);
             e.HasIndex(p => new { p.TenantId, p.Email }).IsUnique();
+        });
+
+        builder.Entity<Measurement>(e =>
+        {
+            e.Property(m => m.Notes).HasMaxLength(2000);
+            e.HasIndex(m => m.PatientId);
+            e.HasIndex(m => new { m.PatientId, m.VisitDate });
+            e.HasOne(m => m.Patient)
+                .WithMany()
+                .HasForeignKey(m => m.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            foreach (var prop in typeof(Measurement).GetProperties()
+                .Where(p => p.PropertyType == typeof(decimal?) || p.PropertyType == typeof(decimal)))
+            {
+                e.Property(prop.Name).HasPrecision(18, 2);
+            }
         });
     }
 }

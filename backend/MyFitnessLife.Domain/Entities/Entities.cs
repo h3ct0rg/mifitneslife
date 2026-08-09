@@ -93,3 +93,41 @@ public class Patient : BaseEntityTenant
 
     public string FullName => $"{FirstName} {LastName}".Trim();
 }
+
+public class Measurement : BaseEntityTenant
+{
+    public Guid PatientId { get; set; }
+    public DateTime VisitDate { get; set; } = DateTime.UtcNow;
+
+    // Medidas basicas
+    public decimal? WeightKg { get; set; }
+    public decimal? HeightCm { get; set; }
+    public decimal? BodyFatPct { get; set; }
+    public decimal? MuscleMassKg { get; set; }
+    public decimal? BoneMassKg { get; set; }
+    public decimal? BodyWaterPct { get; set; }
+    public decimal? BasalMetabolism { get; set; }
+
+    // Circunferencias (cm)
+    public decimal? ChestCm { get; set; }
+    public decimal? WaistCm { get; set; }
+    public decimal? HipCm { get; set; }
+    public decimal? ArmCm { get; set; }
+    public decimal? ForearmCm { get; set; }
+    public decimal? ThighCm { get; set; }
+    public decimal? CalfCm { get; set; }
+    public decimal? NeckCm { get; set; }
+
+    // Signos vitales
+    public decimal? HeartRateBpm { get; set; }
+    public decimal? SystolicMmHg { get; set; }
+    public decimal? DiastolicMmHg { get; set; }
+    public decimal? OxygenSaturationPct { get; set; }
+    public decimal? RespiratoryRate { get; set; }
+    public decimal? TemperatureC { get; set; }
+
+    public string? Notes { get; set; }
+    public int? WaistHipRatioPoints { get; set; }
+
+    public Patient? Patient { get; set; }
+}
