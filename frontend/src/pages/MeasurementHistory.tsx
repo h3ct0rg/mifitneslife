@@ -78,6 +78,11 @@ export default function MeasurementHistory() {
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
 
+  const fmtTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+
+  const rounded = (v?: number) => (v == null ? null : Number(v.toFixed(1)))
+
   return (
     <div className="page">
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
@@ -94,52 +99,71 @@ export default function MeasurementHistory() {
         </div>
       </div>
 
-      <section className="card">
+      <section className="visit-cards">
         {loading ? (
           <p>Cargando...</p>
         ) : items.length === 0 ? (
           <div className="empty-state">Aún no hay visitas registradas.</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Peso (kg)</th>
-                <th>IMC</th>
-                <th>Grasa (%)</th>
-                <th>Cintura (cm)</th>
-                <th>Cadera (cm)</th>
-                <th>Notas</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((m) => (
-                <tr key={m.id}>
-                  <td>{fmtDate(m.visitDate)}</td>
-                  <td>{m.weightKg ?? '—'}</td>
-                  <td>
-                    {m.imc ?? '—'}
-                    {m.imc && <span className="text-muted small"> · {m.imcRange}</span>}
-                  </td>
-                  <td>{m.bodyFatPct ?? '—'}</td>
-                  <td>{m.waistCm ?? '—'}</td>
-                  <td>{m.hipCm ?? '—'}</td>
-                  <td className="text-muted" style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.notes ?? '—'}
-                  </td>
-                  <td>
-                    <button type="button" className="btn-ghost" onClick={() => setModal({ mode: 'edit', measurement: m })}>
-                      Editar
-                    </button>{' '}
-                    <button type="button" className="btn-danger-soft" onClick={() => handleDelete(m)}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          items.map((m) => (
+            <article key={m.id} className="visit-card">
+              <header className="visit-card-header">
+                <div className="visit-card-date">
+                  <strong>{fmtDate(m.visitDate)}</strong>
+                  <span>{fmtTime(m.visitDate)} h</span>
+                </div>
+                <div className="visit-card-actions">
+                  <button type="button" className="btn-ghost" onClick={() => setModal({ mode: 'edit', measurement: m })}>
+                    Editar
+                  </button>
+                  <button type="button" className="btn-danger-soft" onClick={() => handleDelete(m)}>
+                    Eliminar
+                  </button>
+                </div>
+              </header>
+
+              <div className="visit-card-body">
+                {m.notes && m.notes.trim().replace(/<[^>]*>/g, '') ? (
+                  <div className="visit-notes" /* eslint-disable-next-line react/no-danger */ dangerouslySetInnerHTML={{ __html: m.notes }} />
+                ) : (
+                  <p className="visit-notes-empty">Sin observaciones.</p>
+                )}
+              </div>
+
+              <footer className="visit-card-footer">
+                <div className="visit-metric">
+                  <span>Peso</span>
+                  <strong>{rounded(m.weightKg) ?? '—'}</strong>
+                  <em>kg</em>
+                </div>
+                <div className="visit-metric">
+                  <span>IMC</span>
+                  <strong>{rounded(m.imc) ?? '—'}</strong>
+                  <em>{m.imc ? m.imcRange : ''}</em>
+                </div>
+                <div className="visit-metric">
+                  <span>Grasa</span>
+                  <strong>{rounded(m.bodyFatPct) ?? '—'}</strong>
+                  <em>%</em>
+                </div>
+                <div className="visit-metric">
+                  <span>Cintura</span>
+                  <strong>{rounded(m.waistCm) ?? '—'}</strong>
+                  <em>cm</em>
+                </div>
+                <div className="visit-metric">
+                  <span>Cadera</span>
+                  <strong>{rounded(m.hipCm) ?? '—'}</strong>
+                  <em>cm</em>
+                </div>
+                <div className="visit-metric">
+                  <span>Pecho</span>
+                  <strong>{rounded(m.chestCm) ?? '—'}</strong>
+                  <em>cm</em>
+                </div>
+              </footer>
+            </article>
+          ))
         )}
 
         {totalPages > 1 && (

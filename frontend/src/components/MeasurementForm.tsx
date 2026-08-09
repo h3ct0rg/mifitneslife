@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CreateMeasurementRequest, MeasurementDto } from '../api/types'
+import RichTextEditor from './RichTextEditor'
 
 interface Props {
   title: string
@@ -81,8 +82,7 @@ export default function MeasurementForm({ title, initial, onSubmit, onCancel }: 
   const date = (e: React.ChangeEvent<HTMLInputElement>) =>
     setValues((v) => ({ ...v, visitDate: e.target.value }))
 
-  const setText = (field: 'notes') => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setValues((v) => ({ ...v, [field]: e.target.value }))
+  const setNotes = (html: string) => setValues((v) => ({ ...v, notes: html }))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -150,10 +150,10 @@ export default function MeasurementForm({ title, initial, onSubmit, onCancel }: 
             {input('Temperatura (°C)', 'temperatureC')}
           </div>
 
-          <label className="form-full">
-            Notas / observaciones
-            <textarea rows={3} value={values.notes ?? ''} onChange={setText('notes')} />
-          </label>
+          <div className="notes-section">
+            <label className="notes-label">Notas / observaciones</label>
+            <RichTextEditor value={values.notes ?? ''} onChange={setNotes} />
+          </div>
 
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={onCancel}>
