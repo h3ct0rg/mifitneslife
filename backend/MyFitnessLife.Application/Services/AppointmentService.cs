@@ -61,6 +61,12 @@ public class AppointmentService : IAppointmentService
         request.Apply(appointment);
         appointment.ProfessionalId = professional.Id;
 
+        if (!string.IsNullOrWhiteSpace(request.Status)
+            && Enum.TryParse<AppointmentStatus>(request.Status, ignoreCase: true, out var newStatus))
+        {
+            appointment.Status = newStatus;
+        }
+
         await _unitOfWork.Appointments.UpdateAsync(appointment);
         await _unitOfWork.SaveChangesAsync();
 

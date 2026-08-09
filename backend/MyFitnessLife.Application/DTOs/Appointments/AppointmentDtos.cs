@@ -18,6 +18,7 @@ public class UpdateAppointmentRequest
     public DateTime? EndAt { get; set; }
     public string? Title { get; set; }
     public string? Notes { get; set; }
+    public string? Status { get; set; }
 }
 
 public class AppointmentDto

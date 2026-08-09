@@ -242,4 +242,12 @@ export interface CreateAppointmentRequest {
   notes?: string
 }
 
-export type UpdateAppointmentRequest = CreateAppointmentRequest
+export interface UpdateAppointmentRequest {
+  patientId: string
+  professionalId: string
+  startAt: string
+  endAt?: string
+  title?: string
+  notes?: string
+  status?: AppointmentStatus
+}

@@ -7,6 +7,7 @@ import Patients from './pages/Patients'
 import PatientProfile from './pages/PatientProfile'
 import MeasurementHistory from './pages/MeasurementHistory'
 import Agenda from './pages/Agenda'
+import Citas from './pages/Citas'
 import Diets from './pages/Diets'
 import TrainingPlans from './pages/TrainingPlans'
 import Settings from './pages/Settings'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="pacientes/:id" element={<PatientProfile />} />
           <Route path="pacientes/:id/historial" element={<MeasurementHistory />} />
           <Route path="agenda" element={<Agenda />} />
+          <Route path="citas" element={<Citas />} />
           <Route path="dietas" element={<Diets />} />
           <Route path="planes-entrenamiento" element={<TrainingPlans />} />
           <Route path="configuracion" element={<Settings />} />

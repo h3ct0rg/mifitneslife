@@ -6,6 +6,7 @@ const MAIN_NAV = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/pacientes', label: 'Pacientes' },
   { to: '/agenda', label: 'Agenda' },
+  { to: '/citas', label: 'Citas' },
   { to: '/dietas', label: 'Dietas' },
   { to: '/planes-entrenamiento', label: 'Planes de entrenamiento' },
 ]
