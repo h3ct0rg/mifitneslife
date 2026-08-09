@@ -181,6 +181,42 @@ public class AuditLogRepository : IAuditLogRepository
             .ToListAsync();
 }
 
+public class AppointmentRepository : IAppointmentRepository
+{
+    private readonly AppDbContext _context;
+
+    public AppointmentRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<Appointment>> GetByRangeAsync(Guid tenantId, DateTime from, DateTime to)
+        => await _context.Appointments.AsNoTracking()
+            .Where(a => a.TenantId == tenantId && a.StartAt >= from && a.StartAt < to)
+            .Include(a => a.Patient)
+            .Include(a => a.Professional)
+            .OrderBy(a => a.StartAt)
+            .ToListAsync();
+
+    public Task<Appointment?> GetByIdAsync(Guid id)
+        => _context.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Professional)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+    public async Task AddAsync(Appointment appointment)
+        => await _context.Appointments.AddAsync(appointment);
+
+    public Task UpdateAsync(Appointment appointment)
+    {
+        _context.Appointments.Update(appointment);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Appointment appointment)
+    {
+        _context.Appointments.Remove(appointment);
+        return Task.CompletedTask;
+    }
+}
+
 public class PatientRepository : IPatientRepository
 {
     private readonly AppDbContext _context;

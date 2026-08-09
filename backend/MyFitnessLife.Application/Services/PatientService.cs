@@ -1,6 +1,6 @@
-using AutoMapper;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
+using MyFitnessLife.Application.Mapping;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Interfaces;
 
@@ -10,13 +10,11 @@ public class PatientService : IPatientService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITenantActivityService _activityService;
-    private readonly IMapper _mapper;
 
-    public PatientService(IUnitOfWork unitOfWork, ITenantActivityService activityService, IMapper mapper)
+    public PatientService(IUnitOfWork unitOfWork, ITenantActivityService activityService)
     {
         _unitOfWork = unitOfWork;
         _activityService = activityService;
-        _mapper = mapper;
     }
 
     public async Task<PagedResult<PatientDto>> GetPagedAsync(
@@ -33,7 +31,7 @@ public class PatientService : IPatientService
             Page = page,
             PageSize = pageSize,
             Total = total,
-            Items = _mapper.Map<IEnumerable<PatientDto>>(items)
+            Items = items.Select(p => p.ToDto())
         };
     }
 
@@ -44,7 +42,7 @@ public class PatientService : IPatientService
         if (patient.TenantId != tenantId)
             throw new UnauthorizedAccessException("No tiene acceso a ese paciente.");
 
-        return _mapper.Map<PatientDto>(patient);
+        return patient.ToDto();
     }
 
     public async Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request)
@@ -70,7 +68,7 @@ public class PatientService : IPatientService
         await _activityService.RecordEntityAsync(tenantId, "create_patient", "Patient", patient.Id.ToString(), email);
         await _unitOfWork.SaveChangesAsync();
 
-        return _mapper.Map<PatientDto>(patient);
+        return patient.ToDto();
     }
 
     public async Task<PatientDto> UpdateAsync(Guid tenantId, Guid id, UpdatePatientRequest request)
@@ -99,7 +97,7 @@ public class PatientService : IPatientService
         await _activityService.RecordEntityAsync(tenantId, "update_patient", "Patient", patient.Id.ToString(), email);
         await _unitOfWork.SaveChangesAsync();
 
-        return _mapper.Map<PatientDto>(patient);
+        return patient.ToDto();
     }
 
     public async Task DeleteAsync(Guid tenantId, Guid id)

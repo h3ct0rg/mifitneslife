@@ -75,6 +75,15 @@ public interface IMeasurementRepository
     Task DeleteAsync(Measurement measurement);
 }
 
+public interface IAppointmentRepository
+{
+    Task<IEnumerable<Appointment>> GetByRangeAsync(Guid tenantId, DateTime from, DateTime to);
+    Task<Appointment?> GetByIdAsync(Guid id);
+    Task AddAsync(Appointment appointment);
+    Task UpdateAsync(Appointment appointment);
+    Task DeleteAsync(Appointment appointment);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -91,5 +100,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IAuditLogRepository AuditLogs { get; }
     IPatientRepository Patients { get; }
     IMeasurementRepository Measurements { get; }
+    IAppointmentRepository Appointments { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

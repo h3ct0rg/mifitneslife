@@ -17,6 +17,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Measurement> Measurements => Set<Measurement>();
+    public DbSet<Appointment> Appointments => Set<Appointment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -99,6 +100,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             {
                 e.Property(prop.Name).HasPrecision(18, 2);
             }
+        });
+
+        builder.Entity<Appointment>(e =>
+        {
+            e.HasIndex(a => new { a.TenantId, a.StartAt });
+            e.HasOne(a => a.Patient)
+                .WithMany()
+                .HasForeignKey(a => a.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(a => a.Professional)
+                .WithMany()
+                .HasForeignKey(a => a.ProfessionalId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

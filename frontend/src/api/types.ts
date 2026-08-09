@@ -209,3 +209,37 @@ export interface CreateMeasurementRequest {
 }
 
 export type UpdateMeasurementRequest = CreateMeasurementRequest
+
+export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'NoShow'
+
+export interface ProfessionalDto {
+  id: string
+  fullName: string
+  email: string
+  role: string
+}
+
+export interface AppointmentDto {
+  id: string
+  patientId: string
+  patientFullName: string
+  professionalId: string
+  professionalFullName: string
+  professionalRole: string
+  startAt: string
+  endAt?: string
+  status: AppointmentStatus
+  title?: string
+  notes?: string
+}
+
+export interface CreateAppointmentRequest {
+  patientId: string
+  professionalId: string
+  startAt: string
+  endAt?: string
+  title?: string
+  notes?: string
+}
+
+export type UpdateAppointmentRequest = CreateAppointmentRequest

@@ -1,19 +1,23 @@
 import { api } from './client'
 import type {
   AdminDashboardDto,
+  AppointmentDto,
   AuthResponse,
+  CreateAppointmentRequest,
   CreateMeasurementRequest,
+  CreatePatientRequest,
   InviteRequest,
   InviteResponse,
   MeasurementDashboardDto,
   MeasurementDto,
-  PagedResult,
   PatientDto,
-  CreatePatientRequest,
-  UpdatePatientRequest,
-  UpdateMeasurementRequest,
+  PagedResult,
+  ProfessionalDto,
   TenantActivityDto,
   TenantDto,
+  UpdateAppointmentRequest,
+  UpdateMeasurementRequest,
+  UpdatePatientRequest,
   UserListItem,
   UserDto,
 } from './types'
@@ -76,6 +80,17 @@ export const measurementsApi = {
     api.put<MeasurementDto>(`/patients/${patientId}/measurements/${id}`, payload).then((r) => r.data),
   remove: (patientId: string, id: string) =>
     api.delete(`/patients/${patientId}/measurements/${id}`).then(() => undefined),
+}
+
+export const appointmentsApi = {
+  list: (params: { from: string; to: string }) =>
+    api.get<AppointmentDto[]>('/appointments', { params }).then((r) => r.data),
+  professionals: () => api.get<ProfessionalDto[]>('/appointments/professionals').then((r) => r.data),
+  create: (payload: CreateAppointmentRequest) =>
+    api.post<AppointmentDto>('/appointments', payload).then((r) => r.data),
+  update: (id: string, payload: UpdateAppointmentRequest) =>
+    api.put<AppointmentDto>(`/appointments/${id}`, payload).then((r) => r.data),
+  remove: (id: string) => api.delete(`/appointments/${id}`).then(() => undefined),
 }
 
 export async function uploadImage(file: File): Promise<string> {
