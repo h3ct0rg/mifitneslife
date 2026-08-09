@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import type { CreateMeasurementRequest, MeasurementDto } from '../api/types'
+import type { CreateMeasurementRequest, DietDto, MeasurementDto } from '../api/types'
 import RichTextEditor from './RichTextEditor'
 
 interface Props {
   title: string
   initial?: MeasurementDto
+  diets?: DietDto[]
+  assignedDietId?: string
+  onDietChange?: (dietId: string) => void
   onSubmit: (payload: CreateMeasurementRequest) => Promise<void>
   onCancel: () => void
 }
@@ -39,7 +42,7 @@ function num(v?: number) {
   return v == null ? '' : String(v)
 }
 
-export default function MeasurementForm({ title, initial, onSubmit, onCancel }: Props) {
+export default function MeasurementForm({ title, initial, diets, assignedDietId, onDietChange, onSubmit, onCancel }: Props) {
   const [values, setValues] = useState<CreateMeasurementRequest>(() => {
     if (!initial) return EMPTY
     return {
@@ -70,6 +73,7 @@ export default function MeasurementForm({ title, initial, onSubmit, onCancel }: 
   })
 
   const [submitting, setSubmitting] = useState(false)
+  const [dietId, setDietId] = useState(assignedDietId ?? '')
 
   const setN = (field: keyof CreateMeasurementRequest) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
@@ -89,6 +93,7 @@ export default function MeasurementForm({ title, initial, onSubmit, onCancel }: 
     setSubmitting(true)
     try {
       await onSubmit(values)
+      onDietChange?.(dietId)
     } finally {
       setSubmitting(false)
     }
@@ -116,6 +121,21 @@ export default function MeasurementForm({ title, initial, onSubmit, onCancel }: 
             Fecha de la visita *
             <input type="date" value={values.visitDate} onChange={date} required />
           </label>
+
+          {diets && onDietChange && (
+            <label>
+              Dieta asignada
+              <select value={dietId} onChange={(e) => setDietId(e.target.value)}>
+                <option value="">Sin dieta asignada</option>
+                {diets.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}{d.objective ? ` · ${d.objective}` : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="hint">Si cambias la dieta, se asignará al paciente al guardar la visita.</span>
+            </label>
+          )}
 
           <h3 className="fieldset-title">Composición corporal</h3>
           <div className="form-grid">

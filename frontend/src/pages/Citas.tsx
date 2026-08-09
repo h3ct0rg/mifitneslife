@@ -67,6 +67,7 @@ export default function Citas() {
       await appointmentsApi.update(appointment.id, {
         patientId: appointment.patientId,
         professionalId: appointment.professionalId,
+        dietId: appointment.dietId,
         startAt: appointment.startAt,
         endAt: appointment.endAt,
         title: appointment.title,

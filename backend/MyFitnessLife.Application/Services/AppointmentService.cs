@@ -38,6 +38,9 @@ public class AppointmentService : IAppointmentService
         appointment.TenantId = tenantId;
         appointment.ProfessionalId = proportional.Id;
 
+        if (request.DietId.HasValue)
+            appointment.DietId = await EnsureDietAsync(tenantId, request.PatientId, request.DietId.Value);
+
         await _unitOfWork.Appointments.AddAsync(appointment);
         await _unitOfWork.SaveChangesAsync();
 
@@ -60,6 +63,11 @@ public class AppointmentService : IAppointmentService
 
         request.Apply(appointment);
         appointment.ProfessionalId = professional.Id;
+
+        if (request.DietId.HasValue)
+            appointment.DietId = await EnsureDietAsync(tenantId, request.PatientId, request.DietId.Value);
+        else
+            appointment.DietId = null;
 
         if (!string.IsNullOrWhiteSpace(request.Status)
             && Enum.TryParse<AppointmentStatus>(request.Status, ignoreCase: true, out var newStatus))
@@ -115,6 +123,33 @@ public class AppointmentService : IAppointmentService
         return patient is not null && patient.TenantId == tenantId;
     }
 
+    private async Task<Guid> EnsureDietAsync(Guid tenantId, Guid patientId, Guid dietId)
+    {
+        var diet = await _unitOfWork.Diets.GetByIdAsync(dietId)
+            ?? throw new KeyNotFoundException("La dieta seleccionada no existe.");
+        if (diet.TenantId != tenantId)
+            throw new UnauthorizedAccessException("Acceso denegado a la dieta.");
+
+        // Desactivar la asignación activa actual y registrar la nueva en el historial.
+        var active = await _unitOfWork.PatientDiets.GetActiveByPatientAsync(patientId);
+        if (active is not null)
+        {
+            active.IsActive = false;
+            await _unitOfWork.PatientDiets.UpdateAsync(active);
+        }
+
+        await _unitOfWork.PatientDiets.AddAsync(new PatientDiet
+        {
+            TenantId = tenantId,
+            PatientId = patientId,
+            DietId = dietId,
+            AssignedAt = DateTime.UtcNow,
+            IsActive = true
+        });
+
+        return dietId;
+    }
+
     private async Task<AppointmentDto> GetByIdAsync(Guid tenantId, Guid id)
     {
         var appointment = await _unitOfWork.Appointments.GetByIdAsync(id)
@@ -138,6 +173,8 @@ public class AppointmentService : IAppointmentService
             ProfessionalId = appointment.ProfessionalId,
             ProfessionalFullName = professional?.FullName ?? "Profesional",
             ProfessionalRole = professional?.Role.ToString() ?? string.Empty,
+            DietId = appointment.DietId,
+            DietName = appointment.Diet?.Name,
             StartAt = appointment.StartAt,
             EndAt = appointment.EndAt,
             Status = appointment.Status.ToString(),

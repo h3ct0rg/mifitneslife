@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { appointmentsApi, patientsApi } from '../api'
+import { appointmentsApi, dietsApi, patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { AppointmentDto, AppointmentStatus, CreateAppointmentRequest, PatientDto, ProfessionalDto } from '../api/types'
+import type { AppointmentDto, AppointmentStatus, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
 import AppointmentForm from '../components/AppointmentForm'
 
 type ViewMode = 'month' | 'week' | 'day'
@@ -64,6 +64,7 @@ export default function Agenda() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [patients, setPatients] = useState<PatientDto[]>([])
   const [professionals, setProfessionals] = useState<ProfessionalDto[]>([])
+  const [diets, setDiets] = useState<DietDto[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [modal, setModal] = useState<
@@ -88,14 +89,16 @@ export default function Agenda() {
     setLoading(true)
     setMessage(null)
     try {
-      const [apps, pats, profs] = await Promise.all([
+      const [apps, pats, profs, dietList] = await Promise.all([
         appointmentsApi.list({ from: period.from.toISOString(), to: period.to.toISOString() }),
         patientsApi.list({ page: 1, pageSize: 100 }),
         appointmentsApi.professionals(),
+        dietsApi.list(),
       ])
       setAppointments(apps)
       setPatients(pats.items)
       setProfessionals(profs)
+      setDiets(dietList)
     } catch (err) {
       setMessage({ type: 'err', text: getErrorMessage(err) })
     } finally {
@@ -251,6 +254,7 @@ export default function Agenda() {
           initial={modal.mode === 'edit' ? modal.appointment : undefined}
           patients={patients}
           professionals={professionals}
+          diets={diets}
           onSubmit={modal.mode === 'create'
             ? handleCreate
             : (payload) => handleUpdate(modal.appointment.id, payload)}

@@ -18,6 +18,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Measurement> Measurements => Set<Measurement>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<Food> Foods => Set<Food>();
+    public DbSet<Diet> Diets => Set<Diet>();
+    public DbSet<Meal> Meals => Set<Meal>();
+    public DbSet<MealItem> MealItems => Set<MealItem>();
+    public DbSet<PatientDiet> PatientDiets => Set<PatientDiet>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -112,6 +117,84 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.HasOne(a => a.Professional)
                 .WithMany()
                 .HasForeignKey(a => a.ProfessionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(a => a.Diet)
+                .WithMany()
+                .HasForeignKey(a => a.DietId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Food>(e =>
+        {
+            e.Property(f => f.Name).HasMaxLength(200).IsRequired();
+            e.Property(f => f.Category).HasMaxLength(100).IsRequired();
+            e.Property(f => f.Subcategory).HasMaxLength(100);
+            e.Property(f => f.Unit).HasMaxLength(20).IsRequired();
+            e.Property(f => f.Brand).HasMaxLength(150);
+            e.Property(f => f.Code).HasMaxLength(100);
+            e.HasIndex(f => new { f.TenantId, f.Name }).IsUnique();
+
+            foreach (var prop in typeof(Food).GetProperties()
+                .Where(p => p.PropertyType == typeof(decimal) || p.PropertyType == typeof(decimal?)))
+            {
+                e.Property(prop.Name).HasPrecision(18, 2);
+            }
+        });
+
+        builder.Entity<Diet>(e =>
+        {
+            e.Property(d => d.Name).HasMaxLength(200).IsRequired();
+            e.Property(d => d.Objective).HasMaxLength(200);
+            e.HasOne(d => d.Patient)
+                .WithMany()
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            foreach (var prop in typeof(Diet).GetProperties()
+                .Where(p => p.PropertyType == typeof(decimal) || p.PropertyType == typeof(decimal?)))
+            {
+                e.Property(prop.Name).HasPrecision(18, 2);
+            }
+        });
+
+        builder.Entity<Meal>(e =>
+        {
+            e.Property(m => m.Name).HasMaxLength(100).IsRequired();
+            e.Property(m => m.ScheduledTime).HasMaxLength(10);
+            e.HasOne(m => m.Diet)
+                .WithMany(d => d.Meals)
+                .HasForeignKey(m => m.DietId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<MealItem>(e =>
+        {
+            e.HasOne(mi => mi.Meal)
+                .WithMany(m => m.Items)
+                .HasForeignKey(mi => mi.MealId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(mi => mi.Food)
+                .WithMany()
+                .HasForeignKey(mi => mi.FoodId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            foreach (var prop in typeof(MealItem).GetProperties()
+                .Where(p => p.PropertyType == typeof(decimal) || p.PropertyType == typeof(decimal?)))
+            {
+                e.Property(prop.Name).HasPrecision(18, 2);
+            }
+        });
+
+        builder.Entity<PatientDiet>(e =>
+        {
+            e.HasIndex(pd => new { pd.PatientId, pd.IsActive });
+            e.HasOne(pd => pd.Patient)
+                .WithMany()
+                .HasForeignKey(pd => pd.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(pd => pd.Diet)
+                .WithMany()
+                .HasForeignKey(pd => pd.DietId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

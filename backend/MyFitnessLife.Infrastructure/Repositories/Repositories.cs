@@ -192,6 +192,7 @@ public class AppointmentRepository : IAppointmentRepository
             .Where(a => a.TenantId == tenantId && a.StartAt >= from && a.StartAt < to)
             .Include(a => a.Patient)
             .Include(a => a.Professional)
+            .Include(a => a.Diet)
             .OrderBy(a => a.StartAt)
             .ToListAsync();
 
@@ -199,6 +200,7 @@ public class AppointmentRepository : IAppointmentRepository
         => _context.Appointments
             .Include(a => a.Patient)
             .Include(a => a.Professional)
+            .Include(a => a.Diet)
             .FirstOrDefaultAsync(a => a.Id == id);
 
     public async Task AddAsync(Appointment appointment)
@@ -213,6 +215,179 @@ public class AppointmentRepository : IAppointmentRepository
     public Task DeleteAsync(Appointment appointment)
     {
         _context.Appointments.Remove(appointment);
+        return Task.CompletedTask;
+    }
+}
+
+public class FoodRepository : IFoodRepository
+{
+    private readonly AppDbContext _context;
+
+    public FoodRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<Food>> GetByTenantAsync(
+        Guid tenantId,
+        string? search = null,
+        string? category = null,
+        int page = 1,
+        int pageSize = 50)
+    {
+        var query = _context.Foods.AsNoTracking().Where(f => f.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(f => f.Name.Contains(s) || f.Code!.Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var c = category.Trim();
+            query = query.Where(f => f.Category == c);
+        }
+
+        return await query
+            .OrderBy(f => f.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    }
+
+    public Task<int> CountByTenantAsync(Guid tenantId, string? search = null, string? category = null)
+    {
+        var query = _context.Foods.AsNoTracking().Where(f => f.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(f => f.Name.Contains(s) || f.Code!.Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var c = category.Trim();
+            query = query.Where(f => f.Category == c);
+        }
+
+        return query.CountAsync();
+    }
+
+    public async Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId)
+        => await _context.Foods.AsNoTracking()
+            .Where(f => f.TenantId == tenantId)
+            .Select(f => f.Category)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+    public Task<Food?> GetByIdAsync(Guid id)
+        => _context.Foods.FirstOrDefaultAsync(f => f.Id == id);
+
+    public Task<Food?> GetByNameAsync(Guid tenantId, string name)
+        => _context.Foods.FirstOrDefaultAsync(f => f.TenantId == tenantId && f.Name == name);
+
+    public async Task AddAsync(Food food)
+        => await _context.Foods.AddAsync(food);
+
+    public Task UpdateAsync(Food food)
+    {
+        _context.Foods.Update(food);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Food food)
+    {
+        _context.Foods.Remove(food);
+        return Task.CompletedTask;
+    }
+}
+
+public class DietRepository : IDietRepository
+{
+    private readonly AppDbContext _context;
+
+    public DietRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<Diet>> GetByTenantAsync(Guid tenantId)
+        => await _context.Diets.AsNoTracking()
+            .Where(d => d.TenantId == tenantId)
+            .Include(d => d.Patient)
+            .OrderByDescending(d => d.CreatedAt)
+            .ToListAsync();
+
+    public Task<Diet?> GetByIdAsync(Guid id)
+        => _context.Diets.AsSplitQuery()
+            .Include(d => d.Patient)
+            .Include(d => d.Meals)
+                .ThenInclude(m => m.Items)
+                    .ThenInclude(i => i.Food)
+            .FirstOrDefaultAsync(d => d.Id == id);
+
+    public Task<Diet?> GetByPatientAsync(Guid patientId)
+        => _context.Diets.AsSplitQuery()
+            .Include(d => d.Patient)
+            .Include(d => d.Meals)
+                .ThenInclude(m => m.Items)
+                    .ThenInclude(i => i.Food)
+            .FirstOrDefaultAsync(d => d.PatientId == patientId);
+
+    public async Task AddAsync(Diet diet)
+        => await _context.Diets.AddAsync(diet);
+
+    public Task UpdateAsync(Diet diet)
+    {
+        _context.Entry(diet).State = EntityState.Modified;
+        return Task.CompletedTask;
+    }
+
+    public async Task ReplaceMealsAsync(Diet diet, List<Meal> meals)
+    {
+        // Carga las comidas actuales (con sus items) con tracking para poder borrarlas.
+        var currentMeals = await _context.Meals
+            .Include(m => m.Items)
+            .Where(m => m.DietId == diet.Id)
+            .ToListAsync();
+
+        _context.Meals.RemoveRange(currentMeals);
+
+        foreach (var meal in meals)
+        {
+            meal.DietId = diet.Id;
+            _context.Meals.Add(meal);
+        }
+    }
+
+    public Task DeleteAsync(Diet diet)
+    {
+        _context.Diets.Remove(diet);
+        return Task.CompletedTask;
+    }
+}
+
+public class PatientDietRepository : IPatientDietRepository
+{
+    private readonly AppDbContext _context;
+
+    public PatientDietRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<PatientDiet>> GetHistoryByPatientAsync(Guid patientId)
+        => await _context.PatientDiets.AsNoTracking()
+            .Where(pd => pd.PatientId == patientId)
+            .Include(pd => pd.Diet)
+            .OrderByDescending(pd => pd.AssignedAt)
+            .ToListAsync();
+
+    public Task<PatientDiet?> GetActiveByPatientAsync(Guid patientId)
+        => _context.PatientDiets.AsNoTracking()
+            .Include(pd => pd.Diet)
+            .FirstOrDefaultAsync(pd => pd.PatientId == patientId && pd.IsActive);
+
+    public async Task AddAsync(PatientDiet patientDiet)
+        => await _context.PatientDiets.AddAsync(patientDiet);
+
+    public Task UpdateAsync(PatientDiet patientDiet)
+    {
+        _context.PatientDiets.Update(patientDiet);
         return Task.CompletedTask;
     }
 }

@@ -18,6 +18,9 @@ public class UnitOfWork : IUnitOfWork
         Patients = new PatientRepository(context);
         Measurements = new MeasurementRepository(context);
         Appointments = new AppointmentRepository(context);
+        Foods = new FoodRepository(context);
+        Diets = new DietRepository(context);
+        PatientDiets = new PatientDietRepository(context);
     }
 
     public IUserRepository Users { get; }
@@ -28,6 +31,9 @@ public class UnitOfWork : IUnitOfWork
     public IPatientRepository Patients { get; }
     public IMeasurementRepository Measurements { get; }
     public IAppointmentRepository Appointments { get; }
+    public IFoodRepository Foods { get; }
+    public IDietRepository Diets { get; }
+    public IPatientDietRepository PatientDiets { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);

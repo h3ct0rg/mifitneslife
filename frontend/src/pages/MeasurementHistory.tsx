@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { measurementsApi } from '../api'
+import { dietsApi, measurementsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { CreateMeasurementRequest, MeasurementDto } from '../api/types'
+import type { CreateMeasurementRequest, DietDto, MeasurementDto } from '../api/types'
 import MeasurementForm from '../components/MeasurementForm'
 
 const PAGE_SIZE = 10
@@ -17,15 +17,22 @@ export default function MeasurementHistory() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; measurement: MeasurementDto } | null>(null)
+  const [diets, setDiets] = useState<DietDto[]>([])
+  const [assignedDietId, setAssignedDietId] = useState('')
 
   const load = useCallback(async (p = 1) => {
     if (!id) return
     setLoading(true)
     setMessage(null)
     try {
-      const data = await measurementsApi.list(id, { page: p, pageSize: PAGE_SIZE })
+      const [data, dietRes] = await Promise.all([
+        measurementsApi.list(id, { page: p, pageSize: PAGE_SIZE }),
+        dietsApi.getByPatient(id),
+      ])
       setItems(data.items)
       setTotal(data.total)
+      setDiets(await dietsApi.list())
+      setAssignedDietId(dietRes.assigned && dietRes.diet ? dietRes.diet.id : '')
     } catch (err) {
       setMessage({ type: 'err', text: getErrorMessage(err) })
     } finally {
@@ -38,6 +45,16 @@ export default function MeasurementHistory() {
   }, [load])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const handleDietChange = async (dietId: string) => {
+    if (!id) return
+    try {
+      await dietsApi.assign(id, dietId || undefined)
+      setAssignedDietId(dietId)
+    } catch {
+      // no bloquea la visita
+    }
+  }
 
   const handleCreate = async (payload: CreateMeasurementRequest) => {
     if (!id) return
@@ -183,6 +200,9 @@ export default function MeasurementHistory() {
         <MeasurementForm
           title={modal.mode === 'create' ? 'Nueva visita' : 'Editar visita'}
           initial={modal.mode === 'edit' ? modal.measurement : undefined}
+          diets={diets}
+          assignedDietId={assignedDietId}
+          onDietChange={handleDietChange}
           onSubmit={modal.mode === 'create' ? handleCreate : handleUpdate}
           onCancel={() => setModal(null)}
         />

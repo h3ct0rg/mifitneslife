@@ -84,6 +84,42 @@ public interface IAppointmentRepository
     Task DeleteAsync(Appointment appointment);
 }
 
+public interface IFoodRepository
+{
+    Task<IEnumerable<Food>> GetByTenantAsync(
+        Guid tenantId,
+        string? search = null,
+        string? category = null,
+        int page = 1,
+        int pageSize = 50);
+    Task<int> CountByTenantAsync(Guid tenantId, string? search = null, string? category = null);
+    Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId);
+    Task<Food?> GetByIdAsync(Guid id);
+    Task<Food?> GetByNameAsync(Guid tenantId, string name);
+    Task AddAsync(Food food);
+    Task UpdateAsync(Food food);
+    Task DeleteAsync(Food food);
+}
+
+public interface IDietRepository
+{
+    Task<IEnumerable<Diet>> GetByTenantAsync(Guid tenantId);
+    Task<Diet?> GetByIdAsync(Guid id);
+    Task<Diet?> GetByPatientAsync(Guid patientId);
+    Task AddAsync(Diet diet);
+    Task UpdateAsync(Diet diet);
+    Task ReplaceMealsAsync(Diet diet, List<Meal> meals);
+    Task DeleteAsync(Diet diet);
+}
+
+public interface IPatientDietRepository
+{
+    Task<IEnumerable<PatientDiet>> GetHistoryByPatientAsync(Guid patientId);
+    Task<PatientDiet?> GetActiveByPatientAsync(Guid patientId);
+    Task AddAsync(PatientDiet patientDiet);
+    Task UpdateAsync(PatientDiet patientDiet);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -101,5 +137,8 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IPatientRepository Patients { get; }
     IMeasurementRepository Measurements { get; }
     IAppointmentRepository Appointments { get; }
+    IFoodRepository Foods { get; }
+    IDietRepository Diets { get; }
+    IPatientDietRepository PatientDiets { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -136,6 +136,7 @@ public class Appointment : BaseEntityTenant
 {
     public Guid PatientId { get; set; }
     public Guid ProfessionalId { get; set; }
+    public Guid? DietId { get; set; }
     public DateTime StartAt { get; set; }
     public DateTime? EndAt { get; set; }
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Scheduled;
@@ -144,4 +145,86 @@ public class Appointment : BaseEntityTenant
 
     public Patient? Patient { get; set; }
     public ApplicationUser? Professional { get; set; }
+    public Diet? Diet { get; set; }
+}
+
+public class Food : BaseEntityTenant
+{
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string? Subcategory { get; set; }
+    public string? Description { get; set; }
+    public string Unit { get; set; } = "g";
+    public decimal DefaultQuantity { get; set; } = 100;
+    public string? Brand { get; set; }
+    public string? Code { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+
+    // Nutrición por 100 g / 100 ml
+    public decimal Calories { get; set; }
+    public decimal Protein { get; set; }
+    public decimal Carbohydrates { get; set; }
+    public decimal Fat { get; set; }
+    public decimal Fiber { get; set; }
+    public decimal Sugar { get; set; }
+    public decimal Sodium { get; set; }
+    public decimal Potassium { get; set; }
+    public decimal Calcium { get; set; }
+    public decimal Iron { get; set; }
+    public decimal Cholesterol { get; set; }
+}
+
+public class Diet : BaseEntityTenant
+{
+    public string Name { get; set; } = string.Empty;
+    public Guid? PatientId { get; set; }
+    public string? Objective { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public string? Observations { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+
+    // Objetivos nutricionales diarios
+    public decimal? GoalCalories { get; set; }
+    public decimal? GoalProtein { get; set; }
+    public decimal? GoalCarbs { get; set; }
+    public decimal? GoalFat { get; set; }
+    public decimal? GoalFiber { get; set; }
+
+    public Patient? Patient { get; set; }
+    public ICollection<Meal> Meals { get; set; } = new List<Meal>();
+}
+
+public class Meal : BaseEntityTenant
+{
+    public Guid DietId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? ScheduledTime { get; set; }
+    public string? Instructions { get; set; }
+    public int SortOrder { get; set; }
+
+    public Diet? Diet { get; set; }
+    public ICollection<MealItem> Items { get; set; } = new List<MealItem>();
+}
+
+public class MealItem : BaseEntityTenant
+{
+    public Guid MealId { get; set; }
+    public Guid FoodId { get; set; }
+    public decimal Quantity { get; set; }
+    public string Unit { get; set; } = "g";
+
+    public Meal? Meal { get; set; }
+    public Food? Food { get; set; }
+}
+
+public class PatientDiet : BaseEntityTenant
+{
+    public Guid PatientId { get; set; }
+    public Guid DietId { get; set; }
+    public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
+    public bool IsActive { get; set; } = true;
+
+    public Patient? Patient { get; set; }
+    public Diet? Diet { get; set; }
 }

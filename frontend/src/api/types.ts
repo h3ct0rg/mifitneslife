@@ -226,6 +226,8 @@ export interface AppointmentDto {
   professionalId: string
   professionalFullName: string
   professionalRole: string
+  dietId?: string
+  dietName?: string
   startAt: string
   endAt?: string
   status: AppointmentStatus
@@ -236,6 +238,7 @@ export interface AppointmentDto {
 export interface CreateAppointmentRequest {
   patientId: string
   professionalId: string
+  dietId?: string
   startAt: string
   endAt?: string
   title?: string
@@ -245,9 +248,170 @@ export interface CreateAppointmentRequest {
 export interface UpdateAppointmentRequest {
   patientId: string
   professionalId: string
+  dietId?: string
   startAt: string
   endAt?: string
   title?: string
   notes?: string
   status?: AppointmentStatus
+}
+
+export interface FoodDto {
+  id: string
+  name: string
+  category: string
+  subcategory?: string
+  description?: string
+  unit: string
+  defaultQuantity: number
+  brand?: string
+  code?: string
+  status: string
+  calories: number
+  protein: number
+  carbohydrates: number
+  fat: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+  calcium: number
+  iron: number
+  cholesterol: number
+}
+
+export interface CreateFoodRequest {
+  name: string
+  category: string
+  subcategory?: string
+  description?: string
+  unit: string
+  defaultQuantity: number
+  brand?: string
+  code?: string
+  calories: number
+  protein: number
+  carbohydrates: number
+  fat: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+  calcium: number
+  iron: number
+  cholesterol: number
+}
+
+export interface UpdateFoodRequest extends CreateFoodRequest {
+  status: string
+}
+
+export interface MealItemDto {
+  id: string
+  foodId: string
+  foodName: string
+  quantity: number
+  unit: string
+  calories: number
+  protein: number
+  carbohydrates: number
+  fat: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+  cholesterol: number
+  iron: number
+  calcium: number
+}
+
+export interface MealDto {
+  id: string
+  name: string
+  scheduledTime?: string
+  instructions?: string
+  sortOrder: number
+  items: MealItemDto[]
+  calories: number
+  protein: number
+  carbohydrates: number
+  fat: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+  cholesterol: number
+  iron: number
+  calcium: number
+}
+
+export interface DietDto {
+  id: string
+  name: string
+  patientId?: string
+  patientName?: string
+  objective?: string
+  startDate?: string
+  endDate?: string
+  observations?: string
+  status: string
+  createdAt: string
+  goalCalories?: number
+  goalProtein?: number
+  goalCarbs?: number
+  goalFat?: number
+  goalFiber?: number
+  meals: MealDto[]
+  calories: number
+  protein: number
+  carbohydrates: number
+  fat: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+  cholesterol: number
+  iron: number
+  calcium: number
+}
+
+export interface MealItemRequest {
+  foodId: string
+  quantity: number
+  unit: string
+}
+
+export interface MealRequest {
+  name: string
+  scheduledTime?: string
+  instructions?: string
+  items: MealItemRequest[]
+}
+
+export interface PatientDietDto {
+  id: string
+  dietId: string
+  dietName: string
+  objective?: string
+  assignedAt: string
+  isActive: boolean
+}
+
+export interface CreateDietRequest {
+  name: string
+  patientId?: string
+  objective?: string
+  startDate?: string
+  endDate?: string
+  observations?: string
+  goalCalories?: number
+  goalProtein?: number
+  goalCarbs?: number
+  goalFat?: number
+  goalFiber?: number
+  meals: MealRequest[]
+}
+
+export interface UpdateDietRequest extends CreateDietRequest {
+  status: string
 }
