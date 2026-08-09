@@ -2658,3 +2658,252 @@ textarea {
 .diet-history-item .badge {
   flex-shrink: 0;
 }
+
+/* ============ Ejercicios ============ */
+
+.exercise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.exercise-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.exercise-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.exercise-media {
+  background: rgba(2, 6, 23, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  overflow: hidden;
+}
+
+.exercise-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.exercise-media-empty {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+.exercise-card-body {
+  padding: 0.85rem 1rem;
+}
+
+.exercise-card-body h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+  line-height: 1.3;
+}
+
+.exercise-tags {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.exercise-target {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.modal-exercise {
+  max-width: 620px;
+}
+
+.modal-exercise-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.modal-exercise-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.exercise-detail-media {
+  width: 100%;
+  height: 260px;
+  background: rgba(2, 6, 23, 0.4);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.exercise-detail-media .exercise-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.exercise-instructions {
+  margin-top: 1rem;
+}
+
+.exercise-instructions h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.exercise-instructions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* ============ Planes de entrenamiento ============ */
+
+.workout-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.workout-plan-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.workout-plan-stats div {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.workout-plan-stats span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.workout-plan-stats strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.workout-plan-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.workout-plan-day {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+}
+
+.workout-plan-day strong {
+  font-size: 0.88rem;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.workout-plan-day-ex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Constructor */
+.workout-ex-row {
+  align-items: flex-start;
+}
+
+.workout-ex-media {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.6rem;
+}
+
+.workout-ex-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workout-ex-fields {
+  flex: 1;
+  min-width: 0;
+}
+
+.workout-ex-name {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.workout-ex-inputs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.workout-ex-inputs input {
+  width: 88px;
+  margin-bottom: 0;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.workout-search-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .exercise-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .exercise-media {
+    height: 130px;
+  }
+
+  .workout-plans-grid {
+    grid-template-columns: 1fr;
+  }
+}

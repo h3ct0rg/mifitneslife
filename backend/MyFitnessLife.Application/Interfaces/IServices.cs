@@ -2,10 +2,12 @@ using MyFitnessLife.Application.DTOs.Admin;
 using MyFitnessLife.Application.DTOs.Appointments;
 using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Diets;
+using MyFitnessLife.Application.DTOs.Exercises;
 using MyFitnessLife.Application.DTOs.Foods;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.Users;
+using MyFitnessLife.Application.DTOs.WorkoutPlans;
 using MyFitnessLife.Domain.Entities;
 
 namespace MyFitnessLife.Application.Interfaces;
@@ -105,5 +107,32 @@ public interface IDietService
     Task<DietDto> CreateAsync(Guid tenantId, CreateDietRequest request);
     Task<DietDto> UpdateAsync(Guid tenantId, Guid id, UpdateDietRequest request);
     Task AssignToPatientAsync(Guid tenantId, Guid patientId, Guid? dietId);
+    Task DeleteAsync(Guid tenantId, Guid id);
+}
+
+public interface IExerciseService
+{
+    Task<PagedResult<ExerciseDto>> GetPagedAsync(
+        string? search = null,
+        string? category = null,
+        string? equipment = null,
+        int page = 1,
+        int pageSize = 50);
+    Task<IEnumerable<string>> GetCategoriesAsync();
+    Task<IEnumerable<string>> GetEquipmentAsync();
+    Task<ExerciseDto> GetByIdAsync(Guid id);
+    Task<ExerciseDto> CreateAsync(CreateExerciseRequest request);
+    Task<ExerciseDto> UpdateAsync(Guid id, UpdateExerciseRequest request);
+    Task DeleteAsync(Guid id);
+    Task<int> ImportMediaAsync();
+}
+
+public interface IWorkoutPlanService
+{
+    Task<IEnumerable<WorkoutPlanDto>> GetByTenantAsync(Guid tenantId);
+    Task<WorkoutPlanDto> GetByIdAsync(Guid tenantId, Guid id);
+    Task<WorkoutPlanDto?> GetByPatientAsync(Guid tenantId, Guid patientId);
+    Task<WorkoutPlanDto> CreateAsync(Guid tenantId, CreateWorkoutPlanRequest request);
+    Task<WorkoutPlanDto> UpdateAsync(Guid tenantId, Guid id, UpdateWorkoutPlanRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);
 }

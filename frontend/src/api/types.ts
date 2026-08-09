@@ -397,6 +397,101 @@ export interface PatientDietDto {
   isActive: boolean
 }
 
+export interface ExerciseDto {
+  id: string
+  name: string
+  category: string
+  bodyPart: string
+  equipment: string
+  target?: string
+  muscleGroup?: string
+  secondaryMuscles?: string
+  instructions?: string
+  imageUrl?: string
+  gifUrl?: string
+  mediaId?: string
+  status: string
+}
+
+export interface CreateExerciseRequest {
+  name: string
+  category: string
+  bodyPart: string
+  equipment: string
+  target?: string
+  muscleGroup?: string
+  secondaryMuscles?: string
+  instructions?: string
+  imageUrl?: string
+  gifUrl?: string
+  mediaId?: string
+}
+
+export interface UpdateExerciseRequest extends CreateExerciseRequest {
+  status: string
+}
+
+export interface WorkoutExerciseDto {
+  id: string
+  exerciseId: string
+  exerciseName: string
+  exerciseCategory: string
+  exerciseEquipment: string
+  exerciseGifUrl?: string
+  sets?: number
+  reps?: string
+  restSeconds?: number
+  notes?: string
+  sortOrder: number
+}
+
+export interface WorkoutDayDto {
+  id: string
+  dayName: string
+  notes?: string
+  sortOrder: number
+  exercises: WorkoutExerciseDto[]
+}
+
+export interface WorkoutPlanDto {
+  id: string
+  name: string
+  patientId?: string
+  patientName?: string
+  objective?: string
+  observations?: string
+  status: string
+  createdAt: string
+  days: WorkoutDayDto[]
+  totalExercises: number
+}
+
+export interface WorkoutExerciseRequest {
+  exerciseId: string
+  sets?: number
+  reps?: string
+  restSeconds?: number
+  notes?: string
+}
+
+export interface WorkoutDayRequest {
+  dayName: string
+  notes?: string
+  exercises: WorkoutExerciseRequest[]
+}
+
+export interface CreateWorkoutPlanRequest {
+  name: string
+  patientId?: string
+  objective?: string
+  observations?: string
+  days: WorkoutDayRequest[]
+}
+
+export interface UpdateWorkoutPlanRequest extends CreateWorkoutPlanRequest {
+  status: string
+}
+
 export interface CreateDietRequest {
   name: string
   patientId?: string

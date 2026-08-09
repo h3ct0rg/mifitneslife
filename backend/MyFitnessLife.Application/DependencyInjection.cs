@@ -17,6 +17,8 @@ public static class DependencyInjection
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IFoodService, FoodService>();
         services.AddScoped<IDietService, DietService>();
+        services.AddScoped<IExerciseService, ExerciseService>();
+        services.AddScoped<IWorkoutPlanService, WorkoutPlanService>();
 
         return services;
     }

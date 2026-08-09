@@ -432,6 +432,73 @@ namespace Infrastructure.Migrations
                     b.ToTable("Diets");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.Exercise", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyPart")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Equipment")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("GifUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Instructions")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MediaId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MuscleGroup")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("SecondaryMuscles")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Target")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("Exercises");
+                });
+
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Food", b =>
                 {
                     b.Property<Guid>("Id")
@@ -971,6 +1038,126 @@ namespace Infrastructure.Migrations
                     b.ToTable("Tenants");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutDay", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.ToTable("WorkoutDays");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutExercise", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DayId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ExerciseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Reps")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("RestSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Sets")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DayId");
+
+                    b.HasIndex("ExerciseId");
+
+                    b.ToTable("WorkoutExercises");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Objective")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Observations")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("WorkoutPlans");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("MyFitnessLife.Domain.Entities.ApplicationRole", null)
@@ -1156,6 +1343,46 @@ namespace Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutDay", b =>
+                {
+                    b.HasOne("MyFitnessLife.Domain.Entities.WorkoutPlan", "Plan")
+                        .WithMany("Days")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutExercise", b =>
+                {
+                    b.HasOne("MyFitnessLife.Domain.Entities.WorkoutDay", "Day")
+                        .WithMany("Exercises")
+                        .HasForeignKey("DayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyFitnessLife.Domain.Entities.Exercise", "Exercise")
+                        .WithMany()
+                        .HasForeignKey("ExerciseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Day");
+
+                    b.Navigation("Exercise");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutPlan", b =>
+                {
+                    b.HasOne("MyFitnessLife.Domain.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Diet", b =>
                 {
                     b.Navigation("Meals");
@@ -1169,6 +1396,16 @@ namespace Infrastructure.Migrations
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Tenant", b =>
                 {
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutDay", b =>
+                {
+                    b.Navigation("Exercises");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutPlan", b =>
+                {
+                    b.Navigation("Days");
                 });
 #pragma warning restore 612, 618
         }

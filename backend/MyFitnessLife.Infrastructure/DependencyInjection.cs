@@ -40,6 +40,7 @@ public static class DependencyInjection
 
         services.Configure<MinioSettings>(configuration.GetSection("Minio"));
         services.AddScoped<IMinioService, MinioService>();
+        services.Configure<ExerciseDatasetOptions>(configuration.GetSection("ExerciseDataset"));
 
         var minioSection = configuration.GetSection("Minio");
         var minioOptions = minioSection.Get<MinioSettings>() ?? new MinioSettings();
