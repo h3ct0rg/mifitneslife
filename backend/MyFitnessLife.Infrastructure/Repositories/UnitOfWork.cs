@@ -17,6 +17,7 @@ public class UnitOfWork : IUnitOfWork
         AuditLogs = new AuditLogRepository(context);
         Patients = new PatientRepository(context);
         Measurements = new MeasurementRepository(context);
+        Appointments = new AppointmentRepository(context);
     }
 
     public IUserRepository Users { get; }
@@ -26,6 +27,7 @@ public class UnitOfWork : IUnitOfWork
     public IAuditLogRepository AuditLogs { get; }
     public IPatientRepository Patients { get; }
     public IMeasurementRepository Measurements { get; }
+    public IAppointmentRepository Appointments { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);

@@ -1,4 +1,3 @@
-using AutoMapper;
 using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.Interfaces;
 using MyFitnessLife.Domain.Entities;
@@ -14,22 +13,19 @@ public class AuthService : IAuthService
     private readonly IGoogleAuthService _googleAuthService;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITenantActivityService _activityService;
-    private readonly IMapper _mapper;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         ITokenService tokenService,
         IGoogleAuthService googleAuthService,
         IPasswordHasher passwordHasher,
-        ITenantActivityService activityService,
-        IMapper mapper)
+        ITenantActivityService activityService)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
         _googleAuthService = googleAuthService;
         _passwordHasher = passwordHasher;
         _activityService = activityService;
-        _mapper = mapper;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)

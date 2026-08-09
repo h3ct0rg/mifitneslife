@@ -1,7 +1,7 @@
-using AutoMapper;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
+using MyFitnessLife.Application.Mapping;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Interfaces;
 
@@ -10,12 +10,10 @@ namespace MyFitnessLife.Application.Services;
 public class MeasurementService : IMeasurementService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IMapper _mapper;
 
-    public MeasurementService(IUnitOfWork unitOfWork, IMapper mapper)
+    public MeasurementService(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
-        _mapper = mapper;
     }
 
     public async Task<PagedResult<MeasurementDto>> GetByPatientAsync(
@@ -53,7 +51,7 @@ public class MeasurementService : IMeasurementService
     {
         await EnsurePatientAsync(tenantId, patientId);
 
-        var measurement = _mapper.Map<Measurement>(request);
+        var measurement = request.ToEntity();
         measurement.PatientId = patientId;
         measurement.TenantId = tenantId;
         measurement.VisitDate = request.VisitDate == default ? DateTime.UtcNow : request.VisitDate;
@@ -72,7 +70,7 @@ public class MeasurementService : IMeasurementService
         if (measurement.PatientId != patientId)
             throw new KeyNotFoundException("Medición no encontrada.");
 
-        _mapper.Map(request, measurement);
+        request.Apply(measurement);
         measurement.VisitDate = request.VisitDate == default ? measurement.VisitDate : request.VisitDate;
         measurement.UpdatedAt = DateTime.UtcNow;
 
@@ -123,7 +121,7 @@ public class MeasurementService : IMeasurementService
 
     private MeasurementDto ToDto(Measurement measurement)
     {
-        var dto = _mapper.Map<MeasurementDto>(measurement);
+        var dto = measurement.ToDto();
         var indexes = ComputeIndexes(measurement);
         dto.IMC = indexes.IMC;
         dto.IMCRange = indexes.IMCRange;

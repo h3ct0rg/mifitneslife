@@ -1,7 +1,7 @@
-using AutoMapper;
 using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Users;
 using MyFitnessLife.Application.Interfaces;
+using MyFitnessLife.Application.Mapping;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Enums;
 using MyFitnessLife.Domain.Interfaces;
@@ -13,18 +13,15 @@ public class UserManagementService : IUserManagementService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITenantActivityService _activityService;
-    private readonly IMapper _mapper;
 
     public UserManagementService(
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        ITenantActivityService activityService,
-        IMapper mapper)
+        ITenantActivityService activityService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _activityService = activityService;
-        _mapper = mapper;
     }
 
     public async Task<InviteUserResponse> InviteUserAsync(Guid inviterId, Guid tenantId, InviteUserRequest request)
@@ -118,7 +115,7 @@ public class UserManagementService : IUserManagementService
     public async Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId)
     {
         var users = await _unitOfWork.Users.GetByTenantAsync(tenantId);
-        return _mapper.Map<IEnumerable<UserListItemDto>>(users);
+        return users.Select(u => u.ToUserListItem());
     }
 
     public async Task<UserDto> GetUserByIdAsync(Guid id)

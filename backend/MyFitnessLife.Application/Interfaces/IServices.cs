@@ -1,4 +1,5 @@
 using MyFitnessLife.Application.DTOs.Admin;
+using MyFitnessLife.Application.DTOs.Appointments;
 using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
@@ -67,4 +68,13 @@ public interface IMeasurementService
     Task DeleteAsync(Guid tenantId, Guid patientId, Guid id);
     Task<MeasurementDashboardDto> GetDashboardAsync(Guid tenantId, Guid patientId);
     Task<MeasurementIndexDto> ComputeIndexesAsync(Measurement measurement);
+}
+
+public interface IAppointmentService
+{
+    Task<IEnumerable<AppointmentDto>> GetByRangeAsync(Guid tenantId, DateTime from, DateTime to);
+    Task<AppointmentDto> CreateAsync(Guid tenantId, CreateAppointmentRequest request);
+    Task<AppointmentDto> UpdateAsync(Guid tenantId, Guid id, UpdateAppointmentRequest request);
+    Task DeleteAsync(Guid tenantId, Guid id);
+    Task<IEnumerable<ProfessionalDto>> GetProfessionalsAsync(Guid tenantId);
 }

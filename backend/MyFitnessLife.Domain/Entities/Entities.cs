@@ -131,3 +131,17 @@ public class Measurement : BaseEntityTenant
 
     public Patient? Patient { get; set; }
 }
+
+public class Appointment : BaseEntityTenant
+{
+    public Guid PatientId { get; set; }
+    public Guid ProfessionalId { get; set; }
+    public DateTime StartAt { get; set; }
+    public DateTime? EndAt { get; set; }
+    public AppointmentStatus Status { get; set; } = AppointmentStatus.Scheduled;
+    public string? Title { get; set; }
+    public string? Notes { get; set; }
+
+    public Patient? Patient { get; set; }
+    public ApplicationUser? Professional { get; set; }
+}
