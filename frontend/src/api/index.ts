@@ -58,7 +58,6 @@ export const usersApi = {
     api.post<InviteResponse>('/users/invite', payload).then((r) => r.data),
   updateRole: (userId: string, role: number) =>
     api.put('/users/role', { userId, role }).then(() => undefined),
-  getRoles: () => api.get<{ value: number; name: string }[]>('/users/roles').then((r) => r.data),
 }
 
 export const adminApi = {
@@ -120,7 +119,9 @@ export const foodsApi = {
 }
 
 export const dietsApi = {
-  list: () => api.get<DietDto[]>('/diets').then((r) => r.data),
+  list: () => api.get<PagedResult<DietDto>>('/diets', { params: { page: 1, pageSize: 100 } }).then((r) => r.data.items),
+  getPaged: (params: { search?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<DietDto>>('/diets', { params }).then((r) => r.data),
   getById: (id: string) => api.get<DietDto>(`/diets/${id}`).then((r) => r.data),
   getByPatient: (patientId: string) =>
     api.get<{ assigned: boolean; diet: DietDto | null }>(`/diets/patient/${patientId}`).then((r) => r.data),
@@ -149,10 +150,14 @@ export const exercisesApi = {
 }
 
 export const workoutPlansApi = {
-  list: () => api.get<WorkoutPlanDto[]>('/workout-plans').then((r) => r.data),
+  list: () => api.get<PagedResult<WorkoutPlanDto>>('/workout-plans', { params: { page: 1, pageSize: 100 } }).then((r) => r.data.items),
+  getPaged: (params: { search?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<WorkoutPlanDto>>('/workout-plans', { params }).then((r) => r.data),
   getById: (id: string) => api.get<WorkoutPlanDto>(`/workout-plans/${id}`).then((r) => r.data),
   getByPatient: (patientId: string) =>
     api.get<{ assigned: boolean; plan: WorkoutPlanDto | null }>(`/workout-plans/patient/${patientId}`).then((r) => r.data),
+  assign: (patientId: string, planId?: string) =>
+    api.put<WorkoutPlanDto | null>('/workout-plans/assign', { patientId, planId: planId || null }).then((r) => r.data),
   create: (payload: CreateWorkoutPlanRequest) =>
     api.post<WorkoutPlanDto>('/workout-plans', payload).then((r) => r.data),
   update: (id: string, payload: UpdateWorkoutPlanRequest) =>

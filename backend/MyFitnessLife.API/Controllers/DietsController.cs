@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyFitnessLife.Application.DTOs.Diets;
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
 
 namespace MyFitnessLife.API.Controllers;
@@ -19,14 +20,17 @@ public class DietsController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<DietDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll()
+    [ProducesResponseType(typeof(PagedResult<DietDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var tenantId = GetTenantIdFromClaims();
         if (tenantId is null || tenantId == Guid.Empty)
             return Forbid();
 
-        return Ok(await _dietService.GetByTenantAsync(tenantId.Value));
+        return Ok(await _dietService.GetPagedAsync(tenantId.Value, search, page, pageSize));
     }
 
     [HttpGet("{id:guid}")]

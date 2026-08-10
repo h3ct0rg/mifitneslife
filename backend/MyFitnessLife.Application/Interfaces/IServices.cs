@@ -102,6 +102,7 @@ public interface IFoodService
 public interface IDietService
 {
     Task<IEnumerable<DietDto>> GetByTenantAsync(Guid tenantId);
+    Task<PagedResult<DietDto>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20);
     Task<DietDto> GetByIdAsync(Guid tenantId, Guid id);
     Task<DietDto?> GetByPatientAsync(Guid tenantId, Guid patientId);
     Task<IEnumerable<PatientDietDto>> GetHistoryByPatientAsync(Guid tenantId, Guid patientId);
@@ -131,10 +132,12 @@ public interface IExerciseService
 public interface IWorkoutPlanService
 {
     Task<IEnumerable<WorkoutPlanDto>> GetByTenantAsync(Guid tenantId);
+    Task<PagedResult<WorkoutPlanDto>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20);
     Task<WorkoutPlanDto> GetByIdAsync(Guid tenantId, Guid id);
     Task<WorkoutPlanDto?> GetByPatientAsync(Guid tenantId, Guid patientId);
     Task<WorkoutPlanDto> CreateAsync(Guid tenantId, CreateWorkoutPlanRequest request);
     Task<WorkoutPlanDto> UpdateAsync(Guid tenantId, Guid id, UpdateWorkoutPlanRequest request);
+    Task AssignToPatientAsync(Guid tenantId, Guid patientId, Guid? planId);
     Task DeleteAsync(Guid tenantId, Guid id);
 }
 

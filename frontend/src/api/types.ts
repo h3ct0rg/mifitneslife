@@ -79,6 +79,19 @@ export const ROLES: Record<number, string> = {
   4: 'Patient',
 }
 
+export const ROLE_LABELS: Record<string, string> = {
+  SuperAdmin: 'Super Administrador',
+  Admin: 'Administrador',
+  Nutritionist: 'Nutricionista',
+  Trainer: 'Entrenador',
+  Patient: 'Paciente',
+}
+
+export function roleLabel(role?: string): string {
+  if (!role) return '—'
+  return ROLE_LABELS[role] ?? role
+}
+
 export interface PatientDto {
   id: string
   tenantId: string

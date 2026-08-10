@@ -315,6 +315,39 @@ public class DietRepository : IDietRepository
             .OrderByDescending(d => d.CreatedAt)
             .ToListAsync();
 
+    public async Task<IEnumerable<Diet>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20)
+    {
+        var query = _context.Diets.AsNoTracking().Where(d => d.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(d => d.Name.Contains(s)
+                || (d.Patient != null && (d.Patient.FirstName + " " + d.Patient.LastName).Contains(s)));
+        }
+
+        return await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(d => d.Patient)
+            .ToListAsync();
+    }
+
+    public Task<int> CountAsync(Guid tenantId, string? search = null)
+    {
+        var query = _context.Diets.AsNoTracking().Where(d => d.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(d => d.Name.Contains(s)
+                || (d.Patient != null && (d.Patient.FirstName + " " + d.Patient.LastName).Contains(s)));
+        }
+
+        return query.CountAsync();
+    }
+
     public Task<Diet?> GetByIdAsync(Guid id)
         => _context.Diets.AsSplitQuery()
             .Include(d => d.Patient)
@@ -614,6 +647,39 @@ public class WorkoutPlanRepository : IWorkoutPlanRepository
             .Include(p => p.Patient)
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
+
+    public async Task<IEnumerable<WorkoutPlan>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20)
+    {
+        var query = _context.WorkoutPlans.AsNoTracking().Where(p => p.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(p => p.Name.Contains(s)
+                || (p.Patient != null && (p.Patient.FirstName + " " + p.Patient.LastName).Contains(s)));
+        }
+
+        return await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(p => p.Patient)
+            .ToListAsync();
+    }
+
+    public Task<int> CountAsync(Guid tenantId, string? search = null)
+    {
+        var query = _context.WorkoutPlans.AsNoTracking().Where(p => p.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(p => p.Name.Contains(s)
+                || (p.Patient != null && (p.Patient.FirstName + " " + p.Patient.LastName).Contains(s)));
+        }
+
+        return query.CountAsync();
+    }
 
     public Task<WorkoutPlan?> GetByIdAsync(Guid id)
         => _context.WorkoutPlans.AsSplitQuery()

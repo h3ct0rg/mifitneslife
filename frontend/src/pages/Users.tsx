@@ -2,13 +2,21 @@ import { useEffect, useState } from 'react'
 import { usersApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { UserListItem } from '../api/types'
+import { roleLabel } from '../api/types'
 
 const ROLE_OPTIONS = [
-  { value: 1, label: 'Admin' },
-  { value: 2, label: 'Nutritionist' },
-  { value: 3, label: 'Trainer' },
-  { value: 4, label: 'Patient' },
+  { value: 1, label: 'Administrador' },
+  { value: 2, label: 'Nutricionista' },
+  { value: 3, label: 'Entrenador' },
+  { value: 4, label: 'Paciente' },
 ]
+
+const ROLE_VALUE: Record<string, number> = {
+  Admin: 1,
+  Nutritionist: 2,
+  Trainer: 3,
+  Patient: 4,
+}
 
 export default function Users() {
   const [users, setUsers] = useState<UserListItem[]>([])
@@ -106,13 +114,13 @@ export default function Users() {
                   </td>
                   <td>{u.email}</td>
                   <td>
-                    <span className="badge">{u.role}</span>
+                    <span className="badge">{roleLabel(u.role)}</span>
                   </td>
                   <td>{u.status}</td>
                   <td>
                     {u.role !== 'SuperAdmin' ? (
                       <select
-                        value={ROLE_OPTIONS.find((r) => r.label === u.role)?.value ?? 4}
+                        value={ROLE_VALUE[u.role] ?? 4}
                         onChange={(e) => handleAssignRole(u.id, Number(e.target.value))}
                       >
                         {ROLE_OPTIONS.map((r) => (

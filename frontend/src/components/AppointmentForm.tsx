@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppointmentDto, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
+import { roleLabel } from '../api/types'
 
 interface Props {
   title: string
@@ -151,12 +152,12 @@ export default function AppointmentForm({
               {professionals.length === 0 && <option value="">No hay profesionales disponibles</option>}
               {professionals.length === 1 && (
                 <option value={professionals[0].id}>
-                  {professionals[0].fullName} ({professionals[0].role}) — asignado
+                  {professionals[0].fullName} ({roleLabel(professionals[0].role)}) — asignado
                 </option>
               )}
               {professionals.length > 1 &&
                 professionals.map((p) => (
-                  <option key={p.id} value={p.id}>{p.fullName} ({p.role})</option>
+                  <option key={p.id} value={p.id}>{p.fullName} ({roleLabel(p.role)})</option>
                 ))}
             </select>
             {professionals.length === 1 && (

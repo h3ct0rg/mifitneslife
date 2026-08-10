@@ -1,5 +1,11 @@
 namespace MyFitnessLife.Application.DTOs.WorkoutPlans;
 
+public class AssignWorkoutPlanRequest
+{
+    public Guid PatientId { get; set; }
+    public Guid? PlanId { get; set; }
+}
+
 public class WorkoutExerciseRequest
 {
     public Guid ExerciseId { get; set; }

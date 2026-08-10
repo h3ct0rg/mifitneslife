@@ -1,4 +1,5 @@
 using MyFitnessLife.Application.DTOs.Diets;
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Enums;
@@ -28,6 +29,35 @@ public class DietService : IDietService
         }
 
         return result;
+    }
+
+    public async Task<PagedResult<DietDto>> GetPagedAsync(
+        Guid tenantId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var items = await _unitOfWork.Diets.GetPagedAsync(tenantId, search, page, pageSize);
+        var total = await _unitOfWork.Diets.CountAsync(tenantId, search);
+
+        var dtos = new List<DietDto>();
+        foreach (var item in items)
+        {
+            var full = await _unitOfWork.Diets.GetByIdAsync(item.Id);
+            if (full is not null)
+                dtos.Add(ToDto(full));
+        }
+
+        return new PagedResult<DietDto>
+        {
+            Page = page,
+            PageSize = pageSize,
+            Total = total,
+            Items = dtos
+        };
     }
 
     public async Task<DietDto> GetByIdAsync(Guid tenantId, Guid id)

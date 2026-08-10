@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.WorkoutPlans;
 using MyFitnessLife.Application.Interfaces;
 
@@ -19,14 +20,17 @@ public class WorkoutPlansController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<WorkoutPlanDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll()
+    [ProducesResponseType(typeof(PagedResult<WorkoutPlanDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var tenantId = GetTenantIdFromClaims();
         if (tenantId is null || tenantId == Guid.Empty)
             return Forbid();
 
-        return Ok(await _workoutPlanService.GetByTenantAsync(tenantId.Value));
+        return Ok(await _workoutPlanService.GetPagedAsync(tenantId.Value, search, page, pageSize));
     }
 
     [HttpGet("{id:guid}")]
@@ -118,6 +122,27 @@ public class WorkoutPlansController : ControllerBase
         {
             await _workoutPlanService.DeleteAsync(tenantId.Value, id);
             return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("assign")]
+    [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AssignToPatient([FromBody] AssignWorkoutPlanRequest request)
+    {
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null || tenantId == Guid.Empty)
+            return Forbid();
+
+        try
+        {
+            await _workoutPlanService.AssignToPatientAsync(tenantId.Value, request.PatientId, request.PlanId);
+            var assigned = await _workoutPlanService.GetByPatientAsync(tenantId.Value, request.PatientId);
+            return Ok(assigned);
         }
         catch (KeyNotFoundException ex)
         {

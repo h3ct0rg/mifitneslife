@@ -14,7 +14,6 @@ import Exercises from './pages/Exercises'
 import WorkoutPlans from './pages/WorkoutPlans'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
-import Roles from './pages/Roles'
 import WhatsApp from './pages/WhatsApp'
 import AdminDashboard from './pages/AdminDashboard'
 
@@ -50,7 +49,6 @@ export default function App() {
           <Route path="entrenamiento/planes" element={<WorkoutPlans />} />
           <Route path="configuracion" element={<Settings />} />
           <Route path="configuracion/usuarios" element={<Users />} />
-          <Route path="configuracion/roles" element={<Roles />} />
           <Route path="configuracion/whatsapp" element={<WhatsApp />} />
           <Route path="admin" element={<AdminDashboard />} />
         </Route>

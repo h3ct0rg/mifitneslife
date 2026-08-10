@@ -1,3 +1,4 @@
+using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.WorkoutPlans;
 using MyFitnessLife.Application.Interfaces;
 using MyFitnessLife.Domain.Entities;
@@ -26,6 +27,35 @@ public class WorkoutPlanService : IWorkoutPlanService
                 result.Add(ToDto(full));
         }
         return result;
+    }
+
+    public async Task<PagedResult<WorkoutPlanDto>> GetPagedAsync(
+        Guid tenantId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var items = await _unitOfWork.WorkoutPlans.GetPagedAsync(tenantId, search, page, pageSize);
+        var total = await _unitOfWork.WorkoutPlans.CountAsync(tenantId, search);
+
+        var dtos = new List<WorkoutPlanDto>();
+        foreach (var item in items)
+        {
+            var full = await _unitOfWork.WorkoutPlans.GetByIdAsync(item.Id);
+            if (full is not null)
+                dtos.Add(ToDto(full));
+        }
+
+        return new PagedResult<WorkoutPlanDto>
+        {
+            Page = page,
+            PageSize = pageSize,
+            Total = total,
+            Items = dtos
+        };
     }
 
     public async Task<WorkoutPlanDto> GetByIdAsync(Guid tenantId, Guid id)
@@ -95,6 +125,33 @@ public class WorkoutPlanService : IWorkoutPlanService
     {
         var plan = await GetPlanAsync(tenantId, id);
         await _unitOfWork.WorkoutPlans.DeleteAsync(plan);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public async Task AssignToPatientAsync(Guid tenantId, Guid patientId, Guid? planId)
+    {
+        await EnsurePatientAsync(tenantId, patientId);
+
+        // Quitar el plan que tenía asignado el paciente (si es otro).
+        var current = await _unitOfWork.WorkoutPlans.GetByPatientAsync(patientId);
+        if (current is not null && current.Id != planId)
+        {
+            current.PatientId = null;
+            current.UpdatedAt = DateTime.UtcNow;
+            await _unitOfWork.WorkoutPlans.UpdateAsync(current);
+        }
+
+        if (planId.HasValue)
+        {
+            var plan = await GetPlanAsync(tenantId, planId.Value);
+            if (plan.PatientId != patientId)
+            {
+                plan.PatientId = patientId;
+                plan.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.WorkoutPlans.UpdateAsync(plan);
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync();
     }
 

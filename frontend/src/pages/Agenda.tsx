@@ -89,16 +89,16 @@ export default function Agenda() {
     setLoading(true)
     setMessage(null)
     try {
-      const [apps, pats, profs, dietList] = await Promise.all([
+      const [apps, pats, profs, dietData] = await Promise.all([
         appointmentsApi.list({ from: period.from.toISOString(), to: period.to.toISOString() }),
         patientsApi.list({ page: 1, pageSize: 100 }),
         appointmentsApi.professionals(),
-        dietsApi.list(),
+        dietsApi.getPaged({ page: 1, pageSize: 100 }),
       ])
       setAppointments(apps)
       setPatients(pats.items)
       setProfessionals(profs)
-      setDiets(dietList)
+      setDiets(dietData.items)
     } catch (err) {
       setMessage({ type: 'err', text: getErrorMessage(err) })
     } finally {
@@ -322,11 +322,13 @@ function MonthView({ grid, appointments, onDayClick, onAppointmentClick, todayKe
         const isToday = key === todayKey
         const isOut = d.getMonth() !== currentMonth
         return (
-          <button
+          <div
             key={key}
-            type="button"
+            role="button"
+            tabIndex={0}
             className={`cal-cell cal-day${isOut ? ' out' : ''}${isToday ? ' today' : ''}`}
             onClick={() => onDayClick(d)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDayClick(d) } }}
           >
             <span className="cal-cell-date">{d.getDate()}</span>
             <div className="cal-cell-apps">
@@ -343,7 +345,7 @@ function MonthView({ grid, appointments, onDayClick, onAppointmentClick, todayKe
               ))}
               {dayApps.length > 3 && <span className="cal-cell-more">+{dayApps.length - 3} más</span>}
             </div>
-          </button>
+          </div>
         )
       })}
     </div>

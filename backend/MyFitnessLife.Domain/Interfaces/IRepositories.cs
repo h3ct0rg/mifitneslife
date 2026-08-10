@@ -104,6 +104,8 @@ public interface IFoodRepository
 public interface IDietRepository
 {
     Task<IEnumerable<Diet>> GetByTenantAsync(Guid tenantId);
+    Task<IEnumerable<Diet>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20);
+    Task<int> CountAsync(Guid tenantId, string? search = null);
     Task<Diet?> GetByIdAsync(Guid id);
     Task<Diet?> GetByPatientAsync(Guid patientId);
     Task AddAsync(Diet diet);
@@ -141,6 +143,8 @@ public interface IExerciseRepository
 public interface IWorkoutPlanRepository
 {
     Task<IEnumerable<WorkoutPlan>> GetByTenantAsync(Guid tenantId);
+    Task<IEnumerable<WorkoutPlan>> GetPagedAsync(Guid tenantId, string? search = null, int page = 1, int pageSize = 20);
+    Task<int> CountAsync(Guid tenantId, string? search = null);
     Task<WorkoutPlan?> GetByIdAsync(Guid id);
     Task<WorkoutPlan?> GetByPatientAsync(Guid patientId);
     Task AddAsync(WorkoutPlan plan);

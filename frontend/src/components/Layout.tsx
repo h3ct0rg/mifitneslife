@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { roleLabel } from '../api/types'
 
 const MAIN_NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -21,7 +22,6 @@ const DIET_NAV = [
 
 const CONFIG_NAV = [
   { to: '/configuracion/usuarios', label: 'Usuarios' },
-  { to: '/configuracion/roles', label: 'Roles' },
   { to: '/configuracion/whatsapp', label: 'WhatsApp' },
 ]
 
@@ -167,7 +167,7 @@ export default function Layout() {
             <NavLink to="/" className="header-link">
               <h1>MyFitnessLife</h1>
             </NavLink>
-            <span className="badge">{user.role}</span>
+            <span className="badge">{roleLabel(user.role)}</span>
           </div>
           <div className="header-user">
             <span className="header-name">

@@ -2564,6 +2564,79 @@ textarea {
   max-width: 520px;
 }
 
+/* Modal de selección (AssignPicker): altura fija, solo la lista scrollea */
+.modal-picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.modal-picker > h2,
+.modal-picker > .modal-subtitle,
+.modal-picker > .catalog-search,
+.modal-picker > .alert,
+.modal-picker > .pagination,
+.modal-picker > .modal-actions {
+  flex-shrink: 0;
+}
+
+.assign-picker-list {
+  flex: none;
+  height: 440px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.assign-picker-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.assign-picker-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+}
+
+.assign-picker-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.assign-picker-list .loading,
+.assign-picker-list .meal-empty {
+  margin: auto;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .assign-picker-list {
+    height: 320px;
+  }
+}
+
+.modal-picker .diet-assign-option {
+  padding: 0.6rem 0.9rem;
+  flex-shrink: 0;
+}
+
+.modal-picker .catalog-search {
+  margin-bottom: 0.75rem;
+}
+
+.modal-picker .pagination {
+  margin: 0.75rem 0 0;
+  flex-shrink: 0;
+}
+
+.modal-picker .modal-actions {
+  margin-top: 1rem;
+  flex-shrink: 0;
+}
+
 .modal-subtitle {
   color: var(--muted);
   font-size: 0.9rem;
@@ -3100,5 +3173,163 @@ textarea {
   .photo-compare-arrow {
     transform: rotate(90deg);
     align-self: center;
+  }
+}
+
+/* ============ Dashboard de rutina asignada ============ */
+
+.workout-dashboard {
+  margin-bottom: 1.25rem;
+}
+
+.workout-dashboard h2 {
+  margin: 0;
+  color: var(--primary);
+}
+
+.workout-dash-stats {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.workout-dash-stats div {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-width: 64px;
+}
+
+.workout-dash-stats span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.workout-dash-stats strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.workout-dash-days {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.workout-dash-day {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+.workout-dash-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.workout-dash-day-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--primary);
+}
+
+.workout-dash-day-notes {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.workout-dash-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.workout-dash-exercise {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+}
+
+.workout-dash-ex-media {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(2, 6, 23, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.4rem;
+}
+
+.workout-dash-ex-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workout-dash-ex-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.workout-dash-ex-info strong {
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workout-dash-ex-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.workout-dash-ex-params {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workout-dash-chip {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.workout-dash-chip b {
+  color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .workout-dash-exercise {
+    flex-wrap: wrap;
+  }
+
+  .workout-dash-ex-params {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-left: 4.25rem;
   }
 }

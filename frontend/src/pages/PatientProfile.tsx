@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { dietsApi, patientPhotosApi, patientsApi } from '../api'
+import { dietsApi, patientPhotosApi, patientsApi, workoutPlansApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { DietDto, PatientDto } from '../api/types'
+import type { PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
 import MeasurementDashboard from '../components/MeasurementDashboard'
@@ -10,6 +10,8 @@ import DietDashboard from '../components/DietDashboard'
 import DietHistory from '../components/DietHistory'
 import PhotoCapture from '../components/PhotoCapture'
 import PhotoHistory from '../components/PhotoHistory'
+import WorkoutDashboard from '../components/WorkoutDashboard'
+import AssignPicker from '../components/AssignPicker'
 
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
@@ -21,11 +23,13 @@ export default function PatientProfile() {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDiet, setShowDiet] = useState(false)
-  const [dietList, setDietList] = useState<DietDto[]>([])
   const [dietSaving, setDietSaving] = useState(false)
   const [dietVersion, setDietVersion] = useState(0)
   const [showPhoto, setShowPhoto] = useState(false)
   const [photoVersion, setPhotoVersion] = useState(0)
+  const [showRoutine, setShowRoutine] = useState(false)
+  const [routineSaving, setRoutineSaving] = useState(false)
+  const [routineVersion, setRoutineVersion] = useState(0)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -80,13 +84,18 @@ export default function PatientProfile() {
     }
   }
 
-  const openDietModal = async () => {
-    setShowDiet(true)
-    setMessage(null)
-    try {
-      setDietList(await dietsApi.list())
-    } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+  const loadDiets = async (params: { search?: string; page: number; pageSize: number }) => {
+    const data = await dietsApi.getPaged({ ...params })
+    return {
+      page: data.page,
+      pageSize: data.pageSize,
+      total: data.total,
+      totalPages: data.totalPages,
+      items: data.items.map((d) => ({
+        id: d.id,
+        name: d.name,
+        meta: d.objective ?? 'Sin objetivo',
+      })),
     }
   }
 
@@ -118,6 +127,37 @@ export default function PatientProfile() {
     } catch (err) {
       setMessage({ type: 'err', text: getErrorMessage(err) })
       throw err
+    }
+  }
+
+  const loadRoutines = async (params: { search?: string; page: number; pageSize: number }) => {
+    const data = await workoutPlansApi.getPaged({ ...params })
+    return {
+      page: data.page,
+      pageSize: data.pageSize,
+      total: data.total,
+      totalPages: data.totalPages,
+      items: data.items.map((p) => ({
+        id: p.id,
+        name: p.name,
+        meta: `${p.objective ?? 'Sin objetivo'} · ${p.days.length} días · ${p.totalExercises} ejercicios`,
+      })),
+    }
+  }
+
+  const handleAssignRoutine = async (planId: string) => {
+    if (!id) return
+    setRoutineSaving(true)
+    setMessage(null)
+    try {
+      await workoutPlansApi.assign(id, planId || undefined)
+      setShowRoutine(false)
+      setRoutineVersion((v) => v + 1)
+      setMessage({ type: 'ok', text: planId ? 'Rutina asignada al paciente.' : 'Se quitó la rutina asignada.' })
+    } catch (err) {
+      setMessage({ type: 'err', text: getErrorMessage(err) })
+    } finally {
+      setRoutineSaving(false)
     }
   }
 
@@ -167,11 +207,14 @@ export default function PatientProfile() {
           <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
             Historial
           </button>
-          <button type="button" className="btn-ghost" onClick={openDietModal}>
+          <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
             Dieta
           </button>
           <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
             📷 Foto
+          </button>
+          <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
+            Asignar rutina
           </button>
           <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
             Editar
@@ -190,6 +233,7 @@ export default function PatientProfile() {
       <DietDashboard key={dietVersion} patientId={patient.id} />
       <DietHistory patientId={patient.id} version={dietVersion} />
       <PhotoHistory patientId={patient.id} version={photoVersion} />
+      <WorkoutDashboard patientId={patient.id} version={routineVersion} />
 
       <div className="card">
         <h2>Información</h2>
@@ -240,56 +284,35 @@ export default function PatientProfile() {
       )}
 
       {showDiet && (
-        <div className="modal-overlay" onClick={() => !dietSaving && setShowDiet(false)}>
-          <div className="modal modal-diet-assign" onClick={(e) => e.stopPropagation()}>
-            <h2>Asignar dieta</h2>
-            <p className="modal-subtitle">
-              Elige una dieta para <strong>{patient.fullName}</strong>. Se mostrará en su perfil con
-              los valores nutricionales diarios.
-            </p>
-
-            <div className="diet-assign-list">
-              <button
-                type="button"
-                className="diet-assign-option"
-                onClick={() => handleAssignDiet('')}
-                disabled={dietSaving}
-              >
-                <span className="diet-assign-name">Sin dieta asignada</span>
-                <span className="diet-assign-meta">Quitar la dieta actual del paciente</span>
-              </button>
-              {dietList.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  className="diet-assign-option"
-                  onClick={() => handleAssignDiet(d.id)}
-                  disabled={dietSaving}
-                >
-                  <span className="diet-assign-name">{d.name}</span>
-                  <span className="diet-assign-meta">
-                    {d.objective ?? 'Sin objetivo'} · {Math.round(d.calories)} kcal/día
-                  </span>
-                </button>
-              ))}
-              {dietList.length === 0 && (
-                <p className="meal-empty">No hay planes de dieta creados todavía.</p>
-              )}
-            </div>
-
-            <div className="modal-actions">
-              <button type="button" className="btn-ghost" onClick={() => setShowDiet(false)} disabled={dietSaving}>
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
+        <AssignPicker
+          title="Asignar dieta"
+          subtitle={`Elige una dieta para ${patient.fullName}. Se mostrará en su perfil con los valores nutricionales diarios.`}
+          emptyText="No hay planes de dieta creados todavía."
+          load={loadDiets}
+          onSelect={handleAssignDiet}
+          onClear={() => handleAssignDiet('')}
+          onCancel={() => setShowDiet(false)}
+          saving={dietSaving}
+        />
       )}
 
       {showPhoto && (
         <PhotoCapture
           onCapture={handleCapturePhoto}
           onCancel={() => setShowPhoto(false)}
+        />
+      )}
+
+      {showRoutine && (
+        <AssignPicker
+          title="Asignar rutina"
+          subtitle={`Elige un plan de entrenamiento para ${patient.fullName}. Se asignará como su rutina actual.`}
+          emptyText="No hay planes de entrenamiento creados todavía."
+          load={loadRoutines}
+          onSelect={handleAssignRoutine}
+          onClear={() => handleAssignRoutine('')}
+          onCancel={() => setShowRoutine(false)}
+          saving={routineSaving}
         />
       )}
 
