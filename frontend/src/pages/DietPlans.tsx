@@ -9,7 +9,7 @@ export default function DietPlans() {
   const [foods, setFoods] = useState<FoodDto[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; diet: DietDto } | null>(null)
+  const [showForm, setShowForm] = useState<{ mode: 'create' } | { mode: 'edit'; diet: DietDto } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -33,101 +33,171 @@ export default function DietPlans() {
   }, [load])
 
   const handleCreate = async (payload: CreateDietRequest) => {
-    try {
-      await dietsApi.create(payload)
-      setModal(null)
-      setMessage({ type: 'ok', text: 'Plan de dieta creado correctamente.' })
-      await load()
-    } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-    }
+    await dietsApi.create(payload)
+    setShowForm(null)
+    setMessage({ type: 'ok', text: '✅ Plan de dieta creado correctamente.' })
+    await load()
   }
 
   const handleUpdate = async (id: string, payload: CreateDietRequest) => {
-    try {
-      await dietsApi.update(id, { ...payload, status: 'Active' })
-      setModal(null)
-      setMessage({ type: 'ok', text: 'Plan de dieta actualizado correctamente.' })
-      await load()
-    } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-    }
+    await dietsApi.update(id, { ...payload, status: 'Active' })
+    setShowForm(null)
+    setMessage({ type: 'ok', text: '✅ Plan de dieta actualizado correctamente.' })
+    await load()
   }
 
   const handleDelete = async (diet: DietDto) => {
     if (!window.confirm(`¿Eliminar el plan "${diet.name}"?`)) return
     try {
       await dietsApi.remove(diet.id)
-      setMessage({ type: 'ok', text: 'Plan de dieta eliminado.' })
+      setMessage({ type: 'ok', text: '🗑️ Plan de dieta eliminado.' })
       await load()
     } catch (err) {
       setMessage({ type: 'err', text: getErrorMessage(err) })
     }
   }
 
-  return (
-    <div className="page page-wide">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+  // If form view is active, render DietBuilder inline as a full page
+  if (showForm) {
+    const editingDiet = showForm.mode === 'edit' ? showForm.diet : undefined
+    return (
+      <DietBuilder
+        title={showForm.mode === 'create' ? 'Nuevo plan de dieta' : `Editar: ${editingDiet?.name ?? ''}`}
+        initial={editingDiet}
+        foods={foods}
+        onSubmit={async (payload) => {
+          if (editingDiet) {
+            await handleUpdate(editingDiet.id, payload)
+          } else {
+            await handleCreate(payload)
+          }
+        }}
+        onCancel={() => setShowForm(null)}
+      />
+    )
+  }
 
-      <div className="card-header catalog-toolbar">
-        <div>
-          <h2>Planes de dieta</h2>
-          <p className="catalog-subtitle">Crea y gestiona planes dietéticos personalizados.</p>
+  return (
+    <div className="dp-page">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="dp-page-header">
+        <div className="dp-header-left">
+          <div className="dp-header-icon">🥗</div>
+          <div>
+            <h1 className="dp-page-title">Planes de Dieta</h1>
+            <p className="dp-page-subtitle">
+              {diets.length > 0 ? `${diets.length} planes creados` : 'Crea y gestiona planes dietéticos personalizados'}
+            </p>
+          </div>
         </div>
-        <div className="catalog-actions">
-          <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={() => setModal({ mode: 'create' })}>
-            + Nuevo plan
-          </button>
-        </div>
+        <button
+          type="button"
+          className="dp-btn-new"
+          onClick={() => setShowForm({ mode: 'create' })}
+        >
+          <span>+</span> Nuevo plan de dieta
+        </button>
       </div>
 
+      {/* ── Alert ────────────────────────────────────────────────── */}
+      {message && (
+        <div className={`fc-alert ${message.type === 'ok' ? 'fc-alert-ok' : 'fc-alert-err'}`}>
+          {message.text}
+          <button type="button" className="fc-alert-close" onClick={() => setMessage(null)}>✕</button>
+        </div>
+      )}
+
+      {/* ── Content Grid ─────────────────────────────────────────── */}
       {loading ? (
-        <p className="loading">Cargando...</p>
+        <div className="fc-loading">
+          <div className="fc-loading-spinner" />
+          <span>Cargando planes de dieta...</span>
+        </div>
       ) : diets.length === 0 ? (
-        <div className="empty-state">Aún no hay planes de dieta. Crea el primero.</div>
+        <div className="fc-empty">
+          <div className="fc-empty-icon">🥗</div>
+          <p>Aún no hay planes de dieta creados.</p>
+          <button
+            type="button"
+            className="dp-btn-new fc-empty-btn"
+            onClick={() => setShowForm({ mode: 'create' })}
+          >
+            + Crear primer plan de dieta
+          </button>
+        </div>
       ) : (
-        <div className="diet-plans-grid">
+        <div className="dp-grid">
           {diets.map((d) => (
-            <article key={d.id} className="diet-plan-card">
-              <div className="diet-plan-head">
-                <h3>{d.name}</h3>
-                <span className="badge">{d.status}</span>
+            <article key={d.id} className="dp-card">
+              <div className="dp-card-head">
+                <div className="dp-card-title-wrap">
+                  <h3 className="dp-card-title">{d.name}</h3>
+                  {d.objective && <span className="dp-card-obj-badge">🎯 {d.objective}</span>}
+                </div>
+                <span className={`dp-status-badge ${d.status === 'Active' ? 'active' : ''}`}>
+                  {d.status === 'Active' ? 'Activo' : d.status}
+                </span>
               </div>
-              {d.objective && <p className="diet-plan-objective">{d.objective}</p>}
-              {d.patientName && <p className="diet-plan-patient">Paciente: {d.patientName}</p>}
-              <div className="diet-plan-totals">
-                <div><span>Kcal</span><strong>{d.calories}</strong></div>
-                <div><span>Prot</span><strong>{d.protein}g</strong></div>
-                <div><span>Carb</span><strong>{d.carbohydrates}g</strong></div>
-                <div><span>Grasa</span><strong>{d.fat}g</strong></div>
+
+              {d.patientName && (
+                <p className="dp-card-patient">👤 Paciente: <strong>{d.patientName}</strong></p>
+              )}
+
+              {/* Total Macros Banner */}
+              <div className="dp-card-totals">
+                <div className="dp-total-chip">
+                  <span>🔥 Calorías</span>
+                  <strong>{d.calories ?? 0} kcal</strong>
+                </div>
+                <div className="dp-total-chip">
+                  <span>💪 Prot</span>
+                  <strong>{d.protein ?? 0}g</strong>
+                </div>
+                <div className="dp-total-chip">
+                  <span>🌾 Carb</span>
+                  <strong>{d.carbohydrates ?? 0}g</strong>
+                </div>
+                <div className="dp-total-chip">
+                  <span>🫒 Grasa</span>
+                  <strong>{d.fat ?? 0}g</strong>
+                </div>
               </div>
-              <div className="diet-plan-meals">
-                {d.meals.map((m) => (
-                  <span key={m.id} className="diet-plan-meal-chip">
-                    {m.scheduledTime ? `${m.scheduledTime} ` : ''}{m.name}
-                  </span>
-                ))}
-              </div>
-              <div className="diet-plan-actions">
-                <button type="button" className="btn-ghost" onClick={() => setModal({ mode: 'edit', diet: d })}>Editar</button>
-                <button type="button" className="btn-danger-soft" onClick={() => handleDelete(d)}>Eliminar</button>
+
+              {/* Meals Chips List */}
+              {d.meals && d.meals.length > 0 && (
+                <div className="dp-card-meals">
+                  <span className="dp-meals-label">Tiempos de comida ({d.meals.length}):</span>
+                  <div className="dp-meals-chips">
+                    {d.meals.map((m) => (
+                      <span key={m.id} className="dp-meal-chip">
+                        {m.scheduledTime ? `⏰ ${m.scheduledTime} ` : ''}{m.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="dp-card-actions">
+                <button
+                  type="button"
+                  className="dp-btn-edit"
+                  onClick={() => setShowForm({ mode: 'edit', diet: d })}
+                >
+                  ✏️ Editar plan
+                </button>
+                <button
+                  type="button"
+                  className="dp-btn-delete"
+                  onClick={() => handleDelete(d)}
+                >
+                  🗑️ Eliminar
+                </button>
               </div>
             </article>
           ))}
         </div>
       )}
-
-      {modal && (
-        <DietBuilder
-          title={modal.mode === 'create' ? 'Nuevo plan de dieta' : `Editar: ${modal.diet.name}`}
-          initial={modal.mode === 'edit' ? modal.diet : undefined}
-          foods={foods}
-          onSubmit={modal.mode === 'create'
-            ? handleCreate
-            : (payload) => handleUpdate(modal.diet.id, payload)}
-          onCancel={() => setModal(null)}
-        />
-      )}
     </div>
   )
-}
+}

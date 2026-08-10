@@ -99,90 +99,163 @@ export default function MeasurementForm({ title, initial, diets, assignedDietId,
     }
   }
 
-  const input = (label: string, field: keyof CreateMeasurementRequest, placeholder = '') => (
-    <label>
-      {label}
-      <input
-        type="number"
-        step="0.1"
-        placeholder={placeholder}
-        value={num(values[field] as number | undefined)}
-        onChange={setN(field)}
-      />
-    </label>
+  /** Campo numérico con unidad badge */
+  const field = (
+    label: string,
+    fieldKey: keyof CreateMeasurementRequest,
+    unit: string,
+    icon: string
+  ) => (
+    <div className="mf-field">
+      <div className="mf-field-icon">{icon}</div>
+      <div className="mf-field-body">
+        <span className="mf-field-label">{label}</span>
+        <div className="mf-field-input-wrap">
+          <input
+            type="number"
+            step="0.1"
+            placeholder="—"
+            value={num(values[fieldKey] as number | undefined)}
+            onChange={setN(fieldKey)}
+            className="mf-input"
+          />
+          {unit && <span className="mf-unit">{unit}</span>}
+        </div>
+      </div>
+    </div>
   )
 
   return (
-    <div className="modal-overlay">
-      <div className="modal modal-wide">
-        <h2>{title}</h2>
-        <form onSubmit={handleSubmit}>
-          <label>
-            Fecha de la visita *
-            <input type="date" value={values.visitDate} onChange={date} required />
-          </label>
+    <div className="mf-overlay">
+      <div className="mf-modal">
 
-          {diets && onDietChange && (
-            <label>
-              Dieta asignada
-              <select value={dietId} onChange={(e) => setDietId(e.target.value)}>
-                <option value="">Sin dieta asignada</option>
-                {diets.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}{d.objective ? ` · ${d.objective}` : ''}
-                  </option>
-                ))}
-              </select>
-              <span className="hint">Si cambias la dieta, se asignará al paciente al guardar la visita.</span>
-            </label>
-          )}
+        {/* Header */}
+        <div className="mf-header">
+          <div className="mf-header-icon">📋</div>
+          <div className="mf-header-text">
+            <h2 className="mf-title">{title}</h2>
+            <p className="mf-subtitle">Registra las métricas y observaciones de la consulta</p>
+          </div>
+          <button className="mf-close" type="button" onClick={onCancel} aria-label="Cerrar">✕</button>
+        </div>
 
-          <h3 className="fieldset-title">Composición corporal</h3>
-          <div className="form-grid">
-            {input('Peso (kg)', 'weightKg')}
-            {input('Altura (cm)', 'heightCm')}
-            {input('% grasa corporal', 'bodyFatPct')}
-            {input('Masa muscular (kg)', 'muscleMassKg')}
-            {input('Masa ósea (kg)', 'boneMassKg')}
-            {input('% agua corporal', 'bodyWaterPct')}
-            {input('Metabolismo basal', 'basalMetabolism')}
+        <form onSubmit={handleSubmit} className="mf-form">
+
+          {/* Información de la visita */}
+          <div className="mf-section">
+            <div className="mf-section-header">
+              <span className="mf-section-badge mf-badge-blue">📅</span>
+              <span className="mf-section-title">Información de la visita</span>
+            </div>
+            <div className="mf-meta-grid">
+              <div className="mf-field">
+                <div className="mf-field-icon">📅</div>
+                <div className="mf-field-body">
+                  <span className="mf-field-label">Fecha de la visita *</span>
+                  <div className="mf-field-input-wrap">
+                    <input type="date" value={values.visitDate} onChange={date} required className="mf-input" />
+                  </div>
+                </div>
+              </div>
+
+              {diets && onDietChange && (
+                <div className="mf-field">
+                  <div className="mf-field-icon">🥗</div>
+                  <div className="mf-field-body">
+                    <span className="mf-field-label">Dieta asignada</span>
+                    <div className="mf-field-input-wrap">
+                      <select value={dietId} onChange={(e) => setDietId(e.target.value)} className="mf-input">
+                        <option value="">Sin dieta asignada</option>
+                        {diets.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}{d.objective ? ` · ${d.objective}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <span className="mf-hint">Se asignará al guardar la visita</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <h3 className="fieldset-title">Circunferencias (cm)</h3>
-          <div className="form-grid">
-            {input('Pecho (cm)', 'chestCm')}
-            {input('Cintura (cm)', 'waistCm')}
-            {input('Cadera (cm)', 'hipCm')}
-            {input('Brazo (cm)', 'armCm')}
-            {input('Antebrazo (cm)', 'forearmCm')}
-            {input('Muslo (cm)', 'thighCm')}
-            {input('Pantorrilla (cm)', 'calfCm')}
-            {input('Cuello (cm)', 'neckCm')}
+          {/* Composición corporal */}
+          <div className="mf-section">
+            <div className="mf-section-header">
+              <span className="mf-section-badge mf-badge-green">⚖️</span>
+              <span className="mf-section-title">Composición corporal</span>
+            </div>
+            <div className="mf-fields-grid">
+              {field('Peso', 'weightKg', 'kg', '⚖️')}
+              {field('Altura', 'heightCm', 'cm', '📏')}
+              {field('Grasa corporal', 'bodyFatPct', '%', '🔥')}
+              {field('Masa muscular', 'muscleMassKg', 'kg', '💪')}
+              {field('Masa ósea', 'boneMassKg', 'kg', '🦴')}
+              {field('Agua corporal', 'bodyWaterPct', '%', '💧')}
+              {field('Metabolismo basal', 'basalMetabolism', 'kcal', '⚡')}
+            </div>
           </div>
 
-          <h3 className="fieldset-title">Signos vitales</h3>
-          <div className="form-grid">
-            {input('FC (lpm)', 'heartRateBpm')}
-            {input('Sistólica (mmHg)', 'systolicMmHg')}
-            {input('Diastólica (mmHg)', 'diastolicMmHg')}
-            {input('Saturación O₂ (%)', 'oxygenSaturationPct')}
-            {input('Frec. respiratoria', 'respiratoryRate')}
-            {input('Temperatura (°C)', 'temperatureC')}
+          {/* Circunferencias */}
+          <div className="mf-section">
+            <div className="mf-section-header">
+              <span className="mf-section-badge mf-badge-purple">📐</span>
+              <span className="mf-section-title">Circunferencias</span>
+            </div>
+            <div className="mf-fields-grid">
+              {field('Pecho', 'chestCm', 'cm', '👕')}
+              {field('Cintura', 'waistCm', 'cm', '📐')}
+              {field('Cadera', 'hipCm', 'cm', '📐')}
+              {field('Brazo', 'armCm', 'cm', '💪')}
+              {field('Antebrazo', 'forearmCm', 'cm', '🦾')}
+              {field('Muslo', 'thighCm', 'cm', '🦵')}
+              {field('Pantorrilla', 'calfCm', 'cm', '🦵')}
+              {field('Cuello', 'neckCm', 'cm', '🪢')}
+            </div>
           </div>
 
-          <div className="notes-section">
-            <label className="notes-label">Notas / observaciones</label>
-            <RichTextEditor value={values.notes ?? ''} onChange={setNotes} />
+          {/* Signos vitales */}
+          <div className="mf-section">
+            <div className="mf-section-header">
+              <span className="mf-section-badge mf-badge-red">❤️</span>
+              <span className="mf-section-title">Signos vitales</span>
+            </div>
+            <div className="mf-fields-grid">
+              {field('Frec. cardíaca', 'heartRateBpm', 'lpm', '❤️')}
+              {field('Presión sistólica', 'systolicMmHg', 'mmHg', '🩺')}
+              {field('Presión diastólica', 'diastolicMmHg', 'mmHg', '🩺')}
+              {field('Saturación O₂', 'oxygenSaturationPct', '%', '🫁')}
+              {field('Frec. respiratoria', 'respiratoryRate', 'rpm', '🌬️')}
+              {field('Temperatura', 'temperatureC', '°C', '🌡️')}
+            </div>
           </div>
 
-          <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={onCancel}>
+          {/* Notas */}
+          <div className="mf-section">
+            <div className="mf-section-header">
+              <span className="mf-section-badge mf-badge-amber">📝</span>
+              <span className="mf-section-title">Notas y observaciones</span>
+            </div>
+            <div className="mf-notes-wrap">
+              <RichTextEditor value={values.notes ?? ''} onChange={setNotes} />
+            </div>
+          </div>
+
+          {/* Acciones */}
+          <div className="mf-actions">
+            <button type="button" className="mf-btn-cancel" onClick={onCancel}>
               Cancelar
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting}>
-              {submitting ? 'Guardando...' : 'Guardar'}
+            <button type="submit" className="mf-btn-save" disabled={submitting}>
+              {submitting ? (
+                <><span className="mf-spinner" /> Guardando…</>
+              ) : (
+                <><span>💾</span> Guardar visita</>
+              )}
             </button>
           </div>
+
         </form>
       </div>
     </div>

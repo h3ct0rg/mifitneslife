@@ -421,7 +421,9 @@ public class PatientDietRepository : IPatientDietRepository
 
     public Task UpdateAsync(PatientDiet patientDiet)
     {
-        _context.PatientDiets.Update(patientDiet);
+        // Marcar solo la entidad raíz; evita re-adjuntar la navegación Diet
+        // (que puede ya estar trackeada por otra consulta) y el conflicto de tracking.
+        _context.Entry(patientDiet).State = EntityState.Modified;
         return Task.CompletedTask;
     }
 }

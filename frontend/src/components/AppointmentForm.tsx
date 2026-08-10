@@ -24,6 +24,14 @@ function parseLocalInput(value: string) {
   return isNaN(d.getTime()) ? undefined : d
 }
 
+const DURATION_PRESETS = [
+  { label: '30 min', minutes: 30 },
+  { label: '45 min', minutes: 45 },
+  { label: '1 hora', minutes: 60 },
+  { label: '1h 30', minutes: 90 },
+  { label: '2 horas', minutes: 120 },
+]
+
 export default function AppointmentForm({
   title,
   day,
@@ -44,6 +52,7 @@ export default function AppointmentForm({
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activePreset, setActivePreset] = useState<number | null>(null)
 
   useEffect(() => {
     if (initial) {
@@ -57,14 +66,11 @@ export default function AppointmentForm({
       return
     }
 
-    // Nuevo: pre-seleccionar el día clicado (siguiente hora en punto)
     const base = day ? new Date(day) : new Date()
     base.setHours(new Date().getHours() + 1, 0, 0, 0)
     setStartAt(toLocalInput(base))
 
-    // Auto-selección: si solo existe un profesional, asignarlo directamente
     if (professionals.length === 1) setProfessionalId(professionals[0].id)
-
     if (patients.length === 1) setPatientId(patients[0].id)
   }, [initial, day, professionals, patients])
 
@@ -74,6 +80,7 @@ export default function AppointmentForm({
     if (!quickBase) return
     const end = new Date(quickBase.getTime() + minutes * 60 * 1000)
     setEndAt(toLocalInput(end))
+    setActivePreset(minutes)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,123 +123,317 @@ export default function AppointmentForm({
     }
   }
 
+  const selectedPatient = patients.find((p) => p.id === patientId)
+  const selectedProfessional = professionals.find((p) => p.id === professionalId)
+  const selectedDiet = diets.find((d) => d.id === dietId)
+
+  const startDate = parseLocalInput(startAt)
+  const endDate = parseLocalInput(endAt)
+  const durationMin = startDate && endDate
+    ? Math.round((endDate.getTime() - startDate.getTime()) / 60000)
+    : null
+
+  const completeness = [patientId, professionalId, startAt].filter(Boolean).length
+
   return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <h2>{title}</h2>
-        <form onSubmit={handleSubmit}>
-          <label>
-            Título (opcional)
-            <input
-              type="text"
-              placeholder="Ej. Control mensual"
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-            />
-          </label>
+    <div className="af-page">
 
-          <label>
-            Paciente *
-            <select value={patientId} onChange={(e) => setPatientId(e.target.value)} required>
-              <option value="">Seleccionar paciente...</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>{p.fullName}</option>
-              ))}
-            </select>
-          </label>
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="af-page-header">
+        <button type="button" className="af-back-btn" onClick={onCancel}>
+          ← Volver a Agenda
+        </button>
+        <div className="af-page-title-wrap">
+          <div className="af-page-icon">{initial ? '📋' : '📅'}</div>
+          <div>
+            <h1 className="af-page-title">{title}</h1>
+            <p className="af-page-subtitle">
+              {initial
+                ? `Editando cita de ${initial.patientFullName}`
+                : 'Completa los datos para registrar la nueva cita'}
+            </p>
+          </div>
+        </div>
+      </div>
 
-          <label>
-            Profesional *
-            <select
-              value={professionalId}
-              onChange={(e) => setProfessionalId(e.target.value)}
-              required
-              disabled={professionals.length === 1}
-            >
-              {professionals.length === 0 && <option value="">No hay profesionales disponibles</option>}
-              {professionals.length === 1 && (
-                <option value={professionals[0].id}>
-                  {professionals[0].fullName} ({roleLabel(professionals[0].role)}) — asignado
-                </option>
-              )}
-              {professionals.length > 1 &&
-                professionals.map((p) => (
-                  <option key={p.id} value={p.id}>{p.fullName} ({roleLabel(p.role)})</option>
-                ))}
-            </select>
-            {professionals.length === 1 && (
-              <span className="hint">Solo hay un profesional en el sistema; se asignó automáticamente.</span>
-            )}
-          </label>
+      <form onSubmit={handleSubmit} className="af-layout">
 
-          <label>
-            Dieta asignada (opcional)
-            <select value={dietId} onChange={(e) => setDietId(e.target.value)}>
-              <option value="">Sin dieta asignada</option>
-              {diets.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}{d.objective ? ` · ${d.objective}` : ''}
-                </option>
-              ))}
-            </select>
-            <span className="hint">Puedes asignar o cambiar la dieta del paciente desde aquí.</span>
-          </label>
+        {/* ── Main Column ──────────────────────────────────────── */}
+        <div className="af-main-col">
 
-          <label>
-            Fecha y hora de inicio *
-            <input
-              type="datetime-local"
-              value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
-              required
-            />
-          </label>
+          {/* Sección: Participantes */}
+          <div className="af-section">
+            <div className="af-section-header">
+              <span className="af-section-badge af-badge-blue">👥</span>
+              <span className="af-section-title">Participantes</span>
+            </div>
+            <div className="af-section-body">
 
-          <label>
-            Hora de fin (opcional)
-            <input
-              type="datetime-local"
-              value={endAt}
-              onChange={(e) => setEndAt(e.target.value)}
-            />
-          </label>
+              <div className="af-field">
+                <div className="af-field-icon">🏥</div>
+                <div className="af-field-body">
+                  <span className="af-field-label">Paciente *</span>
+                  <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="af-input" required>
+                    <option value="">Seleccionar paciente...</option>
+                    {patients.map((p) => (
+                      <option key={p.id} value={p.id}>{p.fullName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          <div className="quick-chip-row">
-            <span>Duración:</span>
-            <button type="button" className="chip" onClick={() => applyQuick(30)}>30 min</button>
-            <button type="button" className="chip" onClick={() => applyQuick(60)}>1 h</button>
-            <button type="button" className="chip" onClick={() => applyQuick(90)}>1 h 30</button>
+              <div className="af-field">
+                <div className="af-field-icon">👨‍⚕️</div>
+                <div className="af-field-body">
+                  <span className="af-field-label">Profesional *</span>
+                  <select
+                    value={professionalId}
+                    onChange={(e) => setProfessionalId(e.target.value)}
+                    className="af-input"
+                    required
+                    disabled={professionals.length === 1}
+                  >
+                    {professionals.length === 0 && <option value="">No hay profesionales disponibles</option>}
+                    {professionals.length === 1 && (
+                      <option value={professionals[0].id}>
+                        {professionals[0].fullName} ({roleLabel(professionals[0].role)}) — asignado
+                      </option>
+                    )}
+                    {professionals.length > 1 && (
+                      <>
+                        <option value="">Seleccionar profesional...</option>
+                        {professionals.map((p) => (
+                          <option key={p.id} value={p.id}>{p.fullName} ({roleLabel(p.role)})</option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {professionals.length === 1 && (
+                    <span className="af-hint">Solo un profesional disponible — asignado automáticamente.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="af-field">
+                <div className="af-field-icon">🥗</div>
+                <div className="af-field-body">
+                  <span className="af-field-label">Dieta asignada <em className="af-optional">(opcional)</em></span>
+                  <select value={dietId} onChange={(e) => setDietId(e.target.value)} className="af-input">
+                    <option value="">Sin dieta asignada</option>
+                    {diets.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}{d.objective ? ` · ${d.objective}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="af-hint">Puedes asignar o cambiar la dieta del paciente desde aquí.</span>
+                </div>
+              </div>
+
+            </div>
           </div>
 
-          <label>
-            Notas (opcional)
-            <textarea
-              rows={3}
-              placeholder="Motivo de la consulta, recordatorios..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </label>
+          {/* Sección: Fecha & Hora */}
+          <div className="af-section">
+            <div className="af-section-header">
+              <span className="af-section-badge af-badge-green">🕐</span>
+              <span className="af-section-title">Fecha y Horario</span>
+            </div>
+            <div className="af-section-body">
 
-          {error && <div className="error-box">{error}</div>}
+              <div className="af-field">
+                <div className="af-field-icon">📌</div>
+                <div className="af-field-body">
+                  <span className="af-field-label">Título de la cita <em className="af-optional">(opcional)</em></span>
+                  <input
+                    type="text"
+                    className="af-input"
+                    placeholder="Ej. Control mensual, Consulta inicial..."
+                    value={titleValue}
+                    onChange={(e) => setTitleValue(e.target.value)}
+                  />
+                </div>
+              </div>
 
-          <div className="modal-actions modal-actions-between">
+              <div className="af-fields-row">
+                <div className="af-field">
+                  <div className="af-field-icon">▶️</div>
+                  <div className="af-field-body">
+                    <span className="af-field-label">Inicio *</span>
+                    <input
+                      type="datetime-local"
+                      className="af-input"
+                      value={startAt}
+                      onChange={(e) => {
+                        setStartAt(e.target.value)
+                        setActivePreset(null)
+                        setEndAt('')
+                      }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="af-field">
+                  <div className="af-field-icon">⏹️</div>
+                  <div className="af-field-body">
+                    <span className="af-field-label">Fin <em className="af-optional">(opcional)</em></span>
+                    <input
+                      type="datetime-local"
+                      className="af-input"
+                      value={endAt}
+                      onChange={(e) => { setEndAt(e.target.value); setActivePreset(null) }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Presets duración */}
+              <div className="af-duration-row">
+                <span className="af-duration-label">⚡ Duración rápida:</span>
+                <div className="af-presets">
+                  {DURATION_PRESETS.map((p) => (
+                    <button
+                      key={p.minutes}
+                      type="button"
+                      className={`af-preset-btn${activePreset === p.minutes ? ' active' : ''}`}
+                      onClick={() => applyQuick(p.minutes)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notas */}
+              <div className="af-field">
+                <div className="af-field-icon">📝</div>
+                <div className="af-field-body">
+                  <span className="af-field-label">Notas <em className="af-optional">(opcional)</em></span>
+                  <textarea
+                    rows={3}
+                    className="af-textarea"
+                    placeholder="Motivo de la consulta, recordatorios, indicaciones especiales..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {error && <div className="error-box">⚠️ {error}</div>}
+
+          <div className="af-form-actions">
             {onDelete && (
-              <button type="button" className="btn-danger-soft" onClick={() => onDelete()}>
-                Eliminar
+              <button type="button" className="af-btn-delete" onClick={onDelete}>
+                🗑️ Eliminar cita
               </button>
             )}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem' }}>
-              <button type="button" className="btn-ghost" onClick={onCancel}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn-primary" disabled={submitting}>
-                {submitting ? 'Guardando...' : 'Guardar cita'}
+            <div className="af-actions-right">
+              <button type="button" className="af-btn-cancel" onClick={onCancel}>Cancelar</button>
+              <button type="submit" className="af-btn-save" disabled={submitting}>
+                {submitting ? <><span className="mf-spinner" /> Guardando…</> : <><span>💾</span> Guardar cita</>}
               </button>
             </div>
           </div>
-        </form>
-      </div>
+
+        </div>
+
+        {/* ── Right Summary Panel ──────────────────────────────── */}
+        <aside className="af-summary-col">
+          <div className="af-summary-card">
+            <div className="af-summary-header">📋 Resumen de la cita</div>
+            <div className="af-summary-body">
+
+              <div className="af-summary-row">
+                <span className="af-summary-label">🏥 Paciente</span>
+                <span className="af-summary-val">
+                  {selectedPatient ? selectedPatient.fullName : <em>No seleccionado</em>}
+                </span>
+              </div>
+
+              <div className="af-summary-row">
+                <span className="af-summary-label">👨‍⚕️ Profesional</span>
+                <span className="af-summary-val">
+                  {selectedProfessional
+                    ? `${selectedProfessional.fullName} (${roleLabel(selectedProfessional.role)})`
+                    : <em>No seleccionado</em>}
+                </span>
+              </div>
+
+              {selectedDiet && (
+                <div className="af-summary-row">
+                  <span className="af-summary-label">🥗 Dieta</span>
+                  <span className="af-summary-val">{selectedDiet.name}</span>
+                </div>
+              )}
+
+              {startDate && (
+                <div className="af-summary-date-hero">
+                  <div className="af-date-badge">
+                    <span className="af-date-day">
+                      {startDate.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase()}
+                    </span>
+                    <strong className="af-date-num">{startDate.getDate()}</strong>
+                    <span className="af-date-month">
+                      {startDate.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="af-time-block">
+                    <span className="af-time-val">
+                      {startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {endDate && (
+                      <>
+                        <span className="af-time-sep">→</span>
+                        <span className="af-time-val">
+                          {endDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {durationMin !== null && durationMin > 0 && (
+                    <div className="af-duration-badge">
+                      ⏱ {durationMin >= 60
+                        ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ''}`
+                        : `${durationMin} min`}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {titleValue && (
+                <div className="af-summary-row">
+                  <span className="af-summary-label">📌 Título</span>
+                  <span className="af-summary-val">{titleValue}</span>
+                </div>
+              )}
+
+              {notes && (
+                <div className="af-summary-notes">
+                  <span className="af-summary-label">📝 Notas</span>
+                  <p className="af-summary-notes-text">{notes}</p>
+                </div>
+              )}
+
+              <div className="af-completeness">
+                <div className="af-completeness-bar">
+                  <div
+                    className="af-completeness-fill"
+                    style={{ width: `${Math.round((completeness / 3) * 100)}%` }}
+                  />
+                </div>
+                <span className="af-completeness-label">{completeness}/3 campos requeridos</span>
+              </div>
+
+            </div>
+          </div>
+        </aside>
+
+      </form>
     </div>
   )
 }
+
