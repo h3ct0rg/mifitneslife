@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { dietsApi, patientsApi } from '../api'
+import { dietsApi, patientPhotosApi, patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { DietDto, PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
@@ -8,6 +8,8 @@ import AuthImage from '../components/AuthImage'
 import MeasurementDashboard from '../components/MeasurementDashboard'
 import DietDashboard from '../components/DietDashboard'
 import DietHistory from '../components/DietHistory'
+import PhotoCapture from '../components/PhotoCapture'
+import PhotoHistory from '../components/PhotoHistory'
 
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
@@ -22,6 +24,8 @@ export default function PatientProfile() {
   const [dietList, setDietList] = useState<DietDto[]>([])
   const [dietSaving, setDietSaving] = useState(false)
   const [dietVersion, setDietVersion] = useState(0)
+  const [showPhoto, setShowPhoto] = useState(false)
+  const [photoVersion, setPhotoVersion] = useState(0)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -102,6 +106,21 @@ export default function PatientProfile() {
     }
   }
 
+  const handleCapturePhoto = async (file: File) => {
+    if (!id) return
+    try {
+      const now = new Date()
+      const takenAt = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString()
+      await patientPhotosApi.upload(id, file, takenAt)
+      setShowPhoto(false)
+      setPhotoVersion((v) => v + 1)
+      setMessage({ type: 'ok', text: 'Foto guardada correctamente.' })
+    } catch (err) {
+      setMessage({ type: 'err', text: getErrorMessage(err) })
+      throw err
+    }
+  }
+
   if (loading) return <div className="page"><p>Cargando...</p></div>
 
   if (!patient) {
@@ -151,6 +170,9 @@ export default function PatientProfile() {
           <button type="button" className="btn-ghost" onClick={openDietModal}>
             Dieta
           </button>
+          <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
+            📷 Foto
+          </button>
           <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
             Editar
           </button>
@@ -167,6 +189,7 @@ export default function PatientProfile() {
 
       <DietDashboard key={dietVersion} patientId={patient.id} />
       <DietHistory patientId={patient.id} version={dietVersion} />
+      <PhotoHistory patientId={patient.id} version={photoVersion} />
 
       <div className="card">
         <h2>Información</h2>
@@ -261,6 +284,13 @@ export default function PatientProfile() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPhoto && (
+        <PhotoCapture
+          onCapture={handleCapturePhoto}
+          onCancel={() => setShowPhoto(false)}
+        />
       )}
 
       {showDelete && (

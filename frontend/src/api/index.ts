@@ -22,6 +22,7 @@ import type {
   MeasurementDto,
   PatientDto,
   PatientDietDto,
+  PatientPhotoDto,
   PagedResult,
   ProfessionalDto,
   TenantActivityDto,
@@ -157,6 +158,22 @@ export const workoutPlansApi = {
   update: (id: string, payload: UpdateWorkoutPlanRequest) =>
     api.put<WorkoutPlanDto>(`/workout-plans/${id}`, payload).then((r) => r.data),
   remove: (id: string) => api.delete(`/workout-plans/${id}`).then(() => undefined),
+}
+
+export const patientPhotosApi = {
+  list: (patientId: string) => api.get<PatientPhotoDto[]>(`/patients/${patientId}/photos`).then((r) => r.data),
+  upload: (patientId: string, file: File, takenAt?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (takenAt) form.append('takenAt', takenAt)
+    return api
+      .post<PatientPhotoDto>(`/patients/${patientId}/photos`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
+  remove: (patientId: string, id: string) =>
+    api.delete(`/patients/${patientId}/photos/${id}`).then(() => undefined),
 }
 
 export async function uploadImage(file: File): Promise<string> {

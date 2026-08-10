@@ -149,6 +149,14 @@ public interface IWorkoutPlanRepository
     Task DeleteAsync(WorkoutPlan plan);
 }
 
+public interface IPatientPhotoRepository
+{
+    Task<IEnumerable<PatientPhoto>> GetByPatientAsync(Guid patientId);
+    Task<PatientPhoto?> GetByIdAsync(Guid id);
+    Task AddAsync(PatientPhoto photo);
+    Task DeleteAsync(PatientPhoto photo);
+}
+
 public interface IAuditLogRepository
 {
     Task AddAsync(AuditLog log);
@@ -171,5 +179,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IPatientDietRepository PatientDiets { get; }
     IExerciseRepository Exercises { get; }
     IWorkoutPlanRepository WorkoutPlans { get; }
+    IPatientPhotoRepository PatientPhotos { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

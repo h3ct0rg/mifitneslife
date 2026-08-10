@@ -245,6 +245,15 @@ public class Exercise : BaseEntity
     public UserStatus Status { get; set; } = UserStatus.Active;
 }
 
+public class PatientPhoto : BaseEntityTenant
+{
+    public Guid PatientId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public DateTime TakenAt { get; set; } = DateTime.UtcNow;
+
+    public Patient? Patient { get; set; }
+}
+
 public class WorkoutPlan : BaseEntityTenant
 {
     public string Name { get; set; } = string.Empty;
