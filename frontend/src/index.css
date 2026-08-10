@@ -45,6 +45,16 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+
+  /* Surface / texto / sombras (para vistas tipo formulario de cita) */
+  --surface: #FFFFFF;
+  --surface-2: #F6F9FE;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 
 [data-theme="blue-white"] {
@@ -81,6 +91,15 @@
   --glass-shadow: 0 8px 30px rgba(37, 99, 235, 0.08);
   --glass-shadow-hover: 0 12px 36px rgba(37, 99, 235, 0.18);
   --glass-shadow-modal: 0 20px 50px rgba(15, 23, 42, 0.25);
+
+  --surface: #FFFFFF;
+  --surface-2: #F6F9FE;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 
 [data-theme="blue-rose"] {
@@ -119,6 +138,15 @@
   --glass-shadow: 0 8px 30px rgba(225, 29, 72, 0.08);
   --glass-shadow-hover: 0 12px 36px rgba(225, 29, 72, 0.18);
   --glass-shadow-modal: 0 20px 50px rgba(15, 23, 42, 0.25);
+
+  --surface: #FFFFFF;
+  --surface-2: #F7F4FC;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 
 
@@ -6996,6 +7024,7 @@ textarea {
   max-width: 1200px;
   margin: 0 auto;
   min-height: 100vh;
+  background: var(--bg-gradient, var(--bg));
 }
 
 .af-page-header {
@@ -7015,12 +7044,14 @@ textarea {
   margin-bottom: 1rem;
   display: inline-flex;
   align-items: center;
+  box-shadow: var(--shadow-xs);
 }
 
 .af-back-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
   transform: translateX(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .af-page-title-wrap {
@@ -7078,18 +7109,29 @@ textarea {
 
 .af-section {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(0, 120, 212, 0.16);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 0 rgba(15, 23, 42, 0.04);
   backdrop-filter: blur(10px);
   width: 100%;
+  transition: box-shadow 0.2s ease;
+}
+
+.af-section:hover {
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 0 rgba(15, 23, 42, 0.05);
 }
 
 .af-section-header {
   padding: 0.85rem 1.25rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(0, 120, 212, 0.06), rgba(0, 120, 212, 0.02));
+  border-bottom: 1px solid rgba(0, 120, 212, 0.12);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -7127,8 +7169,14 @@ textarea {
 
 .af-field-icon {
   font-size: 1.2rem;
-  padding-top: 0.4rem;
+  padding: 0.55rem;
   flex-shrink: 0;
+  background: rgba(0, 120, 212, 0.08);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .af-field-body {
@@ -7141,35 +7189,41 @@ textarea {
 }
 
 .af-field-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--text-secondary);
+  text-transform: uppercase;
 }
 
 .af-optional {
   font-weight: 400;
   font-style: normal;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .af-input, .af-select, .af-textarea {
   width: 100%;
   max-width: 100%;
-  padding: 0.65rem 0.85rem;
+  padding: 0.68rem 0.9rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg);
+  border: 1px solid rgba(0, 120, 212, 0.16);
+  background: var(--surface-2);
   color: var(--text-primary);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .af-input:focus, .af-select:focus, .af-textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.12);
 }
 
 .af-hint {
@@ -7333,18 +7387,21 @@ textarea {
 
 .af-summary-card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(0, 120, 212, 0.16);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 0 rgba(15, 23, 42, 0.04);
 }
 
 .af-summary-header {
   padding: 0.85rem 1.25rem;
   font-weight: 700;
   font-size: 0.95rem;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(0, 120, 212, 0.12);
+  background: linear-gradient(180deg, rgba(0, 120, 212, 0.06), rgba(0, 120, 212, 0.02));
 }
 
 .af-summary-body {
@@ -7568,6 +7625,26 @@ textarea {
 @media (max-width: 900px) {
   .af-layout { flex-direction: column; }
   .af-summary-col { width: 100%; position: static; }
+}
+
+@media (max-width: 640px) {
+  .af-page {
+    padding: 0.9rem;
+  }
+
+  .af-section,
+  .af-summary-card {
+    border-radius: var(--radius-lg);
+    box-shadow:
+      var(--shadow-sm),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      0 2px 0 rgba(15, 23, 42, 0.05);
+  }
+
+  .af-section-body,
+  .af-summary-body {
+    padding: 0.95rem;
+  }
 }
 
 /* ==========================================================================
