@@ -37,6 +37,15 @@ public interface IInvitationRepository
     Task UpdateAsync(Invitation invitation);
 }
 
+public interface IOutboxRepository
+{
+    Task<IEnumerable<OutboxMessage>> GetPendingDueAsync(int take);
+    Task<OutboxMessage?> GetByIdAsync(Guid id);
+    Task AddAsync(OutboxMessage message);
+    Task UpdateAsync(OutboxMessage message);
+    Task<IEnumerable<OutboxMessage>> GetByTenantAsync(Guid tenantId, int take = 100);
+}
+
 public interface IRefreshTokenRepository
 {
     Task<RefreshToken?> GetByTokenAsync(string token);
@@ -184,5 +193,6 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IExerciseRepository Exercises { get; }
     IWorkoutPlanRepository WorkoutPlans { get; }
     IPatientPhotoRepository PatientPhotos { get; }
+    IOutboxRepository Outbox { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

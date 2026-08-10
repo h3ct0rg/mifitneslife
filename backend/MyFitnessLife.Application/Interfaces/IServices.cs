@@ -30,6 +30,10 @@ public interface IUserManagementService
     Task UpdateUserRoleAsync(Guid actorId, UpdateUserRoleRequest request);
     Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId);
     Task<UserDto> GetUserByIdAsync(Guid id);
+    Task<IEnumerable<InvitationDto>> GetInvitationsAsync(Guid tenantId);
+    Task<InvitationDto> ResendInvitationAsync(Guid tenantId, Guid invitationId);
+    Task<InvitationDto> RevokeInvitationAsync(Guid tenantId, Guid invitationId);
+    Task<InvitationInfoDto> GetInvitationInfoAsync(string token);
 }
 
 public interface ISuperAdminService
@@ -55,6 +59,7 @@ public interface IPatientService
         int page = 1,
         int pageSize = 20);
     Task<PatientDto> GetByIdAsync(Guid tenantId, Guid id);
+    Task<PatientDto?> GetByEmailAsync(Guid tenantId, string email);
     Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request);
     Task<PatientDto> UpdateAsync(Guid tenantId, Guid id, UpdatePatientRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);

@@ -18,6 +18,8 @@ import type {
   WorkoutPlanDto,
   InviteRequest,
   InviteResponse,
+  InvitationDto,
+  InvitationInfoDto,
   MeasurementDashboardDto,
   MeasurementDto,
   PatientDto,
@@ -48,6 +50,8 @@ export const authApi = {
     password: string
     invitationToken?: string
   }) => api.post<AuthResponse>('/auth/register', payload).then((r) => r.data),
+  getInvitation: (token: string) =>
+    api.get<InvitationInfoDto>(`/auth/invitation/${token}`).then((r) => r.data),
   me: () => api.get<UserDto>('/auth/me').then((r) => r.data),
   logout: () => api.post('/auth/logout').then(() => undefined),
 }
@@ -56,6 +60,11 @@ export const usersApi = {
   list: () => api.get<UserListItem[]>('/users').then((r) => r.data),
   invite: (payload: InviteRequest) =>
     api.post<InviteResponse>('/users/invite', payload).then((r) => r.data),
+  invitations: () => api.get<InvitationDto[]>('/users/invitations').then((r) => r.data),
+  resendInvitation: (id: string) =>
+    api.post<InvitationDto>(`/users/invitations/${id}/resend`).then((r) => r.data),
+  revokeInvitation: (id: string) =>
+    api.post<InvitationDto>(`/users/invitations/${id}/revoke`).then((r) => r.data),
   updateRole: (userId: string, role: number) =>
     api.put('/users/role', { userId, role }).then(() => undefined),
 }
@@ -73,6 +82,7 @@ export const patientsApi = {
   list: (params: { search?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<PatientDto>>('/patients', { params }).then((r) => r.data),
   getById: (id: string) => api.get<PatientDto>(`/patients/${id}`).then((r) => r.data),
+  me: () => api.get<PatientDto>('/patients/me').then((r) => r.data),
   create: (payload: CreatePatientRequest) =>
     api.post<PatientDto>('/patients', payload).then((r) => r.data),
   update: (id: string, payload: UpdatePatientRequest) =>

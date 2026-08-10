@@ -10,10 +10,12 @@ namespace MyFitnessLife.Application.Services;
 public class AppointmentService : IAppointmentService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IEmailService _emailService;
 
-    public AppointmentService(IUnitOfWork unitOfWork)
+    public AppointmentService(IUnitOfWork unitOfWork, IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
+        _emailService = emailService;
     }
 
     public async Task<IEnumerable<AppointmentDto>> GetByRangeAsync(Guid tenantId, DateTime from, DateTime to)
@@ -43,6 +45,8 @@ public class AppointmentService : IAppointmentService
 
         await _unitOfWork.Appointments.AddAsync(appointment);
         await _unitOfWork.SaveChangesAsync();
+
+        await EnqueueAppointmentEmailAsync(tenantId, appointment, proportional);
 
         return await GetByIdAsync(tenantId, appointment.Id);
     }
@@ -158,6 +162,40 @@ public class AppointmentService : IAppointmentService
             throw new UnauthorizedAccessException("Acceso denegado a la cita.");
 
         return ToDto(appointment);
+    }
+
+    private async Task EnqueueAppointmentEmailAsync(Guid tenantId, Appointment appointment, ApplicationUser professional)
+    {
+        var patient = await _unitOfWork.Patients.GetByIdAsync(appointment.PatientId);
+        if (patient is null || string.IsNullOrWhiteSpace(patient.Email))
+            return;
+
+        var localTime = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(appointment.StartAt, DateTimeKind.Utc),
+            TimeZoneInfo.Local);
+
+        var dateLabel = localTime.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
+        var timeLabel = localTime.ToString("HH:mm 'h'");
+
+        var html = _emailService.BuildAppointmentEmail(
+            patient.FullName,
+            professional.FullName,
+            dateLabel,
+            timeLabel,
+            appointment.Title,
+            appointment.Notes);
+
+        await _unitOfWork.Outbox.AddAsync(new OutboxMessage
+        {
+            TenantId = tenantId,
+            Recipient = patient.Email,
+            Type = "appointment",
+            Subject = "Tienes una cita programada · MyFitnessLife",
+            BodyHtml = html,
+            Status = NotificationStatus.Pending
+        });
+
+        await _unitOfWork.SaveChangesAsync();
     }
 
     private static AppointmentDto ToDto(Appointment appointment)

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MyFitnessLife.Domain.Entities;
+using MyFitnessLife.Domain.Enums;
 using MyFitnessLife.Domain.Interfaces;
 using MyFitnessLife.Infrastructure.Data;
 
@@ -752,4 +753,38 @@ public class PatientPhotoRepository : IPatientPhotoRepository
         _context.PatientPhotos.Remove(photo);
         return Task.CompletedTask;
     }
+}
+
+public class OutboxRepository : IOutboxRepository
+{
+    private readonly AppDbContext _context;
+
+    public OutboxRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<OutboxMessage>> GetPendingDueAsync(int take)
+        => await _context.OutboxMessages
+            .Where(m => m.Status == NotificationStatus.Pending
+                && (m.NextAttemptAt == null || m.NextAttemptAt <= DateTime.UtcNow))
+            .OrderBy(m => m.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+
+    public Task<OutboxMessage?> GetByIdAsync(Guid id)
+        => _context.OutboxMessages.FirstOrDefaultAsync(m => m.Id == id);
+
+    public async Task AddAsync(OutboxMessage message)
+        => await _context.OutboxMessages.AddAsync(message);
+
+    public Task UpdateAsync(OutboxMessage message)
+    {
+        _context.OutboxMessages.Update(message);
+        return Task.CompletedTask;
+    }
+
+    public async Task<IEnumerable<OutboxMessage>> GetByTenantAsync(Guid tenantId, int take = 100)
+        => await _context.OutboxMessages.AsNoTracking()
+            .Where(m => m.TenantId == tenantId)
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(take)
+            .ToListAsync();
 }

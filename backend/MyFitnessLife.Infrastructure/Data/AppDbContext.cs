@@ -28,6 +28,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<WorkoutDay> WorkoutDays => Set<WorkoutDay>();
     public DbSet<WorkoutExercise> WorkoutExercises => Set<WorkoutExercise>();
     public DbSet<PatientPhoto> PatientPhotos => Set<PatientPhoto>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -59,10 +60,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.Property(i => i.Email).HasMaxLength(256).IsRequired();
             e.Property(i => i.Token).HasMaxLength(128).IsRequired();
             e.HasIndex(i => i.Token).IsUnique();
+            e.HasIndex(i => new { i.TenantId, i.Email });
             e.HasOne(i => i.Tenant)
                 .WithMany()
                 .HasForeignKey(i => i.TenantId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<OutboxMessage>(e =>
+        {
+            e.Property(m => m.Recipient).HasMaxLength(256).IsRequired();
+            e.Property(m => m.Type).HasMaxLength(50).IsRequired();
+            e.HasIndex(m => m.Status);
+            e.HasIndex(m => m.NextAttemptAt);
         });
 
         builder.Entity<RefreshToken>(e =>

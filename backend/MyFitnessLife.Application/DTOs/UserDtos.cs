@@ -16,6 +16,33 @@ public class InviteUserResponse
     public string Status { get; set; } = string.Empty;
     public string Token { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    public DateTime? SentAt { get; set; }
+    public int Attempts { get; set; }
+    public string? LastError { get; set; }
+}
+
+public class InvitationDto
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? SentAt { get; set; }
+    public DateTime? AcceptedAt { get; set; }
+    public int Attempts { get; set; }
+    public string? LastError { get; set; }
+    public bool Expired { get; set; }
+}
+
+public class InvitationInfoDto
+{
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string TenantName { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public bool Valid { get; set; }
 }
 
 public class AcceptInvitationRequest

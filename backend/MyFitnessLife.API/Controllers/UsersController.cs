@@ -61,8 +61,74 @@ public class UsersController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
+    [HttpGet("invitations")]
+    [ProducesResponseType(typeof(IEnumerable<InvitationDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInvitations()
+    {
+        if (!IsTenantAdmin())
+            return Forbid();
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null)
+            return Forbid();
+
+        return Ok(await _userManagementService.GetInvitationsAsync(tenantId.Value));
+    }
+
+    [HttpPost("invitations/{id:guid}/resend")]
+    [ProducesResponseType(typeof(InvitationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResendInvitation(Guid id)
+    {
+        if (!IsTenantAdmin())
+            return Forbid();
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null)
+            return Forbid();
+
+        try
+        {
+            return Ok(await _userManagementService.ResendInvitationAsync(tenantId.Value, id));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("invitations/{id:guid}/revoke")]
+    [ProducesResponseType(typeof(InvitationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RevokeInvitation(Guid id)
+    {
+        if (!IsTenantAdmin())
+            return Forbid();
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null)
+            return Forbid();
+
+        try
+        {
+            return Ok(await _userManagementService.RevokeInvitationAsync(tenantId.Value, id));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
     [HttpPost("accept-invitation")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)

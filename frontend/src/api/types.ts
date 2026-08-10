@@ -28,6 +28,31 @@ export interface InviteResponse {
   status: string
   token: string
   expiresAt: string
+  sentAt?: string
+  attempts?: number
+  lastError?: string
+}
+
+export interface InvitationDto {
+  id: string
+  email: string
+  role: string
+  status: string
+  token: string
+  expiresAt: string
+  sentAt?: string
+  acceptedAt?: string
+  attempts: number
+  lastError?: string
+  expired: boolean
+}
+
+export interface InvitationInfoDto {
+  valid: boolean
+  email?: string
+  role?: string
+  tenantName?: string
+  expiresAt?: string
 }
 
 export interface UserListItem {
