@@ -27,6 +27,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<WorkoutPlan> WorkoutPlans => Set<WorkoutPlan>();
     public DbSet<WorkoutDay> WorkoutDays => Set<WorkoutDay>();
     public DbSet<WorkoutExercise> WorkoutExercises => Set<WorkoutExercise>();
+    public DbSet<PatientPhoto> PatientPhotos => Set<PatientPhoto>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -243,6 +244,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
                 .WithMany()
                 .HasForeignKey(we => we.ExerciseId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<PatientPhoto>(e =>
+        {
+            e.Property(p => p.FileName).HasMaxLength(300).IsRequired();
+            e.HasIndex(p => new { p.PatientId, p.TakenAt });
+            e.HasOne(p => p.Patient)
+                .WithMany()
+                .HasForeignKey(p => p.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -397,6 +397,13 @@ export interface PatientDietDto {
   isActive: boolean
 }
 
+export interface PatientPhotoDto {
+  id: string
+  patientId: string
+  fileName: string
+  takenAt: string
+}
+
 export interface ExerciseDto {
   id: string
   name: string

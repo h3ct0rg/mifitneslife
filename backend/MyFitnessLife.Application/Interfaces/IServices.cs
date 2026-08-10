@@ -6,6 +6,7 @@ using MyFitnessLife.Application.DTOs.Exercises;
 using MyFitnessLife.Application.DTOs.Foods;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
+using MyFitnessLife.Application.DTOs.PatientPhotos;
 using MyFitnessLife.Application.DTOs.Users;
 using MyFitnessLife.Application.DTOs.WorkoutPlans;
 using MyFitnessLife.Domain.Entities;
@@ -135,4 +136,11 @@ public interface IWorkoutPlanService
     Task<WorkoutPlanDto> CreateAsync(Guid tenantId, CreateWorkoutPlanRequest request);
     Task<WorkoutPlanDto> UpdateAsync(Guid tenantId, Guid id, UpdateWorkoutPlanRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);
+}
+
+public interface IPatientPhotoService
+{
+    Task<IEnumerable<PatientPhotoDto>> GetByPatientAsync(Guid tenantId, Guid patientId);
+    Task<PatientPhotoDto> CreateAsync(Guid tenantId, Guid patientId, string fileName, DateTime takenAt);
+    Task DeleteAsync(Guid tenantId, Guid patientId, Guid id);
 }

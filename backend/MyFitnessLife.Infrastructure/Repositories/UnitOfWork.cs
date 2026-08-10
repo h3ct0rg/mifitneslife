@@ -23,6 +23,7 @@ public class UnitOfWork : IUnitOfWork
         PatientDiets = new PatientDietRepository(context);
         Exercises = new ExerciseRepository(context);
         WorkoutPlans = new WorkoutPlanRepository(context);
+        PatientPhotos = new PatientPhotoRepository(context);
     }
 
     public IUserRepository Users { get; }
@@ -38,6 +39,7 @@ public class UnitOfWork : IUnitOfWork
     public IPatientDietRepository PatientDiets { get; }
     public IExerciseRepository Exercises { get; }
     public IWorkoutPlanRepository WorkoutPlans { get; }
+    public IPatientPhotoRepository PatientPhotos { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         => _context.SaveChangesAsync(cancellationToken);

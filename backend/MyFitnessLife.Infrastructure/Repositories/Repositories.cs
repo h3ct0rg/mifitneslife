@@ -662,3 +662,28 @@ public class WorkoutPlanRepository : IWorkoutPlanRepository
         return Task.CompletedTask;
     }
 }
+
+public class PatientPhotoRepository : IPatientPhotoRepository
+{
+    private readonly AppDbContext _context;
+
+    public PatientPhotoRepository(AppDbContext context) => _context = context;
+
+    public async Task<IEnumerable<PatientPhoto>> GetByPatientAsync(Guid patientId)
+        => await _context.PatientPhotos.AsNoTracking()
+            .Where(p => p.PatientId == patientId)
+            .OrderByDescending(p => p.TakenAt)
+            .ToListAsync();
+
+    public Task<PatientPhoto?> GetByIdAsync(Guid id)
+        => _context.PatientPhotos.FirstOrDefaultAsync(p => p.Id == id);
+
+    public async Task AddAsync(PatientPhoto photo)
+        => await _context.PatientPhotos.AddAsync(photo);
+
+    public Task DeleteAsync(PatientPhoto photo)
+    {
+        _context.PatientPhotos.Remove(photo);
+        return Task.CompletedTask;
+    }
+}
