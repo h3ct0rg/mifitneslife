@@ -4,8 +4,6 @@ import { getErrorMessage } from '../api/client'
 import type { AppointmentDto, AppointmentStatus, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
 import AppointmentForm from '../components/AppointmentForm'
 
-type ViewMode = 'month' | 'week' | 'day'
-
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
   Scheduled: 'Programada',
@@ -30,12 +28,6 @@ function addDays(d: Date, n: number) {
   return r
 }
 
-function startOfWeek(d: Date) {
-  const r = startOfDay(d)
-  const offset = (r.getDay() + 6) % 7
-  return addDays(r, -offset)
-}
-
 function monthGrid(viewYear: number, viewMonth: number) {
   const first = new Date(viewYear, viewMonth, 1)
   const start = addDays(first, -((first.getDay() + 6) % 7))
@@ -44,22 +36,12 @@ function monthGrid(viewYear: number, viewMonth: number) {
   return days
 }
 
-function monthTitle(d: Date) {
-  return d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
-}
-
-function weekTitle(weekStart: Date) {
-  const end = addDays(weekStart, 6)
-  const fmt = (x: Date) => x.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
-  const sameMonth = weekStart.getMonth() === end.getMonth()
-  if (sameMonth) return `${fmt(weekStart)} – ${fmt(end)}`
-  return `${fmt(weekStart)} – ${end.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' })}`
-}
-
-const HOURS = Array.from({ length: 14 }, (_, i) => 7 + i)
+type FormState =
+  | { mode: 'create'; day: Date }
+  | { mode: 'edit'; appointment: AppointmentDto }
+  | null
 
 export default function Agenda() {
-  const [view, setView] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState(() => startOfDay(new Date()))
   const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [patients, setPatients] = useState<PatientDto[]>([])
@@ -67,23 +49,17 @@ export default function Agenda() {
   const [diets, setDiets] = useState<DietDto[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [modal, setModal] = useState<
-    | { mode: 'create'; day: Date }
-    | { mode: 'edit'; appointment: AppointmentDto }
-    | null
-  >(null)
+  const [formState, setFormState] = useState<FormState>(null)
   const [confirmDelete, setConfirmDelete] = useState<AppointmentDto | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<Date>(() => startOfDay(new Date()))
 
   const period = useMemo(() => {
-    if (view === 'month')
-      return { from: addDays(new Date(cursor.getFullYear(), cursor.getMonth(), 1), -7), to: addDays(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1), 7) }
-    if (view === 'week')
-      return { from: addDays(startOfWeek(cursor), -7), to: addDays(startOfWeek(cursor), 14) }
-    return { from: addDays(cursor, -7), to: addDays(cursor, 8) }
-  }, [view, cursor])
-
-  useEffect(() => { setMessage(null) }, [view])
+    return {
+      from: addDays(new Date(cursor.getFullYear(), cursor.getMonth(), 1), -7),
+      to: addDays(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1), 7),
+    }
+  }, [cursor])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -121,22 +97,15 @@ export default function Agenda() {
   }, [appointments])
 
   const navigate = (dir: -1 | 1) => {
-    if (view === 'month') setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
-    else setCursor(addDays(cursor, dir * (view === 'week' ? 7 : 1)))
+    setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
   }
 
   const goToday = () => setCursor(startOfDay(new Date()))
 
-  const title = view === 'month'
-    ? monthTitle(cursor)
-    : view === 'week'
-      ? weekTitle(startOfWeek(cursor))
-      : cursor.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-
   const handleCreate = async (payload: CreateAppointmentRequest) => {
     try {
       await appointmentsApi.create(payload)
-      setModal(null)
+      setFormState(null)
       setMessage({ type: 'ok', text: 'Cita registrada correctamente.' })
       load()
     } catch (err) {
@@ -148,7 +117,7 @@ export default function Agenda() {
   const handleUpdate = async (id: string, payload: CreateAppointmentRequest) => {
     try {
       await appointmentsApi.update(id, payload)
-      setModal(null)
+      setFormState(null)
       setMessage({ type: 'ok', text: 'Cita actualizada correctamente.' })
       load()
     } catch (err) {
@@ -158,7 +127,7 @@ export default function Agenda() {
   }
 
   const requestDelete = (appointment: AppointmentDto) => {
-    setModal(null)
+    setFormState(null)
     setConfirmDelete(appointment)
   }
 
@@ -179,89 +148,170 @@ export default function Agenda() {
     }
   }
 
+  const handleAppointmentClick = (a: AppointmentDto) => {
+    setFormState({ mode: 'edit', appointment: a })
+  }
+
+  if (formState) {
+    return (
+      <AppointmentForm
+        title={formState.mode === 'create' ? 'Registrar nueva cita' : 'Editar cita'}
+        day={formState.mode === 'create' ? formState.day : undefined}
+        initial={formState.mode === 'edit' ? formState.appointment : undefined}
+        patients={patients}
+        professionals={professionals}
+        diets={diets}
+        onSubmit={formState.mode === 'create'
+          ? handleCreate
+          : (payload) => handleUpdate(formState.appointment.id, payload)}
+        onDelete={formState.mode === 'edit' ? () => requestDelete(formState.appointment) : undefined}
+        onCancel={() => setFormState(null)}
+      />
+    )
+  }
+
+  const selectedDayKey = toKey(selectedDay)
+  const selectedDayApps = byKey.get(selectedDayKey) ?? []
+
   return (
-    <div className="page">
+    <div className="clean-agenda-container">
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
 
-      <div className="card-header agenda-toolbar">
-        <h2>Agenda</h2>
-        <div className="agenda-actions">
-          <button type="button" className="btn-ghost" onClick={() => setModal({ mode: 'create', day: cursor })}>
+      <div className="purple-agenda-card">
+        <div className="purple-card-header">
+          <div className="purple-header-left">
+            <span className="purple-year">{cursor.getFullYear()}</span>
+            <h1 className="purple-month-name">
+              {cursor.toLocaleDateString('es-ES', { month: 'long' })}
+            </h1>
+          </div>
+
+          <div className="purple-header-controls">
+            <button type="button" className="purple-nav-arrow" onClick={() => navigate(-1)} aria-label="Anterior">
+              ‹
+            </button>
+            <button type="button" className="purple-today-chip" onClick={goToday}>
+              Hoy
+            </button>
+            <button type="button" className="purple-nav-arrow" onClick={() => navigate(1)} aria-label="Siguiente">
+              ›
+            </button>
+          </div>
+        </div>
+
+        <div className="purple-cal-wrapper">
+          <div className="purple-day-names">
+            {DAY_NAMES.map((name) => (
+              <span key={name} className="purple-day-name">{name}</span>
+            ))}
+          </div>
+
+          <div className="purple-dates-grid">
+            {monthGrid(cursor.getFullYear(), cursor.getMonth()).map((d) => {
+              const key = toKey(d)
+              const dayApps = byKey.get(key) ?? []
+              const isToday = key === toKey(new Date())
+              const isOut = d.getMonth() !== cursor.getMonth()
+              const isSelected = key === selectedDayKey
+              const hasApps = dayApps.length > 0
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`purple-date-cell${isOut ? ' out' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${hasApps ? ' has-events' : ''}`}
+                  onClick={() => setSelectedDay(d)}
+                >
+                  <span className="purple-date-number">{d.getDate()}</span>
+                  {hasApps && (
+                    <span className="purple-event-dots">
+                      {dayApps.slice(0, 3).map((a) => (
+                        <span key={a.id} className={`purple-dot ${a.status.toLowerCase()}`} />
+                      ))}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="clean-agenda-section">
+        <div className="agenda-section-header">
+          <div>
+            <span className="agenda-section-subtitle">
+              {selectedDay.toLocaleDateString('es-ES', { weekday: 'long' }).toUpperCase()}
+            </span>
+            <h2 className="agenda-section-title">
+              {selectedDay.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </h2>
+          </div>
+          <button
+            type="button"
+            className="purple-add-btn"
+            id="btn-nueva-cita"
+            onClick={() => setFormState({ mode: 'create', day: selectedDay })}
+          >
             + Nueva cita
           </button>
         </div>
-      </div>
 
-      <div className="agenda-nav">
-        <div className="agenda-nav-arrows">
-          <button type="button" className="btn-ghost" onClick={() => navigate(-1)} aria-label="Anterior">‹</button>
-          <button type="button" className="btn-ghost" onClick={goToday}>Hoy</button>
-          <button type="button" className="btn-ghost" onClick={() => navigate(1)} aria-label="Siguiente">›</button>
-        </div>
-        <h3 className="agenda-title">{title}</h3>
-        <div className="agenda-view-switch" role="tablist">
-          {(['month', 'week', 'day'] as const).map((v) => (
+        {loading ? (
+          <p className="loading">Cargando citas...</p>
+        ) : selectedDayApps.length === 0 ? (
+          <div className="clean-empty-state">
+            <span className="clean-empty-icon">☕</span>
+            <p>No tienes citas agendadas para este día.</p>
             <button
-              key={v}
               type="button"
-              className={view === v ? 'view-btn active' : 'view-btn'}
-              onClick={() => setView(v)}
+              className="clean-empty-btn"
+              onClick={() => setFormState({ mode: 'create', day: selectedDay })}
             >
-              {v === 'month' ? 'Mes' : v === 'week' ? 'Semana' : 'Día'}
+              Agendar consulta
             </button>
-          ))}
-        </div>
-      </div>
-
-      {loading ? (
-        <p className="loading">Cargando...</p>
-      ) : view === 'month' ? (
-        <MonthView
-          grid={monthGrid(cursor.getFullYear(), cursor.getMonth())}
-          appointments={byKey}
-          onDayClick={(d) => setModal({ mode: 'create', day: d })}
-          onAppointmentClick={(a) => setModal({ mode: 'edit', appointment: a })}
-          todayKey={toKey(new Date())}
-        />
-      ) : (
-        <TimeGridView
-          view={view}
-          days={view === 'day'
-            ? [cursor]
-            : Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(cursor), i))}
-          appointments={byKey}
-          onDayClick={(d) => setModal({ mode: 'create', day: d })}
-          onAppointmentClick={(a) => setModal({ mode: 'edit', appointment: a })}
-          todayKey={toKey(new Date())}
-        />
-      )}
-
-      <div className="legend">
-        {Object.entries(STATUS_LABEL).map(([status, label]) => (
-          <span key={status} className="legend-item">
-            <i className={`status-dot ${status.toLowerCase()}`} /> {label}
-          </span>
-        ))}
-        {appointments.length > 0 && (
-          <span className="legend-summary">Citas cargadas: {appointments.length}</span>
+          </div>
+        ) : (
+          <div className="clean-apps-list">
+            {selectedDayApps.map((a) => (
+              <div
+                key={a.id}
+                role="button"
+                tabIndex={0}
+                className={`clean-app-card ${a.status.toLowerCase()}`}
+                onClick={() => handleAppointmentClick(a)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleAppointmentClick(a) }}
+              >
+                <div className={`clean-app-indicator ${a.status.toLowerCase()}`} />
+                <div className="clean-app-main">
+                  <div className="clean-app-top">
+                    <strong className="clean-app-patient">{a.patientFullName}</strong>
+                    <span className={`clean-app-badge ${a.status.toLowerCase()}`}>
+                      {STATUS_LABEL[a.status]}
+                    </span>
+                  </div>
+                  <div className="clean-app-sub">
+                    <span className="clean-app-time">
+                      🕒 {new Date(a.startAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                      {a.endAt && ` – ${new Date(a.endAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`}
+                    </span>
+                    <span className="clean-app-prof">👨‍⚕️ {a.professionalFullName}</span>
+                  </div>
+                  {a.notes && <p className="clean-app-notes">📝 {a.notes}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {modal && (
-        <AppointmentForm
-          title={modal.mode === 'create' ? 'Registrar cita' : 'Editar cita'}
-          day={modal.mode === 'create' ? modal.day : undefined}
-          initial={modal.mode === 'edit' ? modal.appointment : undefined}
-          patients={patients}
-          professionals={professionals}
-          diets={diets}
-          onSubmit={modal.mode === 'create'
-            ? handleCreate
-            : (payload) => handleUpdate(modal.appointment.id, payload)}
-          onDelete={modal.mode === 'edit' ? () => requestDelete(modal.appointment) : undefined}
-          onCancel={() => setModal(null)}
-        />
-      )}
+      <div className="clean-legend">
+        {Object.entries(STATUS_LABEL).map(([status, label]) => (
+          <span key={status} className="clean-legend-item">
+            <i className={`clean-dot-icon ${status.toLowerCase()}`} /> {label}
+          </span>
+        ))}
+      </div>
 
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => !deleting && setConfirmDelete(null)}>
@@ -296,117 +346,6 @@ export default function Agenda() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-interface MonthViewProps {
-  grid: Date[]
-  appointments: Map<string, AppointmentDto[]>
-  onDayClick: (day: Date) => void
-  onAppointmentClick: (appointment: AppointmentDto) => void
-  todayKey: string
-}
-
-function MonthView({ grid, appointments, onDayClick, onAppointmentClick, todayKey }: MonthViewProps) {
-  const currentMonth = grid[10]?.getMonth()
-
-  return (
-    <div className="cal-grid cal-month-grid">
-      {DAY_NAMES.map((name) => (
-        <div key={name} className="cal-day-name">{name}</div>
-      ))}
-      {grid.map((d) => {
-        const key = toKey(d)
-        const dayApps = appointments.get(key) ?? []
-        const isToday = key === todayKey
-        const isOut = d.getMonth() !== currentMonth
-        return (
-          <div
-            key={key}
-            role="button"
-            tabIndex={0}
-            className={`cal-cell cal-day${isOut ? ' out' : ''}${isToday ? ' today' : ''}`}
-            onClick={() => onDayClick(d)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDayClick(d) } }}
-          >
-            <span className="cal-cell-date">{d.getDate()}</span>
-            <div className="cal-cell-apps">
-              {dayApps.slice(0, 3).map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  className="cal-chip"
-                  onClick={(e) => { e.stopPropagation(); onAppointmentClick(a) }}
-                >
-                  <span className="chip-time">{new Date(a.startAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                  <span className="chip-name">{a.patientFullName}</span>
-                </button>
-              ))}
-              {dayApps.length > 3 && <span className="cal-cell-more">+{dayApps.length - 3} más</span>}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-interface TimeGridViewProps {
-  view: ViewMode
-  days: Date[]
-  appointments: Map<string, AppointmentDto[]>
-  onDayClick: (day: Date) => void
-  onAppointmentClick: (appointment: AppointmentDto) => void
-  todayKey: string
-}
-
-function TimeGridView({ view, days, appointments, onDayClick, onAppointmentClick, todayKey }: TimeGridViewProps) {
-  return (
-    <div className="cal-time-scroll">
-      <div className={`cal-grid cal-time-grid${view === 'day' ? ' single-day' : ''}`}>
-        {days.map((d) => {
-          const key = toKey(d)
-          const isToday = key === todayKey
-          return (
-            <div key={key} className="cal-time-day">
-              <button
-                type="button"
-                className={`cal-col-head${isToday ? ' today' : ''}`}
-                onClick={() => onDayClick(d)}
-              >
-                {view === 'day'
-                  ? d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })
-                  : DAY_NAMES[(d.getDay() + 6) % 7]}
-                <strong>{d.getDate()}</strong>
-              </button>
-              <div className="cal-time-slots">
-                {HOURS.map((h) => {
-                  const hourApps = (appointments.get(key) ?? []).filter((a) => new Date(a.startAt).getHours() === h)
-                  return (
-                    <div key={h} className="cal-slot">
-                      <span className="slot-hours">{String(h).padStart(2, '0')}:00</span>
-                      <div className="slot-body" onClick={() => onDayClick(d)}>
-                        {hourApps.map((a) => (
-                          <button
-                            key={a.id}
-                            type="button"
-                            className={`cal-chip slot-chip ${a.status.toLowerCase()}`}
-                            onClick={(e) => { e.stopPropagation(); onAppointmentClick(a) }}
-                          >
-                            <span className="chip-time">{new Date(a.startAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span className="chip-name">{a.patientFullName} · {a.professionalFullName}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }

@@ -30,6 +30,24 @@ const nextKey = () => `meal-${++keyCounter}-${Date.now()}`
 
 const num = (v?: string | number) => (v == null || v === '' ? '' : String(v))
 
+const OBJECTIVES = [
+  'Pérdida de peso',
+  'Ganancia muscular',
+  'Mantenimiento',
+  'Control de peso',
+  'Alimentación saludable',
+  'Recuperación',
+  'Personalizado',
+]
+
+const MEAL_PRESETS = [
+  { name: 'Desayuno', time: '08:00', icon: '🌅' },
+  { name: 'Media Mañana', time: '11:00', icon: '🍏' },
+  { name: 'Almuerzo', time: '14:00', icon: '☀️' },
+  { name: 'Merienda', time: '17:00', icon: '☕' },
+  { name: 'Cena', time: '21:00', icon: '🌙' },
+]
+
 export default function DietBuilder({ title, initial, foods, onSubmit, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [objective, setObjective] = useState(initial?.objective ?? '')
@@ -38,6 +56,7 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
   const [goalProtein, setGoalProtein] = useState<string>(initial?.goalProtein ? String(initial.goalProtein) : '')
   const [goalCarbs, setGoalCarbs] = useState<string>(initial?.goalCarbs ? String(initial.goalCarbs) : '')
   const [goalFat, setGoalFat] = useState<string>(initial?.goalFat ? String(initial.goalFat) : '')
+
   const [meals, setMeals] = useState<DraftMeal[]>(() =>
     initial && initial.meals.length > 0
       ? initial.meals.map((m) => ({
@@ -53,9 +72,9 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
           })),
         }))
       : [
-          { key: nextKey(), name: 'Desayuno', scheduledTime: '07:30', instructions: '', items: [] },
-          { key: nextKey(), name: 'Almuerzo', scheduledTime: '13:30', instructions: '', items: [] },
-          { key: nextKey(), name: 'Cena', scheduledTime: '20:00', instructions: '', items: [] },
+          { key: nextKey(), name: 'Desayuno', scheduledTime: '08:00', instructions: '', items: [] },
+          { key: nextKey(), name: 'Almuerzo', scheduledTime: '14:00', instructions: '', items: [] },
+          { key: nextKey(), name: 'Cena', scheduledTime: '21:00', instructions: '', items: [] },
         ],
   )
 
@@ -69,12 +88,12 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
 
   useEffect(() => {
     if (!activeMealKey && meals.length > 0) setActiveMealKey(meals[0].key)
-  }, [meals])
+  }, [meals, activeMealKey])
 
   const filteredFoods = useMemo(() => {
     const s = foodSearch.trim().toLowerCase()
-    if (!s) return foods.slice(0, 12)
-    return foods.filter((f) => f.name.toLowerCase().includes(s) || f.category.toLowerCase().includes(s)).slice(0, 12)
+    if (!s) return foods.slice(0, 16)
+    return foods.filter((f) => f.name.toLowerCase().includes(s) || f.category.toLowerCase().includes(s)).slice(0, 16)
   }, [foods, foodSearch])
 
   const mealFoods = (mealKey: string) => {
@@ -98,14 +117,20 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     const t = { calories: 0, protein: 0, carbohydrates: 0, fat: 0, fiber: 0 }
     for (const meal of meals) {
       for (const item of mealFoods(meal.key)) {
-        t.calories += item.calories
-        t.protein += item.protein
-        t.carbohydrates += item.carbohydrates
-        t.fat += item.fat
-        t.fiber += item.fiber
+        t.calories += item.calories ?? 0
+        t.protein += item.protein ?? 0
+        t.carbohydrates += item.carbohydrates ?? 0
+        t.fat += item.fat ?? 0
+        t.fiber += item.fiber ?? 0
       }
     }
-    return t
+    return {
+      calories: Math.round(t.calories),
+      protein: Math.round(t.protein * 10) / 10,
+      carbohydrates: Math.round(t.carbohydrates * 10) / 10,
+      fat: Math.round(t.fat * 10) / 10,
+      fiber: Math.round(t.fiber * 10) / 10,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meals, foods])
 
@@ -113,9 +138,9 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     setMeals((ms) => ms.map((m) => (m.key === key ? { ...m, ...patch } : m)))
   }
 
-  const addMeal = () => {
+  const addMeal = (presetName = 'Nueva comida', presetTime = '') => {
     const key = nextKey()
-    setMeals((ms) => [...ms, { key, name: 'Nueva comida', scheduledTime: '', instructions: '', items: [] }])
+    setMeals((ms) => [...ms, { key, name: presetName, scheduledTime: presetTime, instructions: '', items: [] }])
     setActiveMealKey(key)
   }
 
@@ -148,7 +173,7 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
 
   const addFoodToMeal = (food: FoodDto) => {
     setAddingFood(food)
-    setDraftQty(String(food.defaultQuantity))
+    setDraftQty(String(food.defaultQuantity ?? 100))
   }
 
   const confirmAddFood = () => {
@@ -158,7 +183,18 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     setMeals((ms) =>
       ms.map((m) =>
         m.key === activeMealKey
-          ? { ...m, items: [...m.items, { foodId: addingFood.id, foodName: addingFood.name, quantity: qty, unit: addingFood.unit }] }
+          ? {
+              ...m,
+              items: [
+                ...m.items,
+                {
+                  foodId: addingFood.id,
+                  foodName: addingFood.name,
+                  quantity: qty,
+                  unit: addingFood.unit ?? 'g',
+                },
+              ],
+            }
           : m,
       ),
     )
@@ -175,7 +211,7 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      setError('El nombre de la dieta es obligatorio.')
+      setError('El nombre del plan de dieta es obligatorio.')
       return
     }
     const payload: CreateDietRequest = {
@@ -201,195 +237,509 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
       await onSubmit(payload)
     } catch (err) {
       setError(err instanceof Error ? err.message : getErrorMessage(err))
-    } finally {
       setSubmitting(false)
     }
   }
 
   const activeMeal = meals.find((m) => m.key === activeMealKey)
 
+  // Calculate goal percentage
+  const calGoalNum = Number(goalCalories) || 0
+  const calPct = calGoalNum > 0 ? Math.min(100, Math.round((totals.calories / calGoalNum) * 100)) : 0
+
   return (
-    <div className="modal-overlay">
-      <div className="modal modal-diet">
-        <h2>{title}</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="diet-form-grid">
-            <div className="diet-form-fields">
-              <label className="form-grid-item">
-                Nombre de la dieta *
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Plan de ganancia muscular" required />
-              </label>
-              <div className="form-grid">
-                <label className="form-grid-item">
-                  Objetivo
-                  <select value={objective} onChange={(e) => setObjective(e.target.value)}>
-                    <option value="">Seleccionar objetivo...</option>
-                    {['Pérdida de peso', 'Ganancia muscular', 'Mantenimiento', 'Control de peso', 'Alimentación saludable', 'Recuperación', 'Personalizado'].map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-grid-item">
-                  Observaciones
-                  <input type="text" value={observations} onChange={(e) => setObservations(e.target.value)} />
-                </label>
+    <div className="db-page">
+
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="db-page-header">
+        <button type="button" className="db-back-btn" onClick={onCancel}>
+          ← Volver a Planes de Dieta
+        </button>
+        <div className="db-page-title-wrap">
+          <div className="db-page-icon">🥗</div>
+          <div>
+            <h1 className="db-page-title">{title}</h1>
+            <p className="db-page-subtitle">Diseña la distribución de comidas y objetivos nutricionales diarios</p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="db-layout">
+
+        {/* ── Main Left Column ─────────────────────────────────── */}
+        <div className="db-main-col">
+
+          {/* Información General del Plan */}
+          <div className="db-section">
+            <div className="db-section-header">
+              <span className="db-section-badge db-badge-blue">📌</span>
+              <span className="db-section-title">Información del Plan</span>
+            </div>
+            <div className="db-section-body">
+              <div className="db-field db-field-full">
+                <div className="db-field-icon">📋</div>
+                <div className="db-field-body">
+                  <span className="db-field-label">Nombre del plan de dieta *</span>
+                  <input
+                    type="text"
+                    placeholder="Ej. Plan Hipocalórico de Definición"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="db-input"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="db-fields-row">
+                <div className="db-field">
+                  <div className="db-field-icon">🎯</div>
+                  <div className="db-field-body">
+                    <span className="db-field-label">Objetivo</span>
+                    <select
+                      value={objective}
+                      onChange={(e) => setObjective(e.target.value)}
+                      className="db-input"
+                    >
+                      <option value="">Seleccionar objetivo...</option>
+                      {OBJECTIVES.map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="db-field db-field-flex">
+                  <div className="db-field-icon">💬</div>
+                  <div className="db-field-body">
+                    <span className="db-field-label">Observaciones / Recomendaciones</span>
+                    <input
+                      type="text"
+                      placeholder="Ej. Beber 2L de agua al día, consumir fibra..."
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      className="db-input"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="diet-builder">
-            <div className="diet-meals-col">
-              <h3 className="fieldset-title">Tiempos de comida</h3>
-              <div className="diet-meal-list">
-                {meals.map((meal, idx) => (
-                  <div key={meal.key} className={`diet-meal-card ${activeMealKey === meal.key ? 'active' : ''}`} onClick={() => setActiveMealKey(meal.key)}>
-                    <div className="diet-meal-head">
-                      <input
-                        type="text"
-                        value={meal.name}
-                        onChange={(e) => updateMeal(meal.key, { name: e.target.value })}
-                        className="diet-meal-name"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <input
-                        type="time"
-                        value={meal.scheduledTime}
-                        onChange={(e) => updateMeal(meal.key, { scheduledTime: e.target.value })}
-                        className="diet-meal-time"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className="diet-meal-actions">
-                        <button type="button" className="btn-ghost btn-sm" disabled={idx === 0} onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, -1) }}>↑</button>
-                        <button type="button" className="btn-ghost btn-sm" disabled={idx === meals.length - 1} onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, 1) }}>↓</button>
-                        <button type="button" className="btn-danger-soft btn-sm" onClick={(e) => { e.stopPropagation(); removeMeal(meal.key) }}>×</button>
+          {/* Tiempos de Comida */}
+          <div className="db-section">
+            <div className="db-section-header db-flex-between">
+              <div className="db-header-left">
+                <span className="db-section-badge db-badge-green">🍽️</span>
+                <span className="db-section-title">
+                  Tiempos de Comida ({meals.length})
+                </span>
+              </div>
+              <div className="db-presets-wrap">
+                <span className="db-preset-label">Añadir rápido:</span>
+                {MEAL_PRESETS.map((p) => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    className="db-preset-btn"
+                    onClick={() => addMeal(p.name, p.time)}
+                  >
+                    {p.icon} {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="db-meals-list">
+              {meals.map((meal, idx) => {
+                const foodsInMeal = mealFoods(meal.key)
+                const mealKcal = foodsInMeal.reduce((acc, i) => acc + (i.calories ?? 0), 0)
+                const mealProt = foodsInMeal.reduce((acc, i) => acc + (i.protein ?? 0), 0)
+                const isActive = activeMealKey === meal.key
+
+                return (
+                  <div
+                    key={meal.key}
+                    className={`db-meal-card ${isActive ? 'active' : ''}`}
+                    onClick={() => setActiveMealKey(meal.key)}
+                  >
+                    <div className="db-meal-head">
+                      <div className="db-meal-drag">⋮⋮</div>
+                      <div className="db-meal-inputs">
+                        <input
+                          type="text"
+                          value={meal.name}
+                          onChange={(e) => updateMeal(meal.key, { name: e.target.value })}
+                          className="db-meal-name-input"
+                          placeholder="Nombre de la comida"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="db-time-wrap">
+                          <span className="db-time-icon">⏰</span>
+                          <input
+                            type="time"
+                            value={meal.scheduledTime}
+                            onChange={(e) => updateMeal(meal.key, { scheduledTime: e.target.value })}
+                            className="db-meal-time-input"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="db-meal-head-meta">
+                        {foodsInMeal.length > 0 && (
+                          <span className="db-meal-kcal-badge">
+                            🔥 {Math.round(mealKcal)} kcal · 💪 {mealProt.toFixed(1)}g P
+                          </span>
+                        )}
+                        <div className="db-meal-actions">
+                          <button
+                            type="button"
+                            className="db-action-btn"
+                            disabled={idx === 0}
+                            title="Subir"
+                            onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, -1) }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="db-action-btn"
+                            disabled={idx === meals.length - 1}
+                            title="Bajar"
+                            onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, 1) }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="db-action-btn db-action-danger"
+                            title="Eliminar tiempo"
+                            onClick={(e) => { e.stopPropagation(); removeMeal(meal.key) }}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    {activeMealKey === meal.key && (
-                      <div className="diet-meal-body">
-                        <div className="meal-items">
-                          {mealFoods(meal.key).map((item, i) => (
-                            <div key={i} className="meal-item-row">
-                              <span className="meal-item-name">{item.foodName}</span>
-                              <span className="meal-item-qty">{item.quantity}{item.unit}</span>
-                              <span className="meal-item-kcal">{item.calories} kcal</span>
-                              <button type="button" className="btn-ghost btn-sm" onClick={() => removeFoodFromMeal(meal.key, i)}>×</button>
+                    {/* Meal Body */}
+                    {isActive && (
+                      <div className="db-meal-body">
+                        {/* Food items list */}
+                        <div className="db-food-items">
+                          {foodsInMeal.map((item, i) => (
+                            <div key={i} className="db-food-item-row">
+                              <div className="db-food-item-main">
+                                <span className="db-food-item-icon">🥗</span>
+                                <span className="db-food-item-name">{item.foodName}</span>
+                              </div>
+
+                              <div className="db-food-item-macros">
+                                <span className="db-macro-chip db-chip-qty">
+                                  {item.quantity} {item.unit}
+                                </span>
+                                <span className="db-macro-chip db-chip-kcal">
+                                  {item.calories} kcal
+                                </span>
+                                <span className="db-macro-chip db-chip-prot">
+                                  P: {item.protein}g
+                                </span>
+                                <span className="db-macro-chip db-chip-carb">
+                                  C: {item.carbohydrates}g
+                                </span>
+                                <span className="db-macro-chip db-chip-fat">
+                                  G: {item.fat}g
+                                </span>
+                                <button
+                                  type="button"
+                                  className="db-item-del"
+                                  onClick={() => removeFoodFromMeal(meal.key, i)}
+                                  title="Quitar alimento"
+                                >
+                                  ✕
+                                </button>
+                              </div>
                             </div>
                           ))}
-                          {mealFoods(meal.key).length === 0 && (
-                            <p className="meal-empty">Sin alimentos aún.</p>
+
+                          {foodsInMeal.length === 0 && (
+                            <div className="db-empty-meal">
+                              <span>🍎 No hay alimentos añadidos a este tiempo de comida.</span>
+                            </div>
                           )}
                         </div>
-                        <button type="button" className="btn-primary btn-sm" onClick={() => openPicker(meal.key)}>
-                          + Agregar alimento
-                        </button>
-                        <textarea
-                          rows={2}
-                          placeholder="Instrucciones para la preparación..."
-                          value={meal.instructions}
-                          onChange={(e) => updateMeal(meal.key, { instructions: e.target.value })}
-                          className="meal-instructions"
-                        />
+
+                        {/* Add food button */}
+                        <div className="db-meal-footer">
+                          <button
+                            type="button"
+                            className="db-btn-add-food"
+                            onClick={() => openPicker(meal.key)}
+                          >
+                            <span>+</span> Añadir alimento del catálogo
+                          </button>
+
+                          <input
+                            type="text"
+                            placeholder="Notas o instrucciones para esta comida (ej. consumir con 200ml de agua)..."
+                            value={meal.instructions}
+                            onChange={(e) => updateMeal(meal.key, { instructions: e.target.value })}
+                            className="db-input db-instructions-input"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-              <button type="button" className="btn-ghost btn-block" onClick={addMeal}>
-                + Agregar tiempo de comida
+                )
+              })}
+            </div>
+
+            <div className="db-add-meal-row">
+              <button type="button" className="db-btn-new-meal" onClick={() => addMeal()}>
+                <span>+</span> Añadir otro tiempo de comida
               </button>
             </div>
-
-            <aside className="diet-summary">
-              <h3 className="fieldset-title">Objetivo diario</h3>
-              <div className="goal-field">
-                <span>Calorías</span>
-                <input type="number" value={num(goalCalories)} onChange={(e) => setGoalCalories(e.target.value)} placeholder="kcal" />
-              </div>
-              <div className="goal-field">
-                <span>Proteína</span>
-                <input type="number" value={num(goalProtein)} onChange={(e) => setGoalProtein(e.target.value)} placeholder="g" />
-              </div>
-              <div className="goal-field">
-                <span>Carbohidratos</span>
-                <input type="number" value={num(goalCarbs)} onChange={(e) => setGoalCarbs(e.target.value)} placeholder="g" />
-              </div>
-              <div className="goal-field">
-                <span>Grasa</span>
-                <input type="number" value={num(goalFat)} onChange={(e) => setGoalFat(e.target.value)} placeholder="g" />
-              </div>
-
-              <div className="diet-totals">
-                <div className="diet-total-main">
-                  <span>Calorías</span>
-                  <strong>{totals.calories} <em>/ {goalCalories || '—'} kcal</em></strong>
-                </div>
-                <div className="goal-progress"><div style={{ width: `${goalCalories ? Math.min(100, (totals.calories / Number(goalCalories)) * 100) : 0}%` }} /></div>
-                <div className="diet-total-grid">
-                  <div><span>Proteína</span><strong>{totals.protein}g{goalProtein ? ` / ${goalProtein}g` : ''}</strong></div>
-                  <div><span>Carbos</span><strong>{totals.carbohydrates}g{goalCarbs ? ` / ${goalCarbs}g` : ''}</strong></div>
-                  <div><span>Grasa</span><strong>{totals.fat}g{goalFat ? ` / ${goalFat}g` : ''}</strong></div>
-                  <div><span>Fibra</span><strong>{totals.fiber}g</strong></div>
-                </div>
-              </div>
-            </aside>
           </div>
 
-          {error && <div className="error-box">{error}</div>}
+          {error && <div className="error-box">⚠️ {error}</div>}
 
-          <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={onCancel}>Cancelar</button>
-            <button type="submit" className="btn-primary" disabled={submitting}>
-              {submitting ? 'Guardando...' : 'Guardar plan'}
+          {/* Form Bottom Actions */}
+          <div className="db-form-actions">
+            <button type="button" className="db-btn-cancel" onClick={onCancel}>
+              Cancelar
+            </button>
+            <button type="submit" className="db-btn-save" disabled={submitting}>
+              {submitting ? (
+                <><span className="mf-spinner" /> Guardando plan…</>
+              ) : (
+                <><span>💾</span> Guardar plan de dieta</>
+              )}
             </button>
           </div>
-        </form>
+        </div>
 
-        {picking && !addingFood && activeMeal && (
-          <div className="food-search-drawer">
-            <div className="food-search-head">
-              <strong>Agregar a {activeMeal.name}</strong>
-              <button type="button" className="btn-ghost" onClick={closePicker}>Cerrar</button>
+        {/* ── Right Column: Summary & Daily Goals ──────────────── */}
+        <aside className="db-summary-col">
+          <div className="db-summary-card">
+            <div className="db-summary-header">
+              <span>📊 Resumen diario y objetivos</span>
             </div>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Buscar alimento del catálogo..."
-              value={foodSearch}
-              onChange={(e) => setFoodSearch(e.target.value)}
-            />
-            <div className="food-search-results">
+
+            {/* Editable Goals */}
+            <div className="db-goals-section">
+              <span className="db-goals-title">Metas Nutricionales (Objetivo)</span>
+              
+              <div className="db-goal-row">
+                <span className="db-goal-label">🔥 Calorías</span>
+                <div className="db-goal-input-wrap">
+                  <input
+                    type="number"
+                    placeholder="2000"
+                    value={num(goalCalories)}
+                    onChange={(e) => setGoalCalories(e.target.value)}
+                    className="db-goal-input"
+                  />
+                  <span className="db-goal-unit">kcal</span>
+                </div>
+              </div>
+
+              <div className="db-goal-row">
+                <span className="db-goal-label">💪 Proteína</span>
+                <div className="db-goal-input-wrap">
+                  <input
+                    type="number"
+                    placeholder="150"
+                    value={num(goalProtein)}
+                    onChange={(e) => setGoalProtein(e.target.value)}
+                    className="db-goal-input"
+                  />
+                  <span className="db-goal-unit">g</span>
+                </div>
+              </div>
+
+              <div className="db-goal-row">
+                <span className="db-goal-label">🌾 Carbohidratos</span>
+                <div className="db-goal-input-wrap">
+                  <input
+                    type="number"
+                    placeholder="200"
+                    value={num(goalCarbs)}
+                    onChange={(e) => setGoalCarbs(e.target.value)}
+                    className="db-goal-input"
+                  />
+                  <span className="db-goal-unit">g</span>
+                </div>
+              </div>
+
+              <div className="db-goal-row">
+                <span className="db-goal-label">🫒 Grasas</span>
+                <div className="db-goal-input-wrap">
+                  <input
+                    type="number"
+                    placeholder="65"
+                    value={num(goalFat)}
+                    onChange={(e) => setGoalFat(e.target.value)}
+                    className="db-goal-input"
+                  />
+                  <span className="db-goal-unit">g</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Real-time calculated totals */}
+            <div className="db-totals-section">
+              <span className="db-totals-title">Total Calculado en Plan</span>
+
+              {/* Kcal Hero Counter */}
+              <div className="db-kcal-hero">
+                <div className="db-kcal-hero-top">
+                  <span className="db-kcal-hero-label">Calorías Totales</span>
+                  <span className="db-kcal-hero-pct">{calGoalNum > 0 ? `${calPct}% del objetivo` : 'Sin meta'}</span>
+                </div>
+                <div className="db-kcal-hero-val">
+                  <strong>{totals.calories}</strong>
+                  <span>/ {goalCalories || '—'} kcal</span>
+                </div>
+                <div className="db-progress-track">
+                  <div className="db-progress-fill" style={{ width: `${calPct}%` }} />
+                </div>
+              </div>
+
+              {/* Macro breakdown grid */}
+              <div className="db-totals-grid">
+                <div className="db-total-box db-box-prot">
+                  <span className="db-box-label">💪 Proteína</span>
+                  <strong className="db-box-val">{totals.protein}g</strong>
+                  <span className="db-box-target">{goalProtein ? `/ ${goalProtein}g` : ''}</span>
+                </div>
+
+                <div className="db-total-box db-box-carb">
+                  <span className="db-box-label">🌾 Carbos</span>
+                  <strong className="db-box-val">{totals.carbohydrates}g</strong>
+                  <span className="db-box-target">{goalCarbs ? `/ ${goalCarbs}g` : ''}</span>
+                </div>
+
+                <div className="db-total-box db-box-fat">
+                  <span className="db-box-label">🫒 Grasas</span>
+                  <strong className="db-box-val">{totals.fat}g</strong>
+                  <span className="db-box-target">{goalFat ? `/ ${goalFat}g` : ''}</span>
+                </div>
+
+                <div className="db-total-box db-box-fiber">
+                  <span className="db-box-label">🌿 Fibra</span>
+                  <strong className="db-box-val">{totals.fiber}g</strong>
+                  <span className="db-box-target">total</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </aside>
+
+      </form>
+
+      {/* ── Food Picker Modal Drawer ───────────────────────────── */}
+      {picking && !addingFood && activeMeal && (
+        <div className="db-picker-backdrop">
+          <div className="db-picker-drawer">
+            <div className="db-picker-head">
+              <div>
+                <h3 className="db-picker-title">Añadir a: {activeMeal.name}</h3>
+                <p className="db-picker-sub">Selecciona un alimento del catálogo nutricional</p>
+              </div>
+              <button type="button" className="db-picker-close" onClick={closePicker}>✕</button>
+            </div>
+
+            <div className="db-picker-search-bar">
+              <span className="db-picker-search-icon">🔍</span>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar alimento por nombre o categoría..."
+                value={foodSearch}
+                onChange={(e) => setFoodSearch(e.target.value)}
+                className="db-picker-search-input"
+              />
+            </div>
+
+            <div className="db-picker-results">
               {filteredFoods.map((f) => (
-                <button key={f.id} type="button" className="food-search-result" onClick={() => addFoodToMeal(f)}>
-                  <div>
-                    <strong>{f.name}</strong>
-                    <span className="food-search-cat">{f.category}</span>
+                <button
+                  key={f.id}
+                  type="button"
+                  className="db-picker-item"
+                  onClick={() => addFoodToMeal(f)}
+                >
+                  <div className="db-picker-item-left">
+                    <span className="db-picker-item-name">{f.name}</span>
+                    <span className="db-picker-item-cat">{f.category}</span>
                   </div>
-                  <span className="food-search-kcal">{f.calories} kcal / {f.defaultQuantity}{f.unit}</span>
+                  <div className="db-picker-item-right">
+                    <span className="db-picker-item-kcal">{f.calories ?? 0} kcal</span>
+                    <span className="db-picker-item-unit">por {f.defaultQuantity ?? 100}{f.unit ?? 'g'}</span>
+                  </div>
                 </button>
               ))}
-              {filteredFoods.length === 0 && <p className="meal-empty">Sin resultados.</p>}
-            </div>
-          </div>
-        )}
 
-        {addingFood && activeMeal && (
-          <div className="food-picker-popover">
-            <div className="food-picker-head">
-              <strong>{addingFood.name}</strong>
-              <button type="button" className="btn-ghost btn-sm" onClick={() => setAddingFood(null)}>×</button>
+              {filteredFoods.length === 0 && (
+                <div className="db-picker-empty">
+                  <span>🥗 No se encontraron alimentos que coincidan.</span>
+                </div>
+              )}
             </div>
-            <p className="food-picker-nutri">
-              {addingFood.calories} kcal · P {addingFood.protein}g · C {addingFood.carbohydrates}g · G {addingFood.fat}g por {addingFood.defaultQuantity}{addingFood.unit}
-            </p>
-            <div className="food-picker-qty">
-              <input type="number" step="1" min="1" value={draftQty} onChange={(e) => setDraftQty(e.target.value)} />
-              <span>{addingFood.unit}</span>
-            </div>
-            <button type="button" className="btn-primary" onClick={confirmAddFood}>Agregar</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── Food Quantity Popover ───────────────────────────── */}
+      {addingFood && activeMeal && (
+        <div className="db-picker-backdrop">
+          <div className="db-qty-popover">
+            <div className="db-qty-head">
+              <div>
+                <h3 className="db-qty-title">{addingFood.name}</h3>
+                <span className="db-qty-cat">{addingFood.category}</span>
+              </div>
+              <button type="button" className="db-picker-close" onClick={() => setAddingFood(null)}>✕</button>
+            </div>
+
+            <div className="db-qty-nutri-banner">
+              <div><span>🔥 Kcal</span><strong>{addingFood.calories ?? 0}</strong></div>
+              <div><span>💪 Prot</span><strong>{addingFood.protein ?? 0}g</strong></div>
+              <div><span>🌾 Carb</span><strong>{addingFood.carbohydrates ?? 0}g</strong></div>
+              <div><span>🫒 Grasa</span><strong>{addingFood.fat ?? 0}g</strong></div>
+              <span className="db-qty-serving">por {addingFood.defaultQuantity ?? 100}{addingFood.unit ?? 'g'}</span>
+            </div>
+
+            <div className="db-qty-field-group">
+              <label className="db-qty-label">Cantidad a añadir para {activeMeal.name}:</label>
+              <div className="db-qty-input-wrap">
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  autoFocus
+                  value={draftQty}
+                  onChange={(e) => setDraftQty(e.target.value)}
+                  className="db-qty-input"
+                />
+                <span className="db-qty-unit-badge">{addingFood.unit ?? 'g'}</span>
+              </div>
+            </div>
+
+            <div className="db-qty-actions">
+              <button type="button" className="db-btn-cancel" onClick={() => setAddingFood(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="db-btn-save" onClick={confirmAddFood}>
+                <span>+</span> Añadir a {activeMeal.name}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
-}
+}

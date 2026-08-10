@@ -5,28 +5,29 @@ import { roleLabel } from '../api/types'
 import { patientsApi } from '../api'
 
 const MAIN_NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/pacientes', label: 'Pacientes' },
-  { to: '/agenda', label: 'Agenda' },
-  { to: '/citas', label: 'Citas' },
+  { to: '/', label: 'Dashboard', icon: 'dashboard', end: true },
+  { to: '/pacientes', label: 'Pacientes', icon: 'group' },
+  { to: '/agenda', label: 'Agenda', icon: 'calendar_month' },
+  { to: '/citas', label: 'Citas', icon: 'event_available' },
 ]
 
 const TRAINING_NAV = [
-  { to: '/entrenamiento/ejercicios', label: 'Ejercicios' },
-  { to: '/entrenamiento/planes', label: 'Planes de entrenamiento' },
+  { to: '/entrenamiento/ejercicios', label: 'Ejercicios', icon: 'sports_gymnastics' },
+  { to: '/entrenamiento/planes', label: 'Planes de entrenamiento', icon: 'article' },
 ]
 
 const DIET_NAV = [
-  { to: '/dieta/catalogo', label: 'Catálogo alimenticio' },
-  { to: '/dieta/planes', label: 'Planes de dieta' },
+  { to: '/dieta/catalogo', label: 'Catálogo alimenticio', icon: 'restaurant_menu' },
+  { to: '/dieta/planes', label: 'Planes de dieta', icon: 'assignment' },
 ]
 
 const CONFIG_NAV = [
-  { to: '/configuracion/usuarios', label: 'Usuarios' },
-  { to: '/configuracion/whatsapp', label: 'WhatsApp' },
+  { to: '/configuracion', label: 'Apariencia', icon: 'palette' },
+  { to: '/configuracion/usuarios', label: 'Usuarios', icon: 'manage_accounts' },
+  { to: '/configuracion/whatsapp', label: 'WhatsApp', icon: 'chat' },
 ]
 
-const SUPER_ADMIN_NAV = [{ to: '/admin', label: 'Super Admin' }]
+const SUPER_ADMIN_NAV = [{ to: '/admin', label: 'Super Admin', icon: 'admin_panel_settings' }]
 
 export default function Layout() {
   const { user, logout } = useAuth()
@@ -34,6 +35,7 @@ export default function Layout() {
   const [configOpen, setConfigOpen] = useState(false)
   const [dietOpen, setDietOpen] = useState(false)
   const [trainingOpen, setTrainingOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [myPatientId, setMyPatientId] = useState<string | null>(null)
 
   const isPatient = user?.role === 'Patient'
@@ -56,132 +58,166 @@ export default function Layout() {
 
   const myProfileTo = myPatientId ? `/pacientes/${myPatientId}` : '/'
 
+  const closeMobile = () => setMobileOpen(false)
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {mobileOpen && <div className="mobile-overlay" onClick={closeMobile} />}
+
+      <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
           <span className="brand-dot" />
-          MyFitnessLife
+          <span>MyFitnessLife</span>
         </div>
 
         <nav className="sidebar-nav">
           {isPatient ? (
             <NavLink
               to={myProfileTo}
+              onClick={closeMobile}
               className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
             >
-              Mi perfil
+              <div className="nav-link-content">
+                <span className="material-symbols-outlined">person</span>
+                <span>Mi perfil</span>
+              </div>
             </NavLink>
           ) : (
             <>
-          {MAIN_NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-
-          <div className="nav-group">
-            <NavLink
-              to="/entrenamiento/ejercicios"
-              onClick={() => setTrainingOpen(true)}
-              className={({ isActive }) =>
-                `nav-link nav-sub-toggle ${trainingOpen || isActive ? 'open' : ''}`
-              }
-            >
-              Entrenamiento
-              <span className="nav-chevron">▾</span>
-            </NavLink>
-            {trainingOpen && (
-              <div className="nav-submenu">
-                {TRAINING_NAV.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      isActive ? 'nav-link sub active' : 'nav-link sub'
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="nav-group">
-            <NavLink
-              to="/dieta/catalogo"
-              onClick={() => setDietOpen(true)}
-              className={({ isActive }) =>
-                `nav-link nav-sub-toggle ${dietOpen || isActive ? 'open' : ''}`
-              }
-            >
-              Dieta
-              <span className="nav-chevron">▾</span>
-            </NavLink>
-            {dietOpen && (
-              <div className="nav-submenu">
-                {DIET_NAV.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      isActive ? 'nav-link sub active' : 'nav-link sub'
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="nav-group">
-            <button
-              type="button"
-              className={`nav-link nav-sub-toggle ${configOpen ? 'open' : ''}`}
-              onClick={() => setConfigOpen((o) => !o)}
-            >
-              Configuración
-              <span className="nav-chevron">▾</span>
-            </button>
-            {configOpen && (
-              <div className="nav-submenu">
-                {CONFIG_NAV.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      isActive ? 'nav-link sub active' : 'nav-link sub'
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {user.role === 'SuperAdmin' && (
-            <div className="nav-segment">
-              {SUPER_ADMIN_NAV.map((item) => (
+              {MAIN_NAV.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={({ isActive }) =>
-                    isActive ? 'nav-link active' : 'nav-link'
-                  }
+                  end={item.end}
+                  onClick={closeMobile}
+                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                 >
-                  {item.label}
+                  <div className="nav-link-content">
+                    <span className="material-symbols-outlined">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
                 </NavLink>
               ))}
-            </div>
-          )}
+
+              <div className="nav-group">
+                <button
+                  type="button"
+                  className={`nav-link nav-sub-toggle ${trainingOpen ? 'open' : ''}`}
+                  onClick={() => setTrainingOpen((o) => !o)}
+                >
+                  <div className="nav-link-content">
+                    <span className="material-symbols-outlined">fitness_center</span>
+                    <span>Entrenamiento</span>
+                  </div>
+                  <span className="nav-chevron">▾</span>
+                </button>
+                {trainingOpen && (
+                  <div className="nav-submenu">
+                    {TRAINING_NAV.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={closeMobile}
+                        className={({ isActive }) =>
+                          isActive ? 'nav-link sub active' : 'nav-link sub'
+                        }
+                      >
+                        <div className="nav-link-content">
+                          <span className="material-symbols-outlined">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="nav-group">
+                <button
+                  type="button"
+                  className={`nav-link nav-sub-toggle ${dietOpen ? 'open' : ''}`}
+                  onClick={() => setDietOpen((o) => !o)}
+                >
+                  <div className="nav-link-content">
+                    <span className="material-symbols-outlined">restaurant</span>
+                    <span>Dieta</span>
+                  </div>
+                  <span className="nav-chevron">▾</span>
+                </button>
+                {dietOpen && (
+                  <div className="nav-submenu">
+                    {DIET_NAV.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={closeMobile}
+                        className={({ isActive }) =>
+                          isActive ? 'nav-link sub active' : 'nav-link sub'
+                        }
+                      >
+                        <div className="nav-link-content">
+                          <span className="material-symbols-outlined">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="nav-group">
+                <button
+                  type="button"
+                  className={`nav-link nav-sub-toggle ${configOpen ? 'open' : ''}`}
+                  onClick={() => setConfigOpen((o) => !o)}
+                >
+                  <div className="nav-link-content">
+                    <span className="material-symbols-outlined">settings</span>
+                    <span>Configuración</span>
+                  </div>
+                  <span className="nav-chevron">▾</span>
+                </button>
+                {configOpen && (
+                  <div className="nav-submenu">
+                    {CONFIG_NAV.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.to === '/configuracion'}
+                        onClick={closeMobile}
+                        className={({ isActive }) =>
+                          isActive ? 'nav-link sub active' : 'nav-link sub'
+                        }
+                      >
+                        <div className="nav-link-content">
+                          <span className="material-symbols-outlined">{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {user.role === 'SuperAdmin' && (
+                <div className="nav-segment">
+                  {SUPER_ADMIN_NAV.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={closeMobile}
+                      className={({ isActive }) =>
+                        isActive ? 'nav-link active' : 'nav-link'
+                      }
+                    >
+                      <div className="nav-link-content">
+                        <span className="material-symbols-outlined">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </div>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </nav>
@@ -190,6 +226,14 @@ export default function Layout() {
       <div className="app-main">
         <header className="app-header">
           <div className="header-title">
+            <button
+              type="button"
+              className="mobile-toggle"
+              onClick={() => setMobileOpen((o) => !o)}
+              title="Abrir menú"
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
             <NavLink to="/" className="header-link">
               <h1>MyFitnessLife</h1>
             </NavLink>
@@ -200,10 +244,12 @@ export default function Layout() {
               {user.fullName} ({user.email})
             </span>
             <button className="btn-ghost" onClick={handleLogout}>
-              Cerrar sesión
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
+              <span>Cerrar sesión</span>
             </button>
           </div>
         </header>
+
 
         <main className="app-content">
           <Outlet />
@@ -215,4 +261,4 @@ export default function Layout() {
       </div>
     </div>
   )
-}
+}

@@ -49,137 +49,378 @@ public class EmailService : IEmailService
         }
     }
 
+    // ─── Shared layout helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Wraps any body HTML with the full branded email shell:
+    /// gradient header, white body area, and dark footer.
+    /// </summary>
+    private static string WrapEmailShell(string headerTitle, string headerSubtitle, string bodyHtml, int year)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html lang="es" xmlns="http://www.w3.org/1999/xhtml">
+            <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width,initial-scale=1"/>
+              <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+              <title>{headerTitle}</title>
+            </head>
+            <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%;">
+
+              <!-- Outer wrapper -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                     style="background-color:#0f172a;padding:32px 16px;">
+                <tr><td align="center">
+
+                  <!-- Card -->
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                         style="max-width:580px;border-radius:16px;overflow:hidden;
+                                box-shadow:0 24px 64px rgba(0,0,0,0.5),0 4px 16px rgba(0,0,0,0.3);
+                                border:1px solid rgba(255,255,255,0.08);">
+
+                    <!-- ═══ HEADER ═══ -->
+                    <tr>
+                      <td style="background:linear-gradient(135deg,#0f172a 0%,#0d2847 50%,#0078D4 100%);
+                                 padding:36px 40px 32px;">
+                        <!-- Logo row -->
+                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td>
+                              <!-- Logo mark -->
+                              <table role="presentation" cellpadding="0" cellspacing="0">
+                                <tr>
+                                  <td style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);
+                                             border-radius:10px;padding:8px 12px;vertical-align:middle;">
+                                    <span style="font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">MFL</span>
+                                  </td>
+                                  <td style="padding-left:12px;vertical-align:middle;">
+                                    <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">MyFitnessLife</div>
+                                    <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:1px;letter-spacing:0.2px;">Fitness &amp; Nutrición Profesional</div>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Divider -->
+                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                               style="margin:24px 0 20px;">
+                          <tr>
+                            <td style="background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+                                       height:1px;font-size:0;line-height:0;">&nbsp;</td>
+                          </tr>
+                        </table>
+
+                        <!-- Title block -->
+                        <div style="font-size:26px;font-weight:700;color:#ffffff;line-height:1.2;letter-spacing:-0.5px;">{headerTitle}</div>
+                        <div style="font-size:14px;color:rgba(255,255,255,0.65);margin-top:6px;line-height:1.5;">{headerSubtitle}</div>
+                      </td>
+                    </tr>
+
+                    <!-- ═══ BODY ═══ -->
+                    <tr>
+                      <td style="background:#ffffff;padding:36px 40px;">
+                        {bodyHtml}
+                      </td>
+                    </tr>
+
+                    <!-- ═══ FOOTER ═══ -->
+                    <tr>
+                      <td style="background:#0f172a;border-top:1px solid rgba(255,255,255,0.06);padding:20px 40px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                          <tr>
+                            <td>
+                              <div style="font-size:11px;color:#475569;line-height:1.6;">
+                                © {year} <span style="color:#64748b;font-weight:600;">MyFitnessLife</span> · Todos los derechos reservados.<br/>
+                                Este correo fue generado automáticamente — por favor no respondas a este mensaje.
+                              </div>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                  </table><!-- /Card -->
+
+                </td></tr>
+              </table><!-- /Outer wrapper -->
+
+            </body>
+            </html>
+            """;
+    }
+
+    // ─── Invitation Email ────────────────────────────────────────────────────────
+
     public string BuildInvitationEmail(string inviteeName, string inviteeEmail, string tenantName, string roleLabel, string acceptUrl)
     {
         var displayName = string.IsNullOrWhiteSpace(inviteeName) ? inviteeEmail : inviteeName;
-        const string template = """
-            <!DOCTYPE html>
-            <html lang="es">
-            <head><meta charset="utf-8"/></head>
-            <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:24px 0;">
-                <tr><td align="center">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;">
+        var year = DateTime.UtcNow.Year;
+
+        var body = $"""
+            <!-- Greeting -->
+            <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#0f172a;line-height:1.3;">
+              ¡Hola, <span style="color:#0078D4;">{displayName}</span>!
+            </p>
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#475569;">
+              Has recibido una invitación para unirte a la plataforma de salud y bienestar.
+              A continuación encontrarás los detalles de tu acceso.
+            </p>
+
+            <!-- Info card -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="margin:0 0 28px;border-radius:12px;overflow:hidden;
+                          border:1px solid #e2e8f0;background:#f8fafc;">
+              <tr>
+                <td style="background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                           padding:20px 24px;border-bottom:1px solid #e2e8f0;">
+                  <div style="font-size:11px;font-weight:700;color:#0078D4;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Tu acceso</div>
+                  <div style="font-size:16px;font-weight:700;color:#0f172a;">{tenantName}</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                     <tr>
-                      <td style="padding:28px 32px 8px;">
-                        <div style="font-size:22px;font-weight:700;color:#22c55e;">MyFitnessLife</div>
-                        <div style="font-size:13px;color:#94a3b8;margin-top:2px;">Plataforma de Fitness &amp; Nutrición</div>
+                      <td style="padding:16px 24px;border-bottom:1px solid #f1f5f9;">
+                        <table role="presentation" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="width:36px;vertical-align:top;padding-top:1px;">
+                              <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                          border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#128100;</div>
+                            </td>
+                            <td style="padding-left:12px;vertical-align:top;">
+                              <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Correo</div>
+                              <div style="font-size:14px;color:#0f172a;font-weight:500;">{inviteeEmail}</div>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
-                    <tr><td style="padding:20px 32px;color:#e2e8f0;">
-                      <h2 style="margin:0 0 12px;color:#e2e8f0;font-size:20px;">Te han invitado a unirte</h2>
-                      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#cbd5e1;">
-                        Hola <strong style="color:#e2e8f0;">{{DISPLAY_NAME}}</strong>,<br/><br/>
-                        Se te ha invitado a la plataforma <strong style="color:#22c55e;">{{TENANT_NAME}}</strong> con el rol de
-                        <strong style="color:#e2e8f0;">{{ROLE_LABEL}}</strong>.
-                      </p>
-                      <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#cbd5e1;">
-                        Para completar tu registro y empezar a usar la plataforma, haz clic en el botón de abajo.
-                        El enlace es válido por <strong>24 horas</strong>.
-                      </p>
-                      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
-                        <tr>
-                          <td style="border-radius:8px;background-color:#22c55e;padding:12px 28px;">
-                            <a href="{{ACCEPT_URL}}" style="display:inline-block;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;">Aceptar invitación</a>
-                          </td>
-                        </tr>
-                      </table>
-                      <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">
-                        Si no puedes ver el botón, copia y pega este enlace en tu navegador:<br/>
-                        <span style="color:#cbd5e1;word-break:break-all;">{{ACCEPT_URL}}</span>
-                      </p>
-                    </td></tr>
                     <tr>
-                      <td style="padding:16px 32px;background-color:#0f172a;border-top:1px solid #334155;">
-                        <div style="font-size:12px;color:#94a3b8;">© {{YEAR}} MyFitnessLife · Este correo fue enviado automáticamente, por favor no respondas.</div>
+                      <td style="padding:16px 24px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="width:36px;vertical-align:top;padding-top:1px;">
+                              <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                          border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#127775;</div>
+                            </td>
+                            <td style="padding-left:12px;vertical-align:top;">
+                              <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Rol asignado</div>
+                              <div style="display:inline-block;font-size:13px;font-weight:700;color:#0078D4;
+                                          background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;
+                                          padding:3px 12px;">{roleLabel}</div>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
-                </td></tr>
-              </table>
-            </body>
-            </html>
+                </td>
+              </tr>
+            </table><!-- /Info card -->
+
+            <!-- Expiry notice -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="margin:0 0 28px;border-radius:10px;border:1px solid #fde68a;background:#fefce8;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:18px;vertical-align:middle;padding-right:10px;">&#9888;&#65039;</td>
+                      <td style="font-size:13px;color:#78350f;line-height:1.5;vertical-align:middle;">
+                        Este enlace de invitación es válido por <strong>24 horas</strong>.
+                        Si expira, solicita una nueva invitación al administrador.
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA Button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="margin:0 0 28px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="border-radius:10px;background:linear-gradient(135deg,#0078D4,#005A9E);
+                                 box-shadow:0 4px 16px rgba(0,120,212,0.4);">
+                        <a href="{acceptUrl}"
+                           style="display:inline-block;padding:15px 40px;
+                                  color:#ffffff;text-decoration:none;
+                                  font-size:16px;font-weight:700;letter-spacing:0.2px;">
+                          &#10003; &nbsp;Aceptar invitación
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Fallback URL -->
+            <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;text-align:center;">
+              ¿No ves el botón? Copia y pega este enlace en tu navegador:<br/>
+              <span style="color:#0078D4;word-break:break-all;font-size:11px;">{acceptUrl}</span>
+            </p>
             """;
 
-        return template
-            .Replace("{{DISPLAY_NAME}}", displayName)
-            .Replace("{{TENANT_NAME}}", tenantName)
-            .Replace("{{ROLE_LABEL}}", roleLabel)
-            .Replace("{{ACCEPT_URL}}", acceptUrl)
-            .Replace("{{YEAR}}", DateTime.UtcNow.Year.ToString());
+        return WrapEmailShell(
+            "Invitación a la plataforma",
+            $"Tienes una invitación pendiente en {tenantName}",
+            body,
+            year);
     }
+
+    // ─── Appointment Email ───────────────────────────────────────────────────────
 
     public string BuildAppointmentEmail(string patientName, string professionalName, string dateLabel, string timeLabel, string? title, string? notes)
     {
-        const string template = """
-            <!DOCTYPE html>
-            <html lang="es">
-            <head><meta charset="utf-8"/></head>
-            <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,sans-serif;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:24px 0;">
-                <tr><td align="center">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;">
+        var year = DateTime.UtcNow.Year;
+
+        var titleRow = string.IsNullOrWhiteSpace(title) ? string.Empty : $"""
+            <tr>
+              <td style="padding:14px 20px;border-bottom:1px solid #f1f5f9;">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="width:36px;vertical-align:top;padding-top:1px;">
+                      <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                  border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#128203;</div>
+                    </td>
+                    <td style="padding-left:12px;vertical-align:top;">
+                      <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Motivo / Título</div>
+                      <div style="font-size:14px;color:#0f172a;font-weight:600;">{title}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            """;
+
+        var notesRow = string.IsNullOrWhiteSpace(notes) ? string.Empty : $"""
+            <tr>
+              <td style="padding:14px 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="width:36px;vertical-align:top;padding-top:1px;">
+                      <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                  border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#128172;</div>
+                    </td>
+                    <td style="padding-left:12px;vertical-align:top;">
+                      <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Notas</div>
+                      <div style="font-size:13px;color:#475569;line-height:1.6;">{notes}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            """;
+
+        var body = $"""
+            <!-- Greeting -->
+            <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#0f172a;line-height:1.3;">
+              ¡Hola, <span style="color:#0078D4;">{patientName}</span>!
+            </p>
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#475569;">
+              Tu cita ha sido confirmada. Aquí tienes todos los detalles para que no te pierdas nada.
+            </p>
+
+            <!-- Professional pill -->
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+              <tr>
+                <td style="border-radius:20px;background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                           border:1px solid #bfdbfe;padding:8px 18px 8px 14px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="padding:28px 32px 8px;">
-                        <div style="font-size:22px;font-weight:700;color:#22c55e;">MyFitnessLife</div>
-                        <div style="font-size:13px;color:#94a3b8;margin-top:2px;">Plataforma de Fitness &amp; Nutrición</div>
-                      </td>
-                    </tr>
-                    <tr><td style="padding:20px 32px;color:#e2e8f0;">
-                      <h2 style="margin:0 0 12px;color:#e2e8f0;font-size:20px;">Cita programada</h2>
-                      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#cbd5e1;">
-                        Hola <strong style="color:#e2e8f0;">{{PATIENT_NAME}}</strong>,<br/><br/>
-                        Te informamos que tienes una cita programada con
-                        <strong style="color:#22c55e;">{{PROFESSIONAL_NAME}}</strong>.
-                      </p>
-                      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 16px;">
-                        <tr>
-                          <td style="padding:10px 16px;background-color:#0f172a;border:1px solid #334155;border-radius:8px 0 0 8px;width:120px;font-size:12px;color:#94a3b8;">Fecha</td>
-                          <td style="padding:10px 16px;background-color:#0f172a;border:1px solid #334155;border-left:none;border-radius:0 8px 8px 0;font-size:14px;color:#e2e8f0;"><strong>{{DATE}}</strong></td>
-                        </tr>
-                        <tr><td colspan="2" style="height:8px;"></td></tr>
-                        <tr>
-                          <td style="padding:10px 16px;background-color:#0f172a;border:1px solid #334155;border-radius:8px 0 0 8px;width:120px;font-size:12px;color:#94a3b8;">Hora</td>
-                          <td style="padding:10px 16px;background-color:#0f172a;border:1px solid #334155;border-left:none;border-radius:0 8px 8px 0;font-size:14px;color:#e2e8f0;"><strong>{{TIME}}</strong></td>
-                        </tr>
-                      </table>
-                      {{TITLE_HTML}}
-                      {{NOTES_HTML}}
-                      <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#94a3b8;">
-                        Por favor llega con algunos minutos de anticipación. Si necesitas reprogramar,
-                        contacta con el centro.
-                      </p>
-                    </td></tr>
-                    <tr>
-                      <td style="padding:16px 32px;background-color:#0f172a;border-top:1px solid #334155;">
-                        <div style="font-size:12px;color:#94a3b8;">© {{YEAR}} MyFitnessLife · Este correo fue enviado automáticamente, por favor no respondas.</div>
+                      <td style="font-size:16px;vertical-align:middle;padding-right:8px;">&#128084;</td>
+                      <td style="vertical-align:middle;">
+                        <span style="font-size:12px;color:#64748b;">Profesional: </span>
+                        <span style="font-size:14px;font-weight:700;color:#0078D4;">{professionalName}</span>
                       </td>
                     </tr>
                   </table>
-                </td></tr>
-              </table>
-            </body>
-            </html>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Appointment detail card -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="margin:0 0 28px;border-radius:12px;overflow:hidden;
+                          border:1px solid #e2e8f0;background:#f8fafc;">
+              <!-- Card header -->
+              <tr>
+                <td style="background:linear-gradient(135deg,#eff6ff,#dbeafe);
+                           padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+                  <div style="font-size:11px;font-weight:700;color:#0078D4;letter-spacing:1px;text-transform:uppercase;">
+                    &#128197; &nbsp;Detalles de la cita
+                  </div>
+                </td>
+              </tr>
+              <!-- Date row -->
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #f1f5f9;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="width:36px;vertical-align:top;padding-top:1px;">
+                        <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                    border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#128197;</div>
+                      </td>
+                      <td style="padding-left:12px;vertical-align:top;">
+                        <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Fecha</div>
+                        <div style="font-size:15px;color:#0f172a;font-weight:700;">{dateLabel}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <!-- Time row -->
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #f1f5f9;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="width:36px;vertical-align:top;padding-top:1px;">
+                        <div style="width:28px;height:28px;border-radius:8px;background:#eff6ff;
+                                    border:1px solid #dbeafe;text-align:center;line-height:28px;font-size:14px;">&#128336;</div>
+                      </td>
+                      <td style="padding-left:12px;vertical-align:top;">
+                        <div style="font-size:11px;color:#94a3b8;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Hora</div>
+                        <div style="font-size:15px;color:#0f172a;font-weight:700;">{timeLabel}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              {titleRow}
+              {notesRow}
+            </table><!-- /Detail card -->
+
+            <!-- Reminder notice -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="margin:0 0 8px;border-radius:10px;border:1px solid #d1fae5;background:#f0fdf4;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:18px;vertical-align:middle;padding-right:10px;">&#9989;</td>
+                      <td style="font-size:13px;color:#064e3b;line-height:1.5;vertical-align:middle;">
+                        Por favor <strong>llega con algunos minutos de anticipación</strong>.
+                        Si necesitas reprogramar, contacta con el centro a la brevedad posible.
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
             """;
 
-        var titleHtml = string.IsNullOrWhiteSpace(title)
-            ? string.Empty
-            : $"""
-               <p style="margin:0 0 16px;font-size:15px;color:#e2e8f0;"><strong>Título:</strong> {title}</p>
-               """;
-        var notesHtml = string.IsNullOrWhiteSpace(notes)
-            ? string.Empty
-            : $"""
-               <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#cbd5e1;"><strong>Notas:</strong> {notes}</p>
-               """;
-
-        return template
-            .Replace("{{PATIENT_NAME}}", patientName)
-            .Replace("{{PROFESSIONAL_NAME}}", professionalName)
-            .Replace("{{DATE}}", dateLabel)
-            .Replace("{{TIME}}", timeLabel)
-            .Replace("{{TITLE_HTML}}", titleHtml)
-            .Replace("{{NOTES_HTML}}", notesHtml)
-            .Replace("{{YEAR}}", DateTime.UtcNow.Year.ToString());
+        return WrapEmailShell(
+            "Tu cita está confirmada",
+            $"Cita con {professionalName} · {dateLabel} a las {timeLabel}",
+            body,
+            year);
     }
 }
