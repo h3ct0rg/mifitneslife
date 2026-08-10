@@ -45,6 +45,12 @@ public class PatientService : IPatientService
         return patient.ToDto();
     }
 
+    public async Task<PatientDto?> GetByEmailAsync(Guid tenantId, string email)
+    {
+        var patient = await _unitOfWork.Patients.GetByEmailAsync(tenantId, email.Trim().ToLowerInvariant());
+        return patient?.ToDto();
+    }
+
     public async Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request)
     {
         var email = request.Email.Trim().ToLowerInvariant();

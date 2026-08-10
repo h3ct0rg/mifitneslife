@@ -36,6 +36,27 @@ public class PatientsController : ControllerBase
         return Ok(await _patientService.GetPagedAsync(tenantId.Value, search, page, pageSize));
     }
 
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(PatientDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyProfile()
+    {
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null || tenantId == Guid.Empty)
+            return Forbid();
+
+        var email = User.FindFirstValue(ClaimTypes.Email)
+            ?? User.FindFirstValue("email");
+        if (string.IsNullOrWhiteSpace(email))
+            return Unauthorized();
+
+        var patient = await _patientService.GetByEmailAsync(tenantId.Value, email);
+        if (patient is null)
+            return NotFound(new { error = "No se encontró un perfil de paciente para este usuario." });
+
+        return Ok(patient);
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(PatientDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]

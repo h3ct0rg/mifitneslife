@@ -33,3 +33,10 @@ public enum AppointmentStatus
     Cancelled = 2,
     NoShow = 3
 }
+
+public enum NotificationStatus
+{
+    Pending = 0,
+    Sent = 1,
+    Failed = 2
+}

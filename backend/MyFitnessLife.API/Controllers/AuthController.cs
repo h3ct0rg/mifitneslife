@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.DTOs.Users;
 using MyFitnessLife.Application.Interfaces;
 
 namespace MyFitnessLife.API.Controllers;
@@ -12,8 +13,13 @@ namespace MyFitnessLife.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserManagementService _userManagementService;
 
-    public AuthController(IAuthService authService) => _authService = authService;
+    public AuthController(IAuthService authService, IUserManagementService userManagementService)
+    {
+        _authService = authService;
+        _userManagementService = userManagementService;
+    }
 
     [HttpPost("login")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
@@ -57,6 +63,15 @@ public class AuthController : ControllerBase
         if (Guid.TryParse(userIdRaw, out var userId))
             await _authService.LogoutAsync(userId);
         return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpGet("invitation/{token}")]
+    [ProducesResponseType(typeof(InvitationInfoDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInvitation(string token)
+    {
+        var result = await _userManagementService.GetInvitationInfoAsync(token);
+        return Ok(result);
     }
 
     [Authorize]

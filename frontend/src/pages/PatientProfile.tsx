@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { dietsApi, patientPhotosApi, patientsApi, workoutPlansApi } from '../api'
 import { getErrorMessage } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import type { PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
@@ -16,6 +17,9 @@ import AssignPicker from '../components/AssignPicker'
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  const isPatient = user?.role === 'Patient'
 
   const [patient, setPatient] = useState<PatientDto | null>(null)
   const [loading, setLoading] = useState(true)
@@ -201,27 +205,31 @@ export default function PatientProfile() {
           </div>
         </div>
         <div className="profile-actions">
-          <button type="button" className="btn-ghost" onClick={() => navigate('/pacientes')}>
-            ← Volver
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
-            Historial
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
-            Dieta
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
-            📷 Foto
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
-            Asignar rutina
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
-            Editar
-          </button>
-          <button type="button" className="btn-danger-soft" onClick={() => setShowDelete(true)}>
-            Eliminar
-          </button>
+          {!isPatient && (
+            <>
+              <button type="button" className="btn-ghost" onClick={() => navigate('/pacientes')}>
+                ← Volver
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
+                Historial
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
+                Dieta
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
+                📷 Foto
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
+                Asignar rutina
+              </button>
+              <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
+                Editar
+              </button>
+              <button type="button" className="btn-danger-soft" onClick={() => setShowDelete(true)}>
+                Eliminar
+              </button>
+            </>
+          )}
         </div>
       </div>
 

@@ -42,6 +42,10 @@ public static class DependencyInjection
         services.AddScoped<IMinioService, MinioService>();
         services.Configure<ExerciseDatasetOptions>(configuration.GetSection("ExerciseDataset"));
 
+        services.Configure<SmtpSettings>(configuration.GetSection("SmtpSettings"));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddHostedService<NotificationWorker>();
+
         var minioSection = configuration.GetSection("Minio");
         var minioOptions = minioSection.Get<MinioSettings>() ?? new MinioSettings();
         services.AddSingleton<IMinioClient>(sp => new MinioClient()

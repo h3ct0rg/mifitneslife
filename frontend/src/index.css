@@ -3333,3 +3333,72 @@ textarea {
     padding-left: 4.25rem;
   }
 }
+
+/* ============ Invitaciones ============ */
+
+.invite-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.invite-form input {
+  flex: 1;
+  min-width: 200px;
+  margin-bottom: 0;
+}
+
+.invite-form select {
+  width: auto;
+  margin-bottom: 0;
+}
+
+.invite-form .btn-primary {
+  width: auto;
+  white-space: nowrap;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.invite-status.accepted {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--primary);
+}
+
+.invite-status.expired,
+.invite-status.revoked,
+.invite-status.declined {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.invite-error {
+  margin-left: 0.35rem;
+  cursor: help;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.invite-actions .btn-ghost,
+.invite-actions .btn-danger-soft {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .invite-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-form select,
+  .invite-form .btn-primary {
+    width: 100%;
+  }
+}

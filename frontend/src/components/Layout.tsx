@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { roleLabel } from '../api/types'
+import { patientsApi } from '../api'
 
 const MAIN_NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -33,6 +34,18 @@ export default function Layout() {
   const [configOpen, setConfigOpen] = useState(false)
   const [dietOpen, setDietOpen] = useState(false)
   const [trainingOpen, setTrainingOpen] = useState(false)
+  const [myPatientId, setMyPatientId] = useState<string | null>(null)
+
+  const isPatient = user?.role === 'Patient'
+
+  useEffect(() => {
+    if (isPatient) {
+      patientsApi
+        .me()
+        .then((p) => setMyPatientId(p.id))
+        .catch(() => setMyPatientId(null))
+    }
+  }, [isPatient])
 
   if (!user) return null
 
@@ -40,6 +53,8 @@ export default function Layout() {
     await logout()
     navigate('/login')
   }
+
+  const myProfileTo = myPatientId ? `/pacientes/${myPatientId}` : '/'
 
   return (
     <div className="app-shell">
@@ -50,6 +65,15 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar-nav">
+          {isPatient ? (
+            <NavLink
+              to={myProfileTo}
+              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+            >
+              Mi perfil
+            </NavLink>
+          ) : (
+            <>
           {MAIN_NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -157,6 +181,8 @@ export default function Layout() {
                 </NavLink>
               ))}
             </div>
+          )}
+            </>
           )}
         </nav>
       </aside>

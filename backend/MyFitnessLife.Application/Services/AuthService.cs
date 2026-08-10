@@ -59,6 +59,11 @@ public class AuthService : IAuthService
             user = await _unitOfWork.Users.GetByEmailAsync(payload.Email);
             if (user is null)
             {
+                // Si hay una invitación pendiente para este email, aplicar su rol y tenant.
+                var invitation = await FindPendingInvitationAsync(payload.Email);
+                var role = invitation?.Role ?? UserRole.Patient;
+                var tenantId = invitation?.TenantId;
+
                 user = new ApplicationUser
                 {
                     Id = Guid.NewGuid(),
@@ -68,7 +73,8 @@ public class AuthService : IAuthService
                     NormalizedUserName = payload.Email.ToUpperInvariant(),
                     FirstName = payload.FirstName,
                     LastName = payload.LastName,
-                    Role = UserRole.Patient,
+                    Role = role,
+                    TenantId = tenantId,
                     Status = UserStatus.Active,
                     Provider = "Google",
                     GoogleSubject = payload.Subject,
@@ -76,18 +82,44 @@ public class AuthService : IAuthService
                     LastLoginAt = DateTime.UtcNow
                 };
                 await _unitOfWork.Users.AddAsync(user);
+
+                if (invitation is not null)
+                {
+                    invitation.Status = InvitationStatus.Accepted;
+                    invitation.AcceptedAt = DateTime.UtcNow;
+                    await _unitOfWork.Invitations.UpdateAsync(invitation);
+                }
+
+                if (tenantId.HasValue && role == UserRole.Patient)
+                    await EnsurePatientProfileAsync(tenantId.Value, payload.Email, payload.FirstName, payload.LastName);
             }
             else
             {
                 user.Provider = "Google";
                 user.GoogleSubject = payload.Subject;
                 user.EmailConfirmed = true;
+
+                // Si el email tenía una invitación pendiente, aceptarla al vincular con Google.
+                var invitation = await FindPendingInvitationAsync(payload.Email);
+                if (invitation is not null)
+                {
+                    user.Role = invitation.Role;
+                    user.TenantId = invitation.TenantId;
+                    invitation.Status = InvitationStatus.Accepted;
+                    invitation.AcceptedAt = DateTime.UtcNow;
+                    await _unitOfWork.Invitations.UpdateAsync(invitation);
+
+                    if (user.Role == UserRole.Patient && user.TenantId.HasValue)
+                        await EnsurePatientProfileAsync(user.TenantId.Value, payload.Email, user.FirstName, user.LastName);
+                }
             }
         }
 
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
-        await _unitOfWork.Users.UpdateAsync(user);
+        // No usar UpdateAsync aquí: el usuario está trackeado (Added si es nuevo o
+        // cargado con tracking si ya existía), así SaveChangesAsync hará el INSERT
+        // o UPDATE correcto sin forzar Modified sobre un Added.
         await _unitOfWork.SaveChangesAsync();
 
         var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
@@ -105,10 +137,11 @@ public class AuthService : IAuthService
 
         UserRole role = UserRole.Patient;
         Guid? tenantId = null;
+        Invitation? invitation = null;
 
         if (!string.IsNullOrWhiteSpace(request.InvitationToken))
         {
-            var invitation = await _unitOfWork.Invitations.GetByTokenAsync(request.InvitationToken);
+            invitation = await _unitOfWork.Invitations.GetByTokenAsync(request.InvitationToken);
             if (invitation is null || invitation.Status != InvitationStatus.Pending)
                 throw new InvalidOperationException("La invitación no es válida o ya fue utilizada.");
             if (invitation.ExpiresAt < DateTime.UtcNow)
@@ -135,6 +168,18 @@ public class AuthService : IAuthService
         };
 
         await _unitOfWork.Users.AddAsync(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        if (invitation is not null)
+        {
+            invitation.Status = InvitationStatus.Accepted;
+            invitation.AcceptedAt = DateTime.UtcNow;
+            await _unitOfWork.Invitations.UpdateAsync(invitation);
+        }
+
+        if (role == UserRole.Patient && tenantId.HasValue)
+            await EnsurePatientProfileAsync(tenantId.Value, email, request.FirstName, request.LastName);
+
         await _unitOfWork.SaveChangesAsync();
 
         var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
@@ -183,6 +228,35 @@ public class AuthService : IAuthService
             user.Role.ToString(),
             user.Status.ToString(),
             user.FullName);
+    }
+
+    private async Task EnsurePatientProfileAsync(Guid tenantId, string email, string firstName, string lastName)
+    {
+        var existing = await _unitOfWork.Patients.GetByEmailAsync(tenantId, email);
+        if (existing is not null)
+            return;
+
+        await _unitOfWork.Patients.AddAsync(new Patient
+        {
+            TenantId = tenantId,
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
+            Status = UserStatus.Active
+        });
+    }
+
+    private async Task<Invitation?> FindPendingInvitationAsync(string email)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        var tenants = await _unitOfWork.Tenants.GetAllAsync();
+        foreach (var tenant in tenants)
+        {
+            var invitation = await _unitOfWork.Invitations.GetPendingByEmailAsync(tenant.Id, normalized);
+            if (invitation is not null && invitation.ExpiresAt >= DateTime.UtcNow)
+                return invitation;
+        }
+        return null;
     }
 
     private AuthResponse BuildResponse(ApplicationUser user, TokenResponse tokens)

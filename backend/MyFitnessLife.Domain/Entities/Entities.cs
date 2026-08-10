@@ -50,9 +50,27 @@ public class Invitation : BaseEntity
     public InvitationStatus Status { get; set; } = InvitationStatus.Pending;
     public DateTime ExpiresAt { get; set; }
     public DateTime? AcceptedAt { get; set; }
+    public DateTime? SentAt { get; set; }
+    public int Attempts { get; set; }
+    public string? LastError { get; set; }
 
     public Tenant? Tenant { get; set; }
     public ApplicationUser? InvitedByUser { get; set; }
+}
+
+public class OutboxMessage : BaseEntity
+{
+    public Guid? TenantId { get; set; }
+    public string Recipient { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;      // "invitation", "notification"
+    public string? Subject { get; set; }
+    public string? BodyHtml { get; set; }
+    public string? Payload { get; set; }                 // JSON
+    public NotificationStatus Status { get; set; } = NotificationStatus.Pending;
+    public int Attempts { get; set; }
+    public DateTime? SentAt { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
+    public string? LastError { get; set; }
 }
 
 public class RefreshToken : BaseEntity
