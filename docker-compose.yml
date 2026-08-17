@@ -1,0 +1,78 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: MyFitnessLife.API/Dockerfile
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=mifitneslife;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-mifitneslifeAppBackend}
+      Jwt__Audience: ${JWT_AUDIENCE:-mifitneslifeAppFrontend}
+      Jwt__ExpiryInMinutes: ${JWT_EXPIRY_MINUTES:-1440}
+      Jwt__RefreshTokenExpiryInDays: ${JWT_REFRESH_TOKEN_EXPIRY_DAYS:-7}
+      GoogleAuth__ClientId: ${GOOGLE_CLIENT_ID}
+      GoogleAuth__ClientSecret: ${GOOGLE_CLIENT_SECRET}
+      SmtpSettings__Server: ${SMTP_SERVER}
+      SmtpSettings__Port: ${SMTP_PORT:-587}
+      SmtpSettings__SenderName: ${SMTP_SENDER_NAME}
+      SmtpSettings__SenderEmail: ${SMTP_SENDER_EMAIL}
+      SmtpSettings__Password: ${SMTP_PASSWORD}
+      SmtpSettings__EnableSsl: ${SMTP_ENABLE_SSL:-true}
+      Minio__Endpoint: ${MINIO_ENDPOINT}
+      Minio__AccessKey: ${MINIO_ACCESS_KEY}
+      Minio__SecretKey: ${MINIO_SECRET_KEY}
+      Minio__BucketName: ${MINIO_BUCKET_NAME}
+      Minio__ImageExerciseBucket: ${MINIO_IMAGE_EXERCISE_BUCKET}
+      Minio__VideoExerciseBucket: ${MINIO_VIDEO_EXERCISE_BUCKET}
+      Minio__UseSSL: ${MINIO_USE_SSL:-true}
+      FrontendUrl: ${FRONTEND_URL}
+      Seed__DemoPassword: ${SEED_DEMO_PASSWORD}
+      Seed__SuperAdminPassword: ${SEED_SUPERADMIN_PASSWORD}
+      ExerciseDataset__BasePath: /app/exercises-dataset
+    volumes:
+      - backend_uploads:/app/wwwroot/uploads
+      - ./exercises-dataset:/app/exercises-dataset:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  sqlserver_data:
+  backend_uploads:
