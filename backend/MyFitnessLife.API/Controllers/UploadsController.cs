@@ -25,6 +25,16 @@ public class UploadsController : ControllerBase
         _minioService = minioService;
         _logger = logger;
         _minioSettings = minioSettings.Value;
+
+        _logger.LogInformation(
+            "MinioSettings inicializado: Endpoint={Endpoint}, UseSSL={UseSSL}, BucketName={BucketName}, ImageExerciseBucket={ImageExerciseBucket}, VideoExerciseBucket={VideoExerciseBucket}, AccessKeySet={AccessKeySet}, SecretKeySet={SecretKeySet}",
+            _minioSettings.Endpoint,
+            _minioSettings.UseSSL,
+            _minioSettings.BucketName,
+            _minioSettings.ImageExerciseBucket,
+            _minioSettings.VideoExerciseBucket,
+            !string.IsNullOrEmpty(_minioSettings.AccessKey),
+            !string.IsNullOrEmpty(_minioSettings.SecretKey));
     }
 
     [HttpPost]
@@ -84,8 +94,9 @@ public class UploadsController : ControllerBase
             SetLongCacheHeaders();
             return File(stream, contentType);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error al obtener imagen de ejercicio. Bucket={Bucket}, FileName={FileName}", bucket, fileName);
             return NotFound(new { error = "Imagen no encontrada." });
         }
     }
@@ -106,8 +117,9 @@ public class UploadsController : ControllerBase
             SetLongCacheHeaders();
             return File(stream, contentType);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error al obtener video de ejercicio. Bucket={Bucket}, FileName={FileName}", bucket, fileName);
             return NotFound(new { error = "Video no encontrado." });
         }
     }
