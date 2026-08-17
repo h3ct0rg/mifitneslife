@@ -66,22 +66,22 @@ public class EmailService : IEmailService
               <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
               <title>{headerTitle}</title>
             </head>
-            <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%;">
+            <body style="margin:0;padding:0;background-color:#E4ECF7;font-family:'Segoe UI',Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%;">
 
               <!-- Outer wrapper -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                     style="background-color:#0f172a;padding:32px 16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#E4ECF7"
+                     style="background:linear-gradient(135deg,#EAF1FB 0%,#DCE9FA 50%,#CFE3FB 100%);padding:32px 16px;">
                 <tr><td align="center">
 
                   <!-- Card -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                         style="max-width:580px;border-radius:16px;overflow:hidden;
-                                box-shadow:0 24px 64px rgba(0,0,0,0.5),0 4px 16px rgba(0,0,0,0.3);
-                                border:1px solid rgba(255,255,255,0.08);">
+                         style="max-width:580px;border-radius:20px;overflow:hidden;
+                                box-shadow:0 20px 50px rgba(15,23,42,0.12),0 4px 20px rgba(0,120,212,0.15);
+                                border:1px solid rgba(0,120,212,0.15);">
 
                     <!-- ═══ HEADER ═══ -->
                     <tr>
-                      <td style="background:linear-gradient(135deg,#0f172a 0%,#0d2847 50%,#0078D4 100%);
+                      <td bgcolor="#0078D4" style="background:linear-gradient(135deg,#0078D4 0%,#0098FF 100%);
                                  padding:36px 40px 32px;">
                         <!-- Logo row -->
                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -90,13 +90,13 @@ public class EmailService : IEmailService
                               <!-- Logo mark -->
                               <table role="presentation" cellpadding="0" cellspacing="0">
                                 <tr>
-                                  <td style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);
+                                  <td style="background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.3);
                                              border-radius:10px;padding:8px 12px;vertical-align:middle;">
                                     <span style="font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">MFL</span>
                                   </td>
                                   <td style="padding-left:12px;vertical-align:middle;">
                                     <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">MyFitnessLife</div>
-                                    <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:1px;letter-spacing:0.2px;">Fitness &amp; Nutrición Profesional</div>
+                                    <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:1px;letter-spacing:0.2px;">Fitness &amp; Nutrición Profesional</div>
                                   </td>
                                 </tr>
                               </table>
@@ -108,14 +108,14 @@ public class EmailService : IEmailService
                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
                                style="margin:24px 0 20px;">
                           <tr>
-                            <td style="background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);
+                            <td style="background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);
                                        height:1px;font-size:0;line-height:0;">&nbsp;</td>
                           </tr>
                         </table>
 
                         <!-- Title block -->
                         <div style="font-size:26px;font-weight:700;color:#ffffff;line-height:1.2;letter-spacing:-0.5px;">{headerTitle}</div>
-                        <div style="font-size:14px;color:rgba(255,255,255,0.65);margin-top:6px;line-height:1.5;">{headerSubtitle}</div>
+                        <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:6px;line-height:1.5;">{headerSubtitle}</div>
                       </td>
                     </tr>
 
@@ -128,12 +128,12 @@ public class EmailService : IEmailService
 
                     <!-- ═══ FOOTER ═══ -->
                     <tr>
-                      <td style="background:#0f172a;border-top:1px solid rgba(255,255,255,0.06);padding:20px 40px;">
+                      <td bgcolor="#F6F9FE" style="background:#F6F9FE;border-top:1px solid #E2E8F0;padding:20px 40px;">
                         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                           <tr>
                             <td>
-                              <div style="font-size:11px;color:#475569;line-height:1.6;">
-                                © {year} <span style="color:#64748b;font-weight:600;">MyFitnessLife</span> · Todos los derechos reservados.<br/>
+                              <div style="font-size:11px;color:#64748b;line-height:1.6;">
+                                © {year} <span style="color:#0078D4;font-weight:600;">MyFitnessLife</span> · Todos los derechos reservados.<br/>
                                 Este correo fue generado automáticamente — por favor no respondas a este mensaje.
                               </div>
                             </td>

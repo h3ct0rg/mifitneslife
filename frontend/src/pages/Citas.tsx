@@ -28,6 +28,24 @@ function toKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const AVATAR_COLOR_VARS = ['--primary', '--secondary', '--accent', '--success', '--warning', '--danger']
+
+function getInitials(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function getAvatarColor(fullName: string) {
+  let hash = 0
+  for (let i = 0; i < fullName.length; i++) {
+    hash = (hash * 31 + fullName.charCodeAt(i)) | 0
+  }
+  const varName = AVATAR_COLOR_VARS[Math.abs(hash) % AVATAR_COLOR_VARS.length]
+  return `var(${varName})`
+}
+
 export default function Citas() {
   const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,47 +122,59 @@ export default function Citas() {
     <div className="page">
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
 
-      <div className="card-header citas-toolbar">
-        <h2>Citas de hoy</h2>
-        <span className="citas-today">{todayLabel}</span>
-      </div>
-
-      <div className="citas-summary">
-        <span className="summary-item">
-          <i className="status-dot scheduled" /> Pendientes: {counts.Scheduled}
-        </span>
-        <span className="summary-item">
-          <i className="status-dot completed" /> Atendidos: {counts.Completed}
-        </span>
-        <span className="summary-item">
-          <i className="status-dot noshow" /> No se presentaron: {counts.NoShow}
-        </span>
-        <span className="summary-item">
-          <i className="status-dot cancelled" /> Canceladas: {counts.Cancelled}
-        </span>
-      </div>
-
-      {loading ? (
-        <p className="loading">Cargando...</p>
-      ) : appointments.length === 0 ? (
-        <div className="empty-state">No hay citas registradas para hoy.</div>
-      ) : (
-        <div className="citas-list">
-          {appointments.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              className={`cita-row ${STATUS_CLASS[a.status]}`}
-              onClick={() => setModal({ appointment: a })}
-            >
-              <span className="cita-time">{fmtTime(a.startAt)}</span>
-              <span className="cita-name">{a.patientFullName}</span>
-              <span className="cita-title">{a.title}</span>
-              <span className={`cita-status ${STATUS_CLASS[a.status]}`}>{STATUS_LABEL[a.status]}</span>
-            </button>
-          ))}
+      <div className="citas-hero">
+        <div className="citas-hero-top">
+          <h2>Citas de hoy</h2>
+          <span className="citas-today">{todayLabel}</span>
         </div>
-      )}
+
+        <div className="citas-summary">
+          <span className="summary-item">
+            <i className="status-dot scheduled" /> Pendientes: {counts.Scheduled}
+          </span>
+          <span className="summary-item">
+            <i className="status-dot completed" /> Atendidos: {counts.Completed}
+          </span>
+          <span className="summary-item">
+            <i className="status-dot noshow" /> No se presentaron: {counts.NoShow}
+          </span>
+          <span className="summary-item">
+            <i className="status-dot cancelled" /> Canceladas: {counts.Cancelled}
+          </span>
+        </div>
+      </div>
+
+      <div className="card citas-list-card">
+        {loading ? (
+          <p className="loading">Cargando...</p>
+        ) : appointments.length === 0 ? (
+          <div className="empty-state">No hay citas registradas para hoy.</div>
+        ) : (
+          <div className="citas-list">
+            {appointments.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className={`cita-row ${STATUS_CLASS[a.status]}`}
+                onClick={() => setModal({ appointment: a })}
+              >
+                <span className="cita-avatar" style={{ background: getAvatarColor(a.patientFullName) }}>
+                  {getInitials(a.patientFullName)}
+                </span>
+                <span className="cita-info">
+                  <span className="cita-name">{a.patientFullName}</span>
+                  <span className="cita-title">
+                    {a.title}
+                    {a.title ? ' · ' : ''}
+                    {fmtTime(a.startAt)}
+                  </span>
+                </span>
+                <span className={`cita-status ${STATUS_CLASS[a.status]}`}>{STATUS_LABEL[a.status]}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {modal && (
         <MeasurementForm
