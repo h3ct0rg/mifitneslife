@@ -147,7 +147,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.Property(f => f.Unit).HasMaxLength(20).IsRequired();
             e.Property(f => f.Brand).HasMaxLength(150);
             e.Property(f => f.Code).HasMaxLength(100);
-            e.HasIndex(f => new { f.TenantId, f.Name }).IsUnique();
+            e.HasIndex(f => f.Name);
 
             foreach (var prop in typeof(Food).GetProperties()
                 .Where(p => p.PropertyType == typeof(decimal) || p.PropertyType == typeof(decimal?)))

@@ -85,13 +85,7 @@ export default function Login() {
           </p>
         )}
 
-        <div className="demo-creds">
-          <p>
-            <strong>Super admin:</strong> superadmin@admin.com / superadmin
-          </p>
-          <p>
-            <strong>Admin demo:</strong> admin@admin.com / admin
-          </p>
+        <div className="demo-creds">          
         </div>
       </div>
     </div>

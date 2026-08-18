@@ -149,6 +149,7 @@ public static class ExerciseSeeder
         {
             var key = string.IsNullOrWhiteSpace(seed.MediaId) ? seed.Name : seed.MediaId;
             var exercise = existing.GetValueOrDefault(key);
+            var isNew = exercise is null;
 
             if (exercise is null)
             {
@@ -160,25 +161,52 @@ public static class ExerciseSeeder
                 context.Exercises.Add(exercise);
             }
 
-            exercise.Name = seed.Name;
-            exercise.Category = Translate(seed.Category, Categories);
-            exercise.BodyPart = Translate(seed.Category, Categories);
-            exercise.Equipment = Translate(seed.Equipment, Equipment);
-            exercise.Target = Translate(seed.Target, Muscles);
-            exercise.MuscleGroup = Translate(seed.MuscleGroup, Muscles);
-            exercise.SecondaryMuscles = seed.SecondaryMuscles is { Count: > 0 }
+            var secondaryMuscles = seed.SecondaryMuscles is { Count: > 0 }
                 ? string.Join(", ", seed.SecondaryMuscles.Select(s => Translate(s, Muscles)))
                 : null;
-            exercise.Instructions = string.IsNullOrWhiteSpace(seed.Instructions?.Es) ? null : seed.Instructions.Es;
-            exercise.MediaId = seed.MediaId;
+            var instructions = string.IsNullOrWhiteSpace(seed.Instructions?.Es) ? null : seed.Instructions.Es;
 
             // Solo sembrar las rutas relativas fuente si aún no se importaron a Minio
             // (no pisar URLs ya importadas: "exercises/xxxx.gif" o "http...").
-            if (string.IsNullOrEmpty(exercise.ImageUrl) || exercise.ImageUrl.StartsWith("images/", StringComparison.OrdinalIgnoreCase))
-                exercise.ImageUrl = seed.Image;
-            if (string.IsNullOrEmpty(exercise.GifUrl) || exercise.GifUrl.StartsWith("videos/", StringComparison.OrdinalIgnoreCase))
-                exercise.GifUrl = seed.GifUrl;
+            var imageUrl = string.IsNullOrEmpty(exercise.ImageUrl) || exercise.ImageUrl.StartsWith("images/", StringComparison.OrdinalIgnoreCase)
+                ? seed.Image
+                : exercise.ImageUrl;
+            var gifUrl = string.IsNullOrEmpty(exercise.GifUrl) || exercise.GifUrl.StartsWith("videos/", StringComparison.OrdinalIgnoreCase)
+                ? seed.GifUrl
+                : exercise.GifUrl;
 
+            var category = Translate(seed.Category, Categories);
+            var equipment = Translate(seed.Equipment, Equipment);
+            var target = Translate(seed.Target, Muscles);
+            var muscleGroup = Translate(seed.MuscleGroup, Muscles);
+
+            var isDirty = isNew
+                || exercise.Name != seed.Name
+                || exercise.Category != category
+                || exercise.BodyPart != category
+                || exercise.Equipment != equipment
+                || exercise.Target != target
+                || exercise.MuscleGroup != muscleGroup
+                || exercise.SecondaryMuscles != secondaryMuscles
+                || exercise.Instructions != instructions
+                || exercise.MediaId != seed.MediaId
+                || exercise.ImageUrl != imageUrl
+                || exercise.GifUrl != gifUrl;
+
+            if (!isDirty)
+                continue;
+
+            exercise.Name = seed.Name;
+            exercise.Category = category;
+            exercise.BodyPart = category;
+            exercise.Equipment = equipment;
+            exercise.Target = target;
+            exercise.MuscleGroup = muscleGroup;
+            exercise.SecondaryMuscles = secondaryMuscles;
+            exercise.Instructions = instructions;
+            exercise.MediaId = seed.MediaId;
+            exercise.ImageUrl = imageUrl;
+            exercise.GifUrl = gifUrl;
             exercise.UpdatedAt = now;
 
             changed++;

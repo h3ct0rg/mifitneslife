@@ -60,13 +60,27 @@ public class AuthService : IAuthService
             if (user is null)
             {
                 // Si hay una invitación pendiente para este email, aplicar su rol y tenant.
+                // Si no, el usuario crea y administra su propio tenant.
                 var invitation = await FindPendingInvitationAsync(payload.Email);
-                var role = invitation?.Role ?? UserRole.Patient;
-                var tenantId = invitation?.TenantId;
+                var newUserId = Guid.NewGuid();
+                UserRole role;
+                Guid? tenantId;
+
+                if (invitation is not null)
+                {
+                    role = invitation.Role;
+                    tenantId = invitation.TenantId;
+                }
+                else
+                {
+                    var ownTenant = await CreateTenantForNewUserAsync(newUserId, payload.FirstName, payload.LastName, payload.Email);
+                    role = UserRole.Admin;
+                    tenantId = ownTenant.Id;
+                }
 
                 user = new ApplicationUser
                 {
-                    Id = Guid.NewGuid(),
+                    Id = newUserId,
                     UserName = payload.Email,
                     Email = payload.Email,
                     NormalizedEmail = payload.Email.ToUpperInvariant(),
@@ -135,9 +149,10 @@ public class AuthService : IAuthService
         if (await _unitOfWork.Users.EmailExistsAsync(email))
             throw new InvalidOperationException("El email ya está registrado.");
 
-        UserRole role = UserRole.Patient;
-        Guid? tenantId = null;
+        UserRole role;
+        Guid? tenantId;
         Invitation? invitation = null;
+        var newUserId = Guid.NewGuid();
 
         if (!string.IsNullOrWhiteSpace(request.InvitationToken))
         {
@@ -150,10 +165,17 @@ public class AuthService : IAuthService
             role = invitation.Role;
             tenantId = invitation.TenantId;
         }
+        else
+        {
+            // Sin invitación: el usuario crea y administra su propio tenant.
+            var ownTenant = await CreateTenantForNewUserAsync(newUserId, request.FirstName, request.LastName, email);
+            role = UserRole.Admin;
+            tenantId = ownTenant.Id;
+        }
 
         var user = new ApplicationUser
         {
-            Id = Guid.NewGuid(),
+            Id = newUserId,
             UserName = email,
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
@@ -244,6 +266,29 @@ public class AuthService : IAuthService
             Email = email,
             Status = UserStatus.Active
         });
+    }
+
+    private async Task<Tenant> CreateTenantForNewUserAsync(Guid ownerId, string firstName, string lastName, string email)
+    {
+        var name = $"{firstName} {lastName}".Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            name = email.Split('@')[0];
+
+        var baseSlug = name.Trim().ToLowerInvariant().Replace(" ", "-");
+        var slug = baseSlug;
+        var attempt = 1;
+        while (await _unitOfWork.Tenants.GetBySlugAsync(slug) is not null)
+            slug = $"{baseSlug}-{++attempt}";
+
+        var tenant = new Tenant
+        {
+            Name = name,
+            Slug = slug,
+            IsActive = true,
+            OwnedBy = ownerId
+        };
+        await _unitOfWork.Tenants.AddAsync(tenant);
+        return tenant;
     }
 
     private async Task<Invitation?> FindPendingInvitationAsync(string email)

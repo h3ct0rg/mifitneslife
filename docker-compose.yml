@@ -4,6 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: MyFitnessLife.API/Dockerfile    
+    container_name: mifitneslife-api
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: Server=192.168.0.128,1433;Database=mifitneslifeDev;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
@@ -37,7 +38,8 @@ services:
     ports:
       - "8092:8080"
     networks:
-      - app-network
+      - nginx-network
+      - myevent-network
 
   frontend:
     build:
@@ -45,15 +47,22 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+    container_name: mifitneslife-front
     depends_on:
       - backend
     ports:
-      - "5188:80"
+      - "5180:80"
     networks:
-      - app-network
+      - nginx-network
+      - myevent-network
 
 networks:
-  app-network:
+  nginx-network:
+    external: true
+    name: nginx-manager_default
+  myevent-network:
+    external: true
+    name: myevent_myevent-network
 
 volumes:
   sqlserver_data:
