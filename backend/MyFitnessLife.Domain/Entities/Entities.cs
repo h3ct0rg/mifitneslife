@@ -166,7 +166,7 @@ public class Appointment : BaseEntityTenant
     public Diet? Diet { get; set; }
 }
 
-public class Food : BaseEntityTenant
+public class Food : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;

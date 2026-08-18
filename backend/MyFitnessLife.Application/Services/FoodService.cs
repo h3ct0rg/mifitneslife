@@ -16,8 +16,7 @@ public class FoodService : IFoodService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<PagedResult<FoodDto>> GetByTenantAsync(
-        Guid tenantId,
+    public async Task<PagedResult<FoodDto>> GetPagedAsync(
         string? search = null,
         string? category = null,
         int page = 1,
@@ -26,8 +25,8 @@ public class FoodService : IFoodService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
-        var items = await _unitOfWork.Foods.GetByTenantAsync(tenantId, search, category, page, pageSize);
-        var total = await _unitOfWork.Foods.CountByTenantAsync(tenantId, search, category);
+        var items = await _unitOfWork.Foods.GetPagedAsync(search, category, page, pageSize);
+        var total = await _unitOfWork.Foods.CountAsync(search, category);
 
         return new PagedResult<FoodDto>
         {
@@ -38,28 +37,27 @@ public class FoodService : IFoodService
         };
     }
 
-    public async Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId)
-        => await _unitOfWork.Foods.GetCategoriesAsync(tenantId);
+    public async Task<IEnumerable<string>> GetCategoriesAsync()
+        => await _unitOfWork.Foods.GetCategoriesAsync();
 
-    public async Task<FoodDto> GetByIdAsync(Guid tenantId, Guid id)
+    public async Task<FoodDto> GetByIdAsync(Guid id)
     {
-        var food = await GetFoodAsync(tenantId, id);
+        var food = await GetFoodAsync(id);
         return ToDto(food);
     }
 
-    public async Task<FoodDto> CreateAsync(Guid tenantId, CreateFoodRequest request)
+    public async Task<FoodDto> CreateAsync(CreateFoodRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("El nombre es obligatorio.", nameof(request.Name));
 
         var name = request.Name.Trim();
-        var existing = await _unitOfWork.Foods.GetByNameAsync(tenantId, name);
+        var existing = await _unitOfWork.Foods.GetByNameAsync(name);
         if (existing is not null)
             throw new InvalidOperationException("Ya existe un alimento con ese nombre.");
 
         var food = new Food
         {
-            TenantId = tenantId,
             Name = name,
             Category = request.Category.Trim(),
             Subcategory = request.Subcategory?.Trim(),
@@ -87,12 +85,12 @@ public class FoodService : IFoodService
         return ToDto(food);
     }
 
-    public async Task<FoodDto> UpdateAsync(Guid tenantId, Guid id, UpdateFoodRequest request)
+    public async Task<FoodDto> UpdateAsync(Guid id, UpdateFoodRequest request)
     {
-        var food = await GetFoodAsync(tenantId, id);
+        var food = await GetFoodAsync(id);
 
         var name = request.Name.Trim();
-        var existing = await _unitOfWork.Foods.GetByNameAsync(tenantId, name);
+        var existing = await _unitOfWork.Foods.GetByNameAsync(name);
         if (existing is not null && existing.Id != id)
             throw new InvalidOperationException("Ya existe un alimento con ese nombre.");
 
@@ -124,19 +122,17 @@ public class FoodService : IFoodService
         return ToDto(food);
     }
 
-    public async Task DeleteAsync(Guid tenantId, Guid id)
+    public async Task DeleteAsync(Guid id)
     {
-        var food = await GetFoodAsync(tenantId, id);
+        var food = await GetFoodAsync(id);
         await _unitOfWork.Foods.DeleteAsync(food);
         await _unitOfWork.SaveChangesAsync();
     }
 
-    private async Task<Food> GetFoodAsync(Guid tenantId, Guid id)
+    private async Task<Food> GetFoodAsync(Guid id)
     {
         var food = await _unitOfWork.Foods.GetByIdAsync(id)
             ?? throw new KeyNotFoundException("Alimento no encontrado.");
-        if (food.TenantId != tenantId)
-            throw new UnauthorizedAccessException("No tiene acceso a ese alimento.");
         return food;
     }
 

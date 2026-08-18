@@ -95,16 +95,15 @@ public interface IAppointmentRepository
 
 public interface IFoodRepository
 {
-    Task<IEnumerable<Food>> GetByTenantAsync(
-        Guid tenantId,
+    Task<IEnumerable<Food>> GetPagedAsync(
         string? search = null,
         string? category = null,
         int page = 1,
         int pageSize = 50);
-    Task<int> CountByTenantAsync(Guid tenantId, string? search = null, string? category = null);
-    Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId);
+    Task<int> CountAsync(string? search = null, string? category = null);
+    Task<IEnumerable<string>> GetCategoriesAsync();
     Task<Food?> GetByIdAsync(Guid id);
-    Task<Food?> GetByNameAsync(Guid tenantId, string name);
+    Task<Food?> GetByNameAsync(string name);
     Task AddAsync(Food food);
     Task UpdateAsync(Food food);
     Task DeleteAsync(Food food);

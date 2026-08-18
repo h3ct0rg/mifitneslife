@@ -91,17 +91,16 @@ public interface IAppointmentService
 
 public interface IFoodService
 {
-    Task<PagedResult<FoodDto>> GetByTenantAsync(
-        Guid tenantId,
+    Task<PagedResult<FoodDto>> GetPagedAsync(
         string? search = null,
         string? category = null,
         int page = 1,
         int pageSize = 50);
-    Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId);
-    Task<FoodDto> GetByIdAsync(Guid tenantId, Guid id);
-    Task<FoodDto> CreateAsync(Guid tenantId, CreateFoodRequest request);
-    Task<FoodDto> UpdateAsync(Guid tenantId, Guid id, UpdateFoodRequest request);
-    Task DeleteAsync(Guid tenantId, Guid id);
+    Task<IEnumerable<string>> GetCategoriesAsync();
+    Task<FoodDto> GetByIdAsync(Guid id);
+    Task<FoodDto> CreateAsync(CreateFoodRequest request);
+    Task<FoodDto> UpdateAsync(Guid id, UpdateFoodRequest request);
+    Task DeleteAsync(Guid id);
 }
 
 public interface IDietService

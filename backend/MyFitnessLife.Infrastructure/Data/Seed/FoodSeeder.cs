@@ -62,12 +62,8 @@ public static class FoodSeeder
         if (foods is null || foods.Count == 0)
             return;
 
-        var tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Slug == "demo");
-        if (tenant is null)
-            return;
-
+        // Catálogo de alimentos global compartido por todos los tenants.
         var existing = await context.Foods
-            .Where(f => f.TenantId == tenant.Id)
             .ToDictionaryAsync(f => f.Name);
 
         var now = DateTime.UtcNow;
@@ -84,7 +80,6 @@ public static class FoodSeeder
             {
                 food = new Food
                 {
-                    TenantId = tenant.Id,
                     Name = seed.Name,
                     Status = UserStatus.Active,
                     CreatedAt = now

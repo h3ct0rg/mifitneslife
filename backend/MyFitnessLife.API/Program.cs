@@ -95,12 +95,14 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+var allowedOrigins = (builder.Configuration["FrontendUrl"] ?? "http://localhost:5173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins(
-                builder.Configuration["FrontendUrl"] ?? "http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

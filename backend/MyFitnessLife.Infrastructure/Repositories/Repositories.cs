@@ -226,14 +226,13 @@ public class FoodRepository : IFoodRepository
 
     public FoodRepository(AppDbContext context) => _context = context;
 
-    public async Task<IEnumerable<Food>> GetByTenantAsync(
-        Guid tenantId,
+    public async Task<IEnumerable<Food>> GetPagedAsync(
         string? search = null,
         string? category = null,
         int page = 1,
         int pageSize = 50)
     {
-        var query = _context.Foods.AsNoTracking().Where(f => f.TenantId == tenantId);
+        var query = _context.Foods.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -254,9 +253,9 @@ public class FoodRepository : IFoodRepository
             .ToListAsync();
     }
 
-    public Task<int> CountByTenantAsync(Guid tenantId, string? search = null, string? category = null)
+    public Task<int> CountAsync(string? search = null, string? category = null)
     {
-        var query = _context.Foods.AsNoTracking().Where(f => f.TenantId == tenantId);
+        var query = _context.Foods.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -273,9 +272,8 @@ public class FoodRepository : IFoodRepository
         return query.CountAsync();
     }
 
-    public async Task<IEnumerable<string>> GetCategoriesAsync(Guid tenantId)
+    public async Task<IEnumerable<string>> GetCategoriesAsync()
         => await _context.Foods.AsNoTracking()
-            .Where(f => f.TenantId == tenantId)
             .Select(f => f.Category)
             .Distinct()
             .OrderBy(c => c)
@@ -284,8 +282,8 @@ public class FoodRepository : IFoodRepository
     public Task<Food?> GetByIdAsync(Guid id)
         => _context.Foods.FirstOrDefaultAsync(f => f.Id == id);
 
-    public Task<Food?> GetByNameAsync(Guid tenantId, string name)
-        => _context.Foods.FirstOrDefaultAsync(f => f.TenantId == tenantId && f.Name == name);
+    public Task<Food?> GetByNameAsync(string name)
+        => _context.Foods.FirstOrDefaultAsync(f => f.Name == name);
 
     public async Task AddAsync(Food food)
         => await _context.Foods.AddAsync(food);
