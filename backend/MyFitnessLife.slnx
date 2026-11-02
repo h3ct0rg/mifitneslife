@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/MyFitnessLife.API/">
+    <Project Path="MyFitnessLife.API/API.csproj" />
+  </Folder>
+  <Folder Name="/MyFitnessLife.Application/">
+    <Project Path="MyFitnessLife.Application/Application.csproj" />
+  </Folder>
+  <Folder Name="/MyFitnessLife.Domain/">
+    <Project Path="MyFitnessLife.Domain/Domain.csproj" />
+  </Folder>
+  <Folder Name="/MyFitnessLife.Infrastructure/">
+    <Project Path="MyFitnessLife.Infrastructure/Infrastructure.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0078D4" />
+      <stop offset="100%" stop-color="#00C6FF" />
+    </linearGradient>
+
+    <!-- Glass Reflection Overlay -->
+    <linearGradient id="glassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Drop Shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#005A9E" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="110" fill="url(#bgGrad)" filter="url(#shadow)" />
+
+  <!-- Glass Light Highlight -->
+  <rect x="32" y="32" width="448" height="448" rx="110" fill="url(#glassGrad)" stroke="rgba(255,255,255,0.4)" stroke-width="4" />
+
+  <!-- Heart Vitality Symbol -->
+  <path d="M256 392 C140 310, 100 240, 100 176 C100 120, 142 80, 196 80 C228 80, 248 96, 256 112 C264 96, 284 80, 316 80 C370 80, 412 120, 412 176 C412 240, 372 310, 256 392 Z" fill="#ffffff" opacity="0.96" />
+
+  <!-- Pulse Line Accent inside Heart -->
+  <path d="M165 210 L210 210 L230 170 L255 250 L275 195 L290 210 L345 210" fill="none" stroke="#0078D4" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
