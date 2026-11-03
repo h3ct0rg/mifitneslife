@@ -10,6 +10,8 @@ COPY MyFitnessLife.Infrastructure/Infrastructure.csproj MyFitnessLife.Infrastruc
 RUN dotnet restore MyFitnessLife.API/API.csproj
 
 COPY . .
+# appsettings.json no se versiona: la imagen usa la plantilla sin secretos (los valores llegan por variables de entorno)
+RUN cp MyFitnessLife.API/appsettings.example.json MyFitnessLife.API/appsettings.json
 RUN dotnet publish MyFitnessLife.API/API.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

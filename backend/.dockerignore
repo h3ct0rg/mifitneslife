@@ -5,3 +5,8 @@
 **/*.user
 **/*.suo
 .git/
+
+# Config local con secretos: en la imagen se usa appsettings.example.json + variables de entorno
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.example.json
