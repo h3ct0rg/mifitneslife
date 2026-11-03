@@ -1,13 +1,12 @@
 import { useId, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { MembershipSelectionResponse } from '../api/types'
 import { useAuth } from '../context/AuthContext'
 import MembershipPicker from '../components/MembershipPicker'
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+import GoogleAuthButton from '../components/GoogleAuthButton'
+import { GOOGLE_CLIENT_ID } from '../config/auth'
 
 // Aviso solo para desarrollo: nunca se muestra en la interfaz.
 if (import.meta.env.DEV && !GOOGLE_CLIENT_ID) {
@@ -53,8 +52,7 @@ export default function Login() {
     }
   }
 
-  const handleGoogle = async (credential?: string) => {
-    if (!credential) return
+  const handleGoogle = async (credential: string) => {
     setError('')
     try {
       afterLogin(handleLoginResult(await authApi.googleLogin(credential)))
@@ -87,7 +85,7 @@ export default function Login() {
             <span className="material-symbols-outlined is-filled">favorite</span>
           </span>
           <h1>MyFitnessLife</h1>
-          {!selection && <p className="auth-subtitle">Inicia sesión en tu cuenta</p>}
+          {!selection && <p className="auth-subtitle">¡Qué bueno verte de nuevo!</p>}
         </header>
 
         {selection ? (
@@ -102,9 +100,21 @@ export default function Login() {
           />
         ) : (
           <>
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <GoogleAuthButton
+                  text="signin_with"
+                  onCredential={handleGoogle}
+                  onError={() => setError('No se pudo iniciar sesión con Google.')}
+                />
+                <div className="divider">
+                  <span>o con tu correo</span>
+                </div>
+              </>
+            )}
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="field">
-                <label htmlFor={`${ids}-email`}>Email</label>
+                <label htmlFor={`${ids}-email`}>Correo</label>
                 <input
                   id={`${ids}-email`}
                   type="email"
@@ -146,21 +156,19 @@ export default function Login() {
               </button>
             </form>
 
-            {GOOGLE_CLIENT_ID && (
-              <>
-                <div className="divider">
-                  <span>o</span>
-                </div>
-                <div className="auth-google">
-                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <GoogleLogin
-                      onSuccess={(res) => handleGoogle(res.credential)}
-                      onError={() => setError('No se pudo iniciar sesión con Google.')}
-                    />
-                  </GoogleOAuthProvider>
-                </div>
-              </>
-            )}
+            <p className="auth-links">
+              ¿No tienes cuenta? <Link to="/crear-cuenta">Crea una gratis</Link>
+            </p>
+            <p className="hint">¿Te invitó tu centro? Usa el enlace del correo de invitación para activar tu cuenta.</p>
+            <p className="auth-back">
+              <Link to="/">
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  arrow_back
+                </span>
+                Volver al inicio
+              </Link>
+            </p>
+
           </>
         )}
       </div>

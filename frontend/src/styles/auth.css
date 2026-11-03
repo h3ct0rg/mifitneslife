@@ -250,3 +250,129 @@
 .membership-back {
   width: 100%;
 }
+
+/* ===== Landing: links de /login y /crear-cuenta, Google ocupado, pasos y aviso de paciente ===== */
+.auth-google.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.auth-links,
+.auth-back {
+  margin: var(--sp-5) 0 0;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.auth-links + .hint {
+  margin-top: var(--sp-3);
+}
+
+.auth-links a,
+.auth-back a,
+.auth-info a {
+  color: var(--color-primary-text);
+  font-weight: var(--fw-semibold);
+}
+
+.auth-back {
+  margin-top: var(--sp-2);
+}
+
+.auth-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.auth-back a:hover {
+  text-decoration: underline;
+}
+
+.auth-back .material-symbols-outlined {
+  font-size: var(--fs-lg);
+}
+
+.auth-links a:focus-visible,
+.auth-back a:focus-visible,
+.auth-info a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.auth-card--wide {
+  max-width: 440px;
+}
+
+.auth-steps {
+  list-style: none;
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.auth-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.auth-steps .icon-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-heavy);
+  box-shadow: none;
+}
+
+.auth-steps li > span:last-child {
+  padding-top: 3px;
+}
+
+.auth-status {
+  margin: var(--sp-3) 0 0;
+  color: var(--color-primary-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+}
+
+.auth-card > .error-box {
+  margin-top: var(--sp-3);
+}
+
+.auth-info {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.auth-info p {
+  margin: 0;
+}
+
+.auth-info .material-symbols-outlined {
+  flex: none;
+  font-size: var(--fs-xl);
+}
+
+.auth-status:empty {
+  margin: 0;
+}

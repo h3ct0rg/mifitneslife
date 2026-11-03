@@ -32,6 +32,23 @@ public class PlanDto
     public int TenantsCount { get; set; }
 }
 
+/// <summary>Catálogo público (landing, GET /api/plans): sin datos internos.</summary>
+public class PublicPlansDto
+{
+    /// <summary>Días de prueba gratis (DurationDays del plan trial; 30 si no existe).</summary>
+    public int TrialDays { get; set; }
+    public IReadOnlyList<PublicPlanDto> Plans { get; set; } = [];
+}
+
+public class PublicPlanDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DurationDays { get; set; }
+    public decimal PriceUsd { get; set; }
+    public int SortOrder { get; set; }
+}
+
 public class SavePlanRequest
 {
     public string Name { get; set; } = string.Empty;

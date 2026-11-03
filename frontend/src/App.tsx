@@ -1,10 +1,12 @@
-import { BrowserRouter, Navigate, Route, Routes, useOutletContext } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useOutletContext } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout, { type ShellOutletContext } from './components/Layout'
 import ToastProvider from './components/ToastProvider'
 import StateView from './components/ui/StateView'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import CreateAccount from './pages/CreateAccount'
+import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
 import PatientProfile from './pages/PatientProfile'
@@ -23,11 +25,28 @@ import AdminUsers from './pages/AdminUsers'
 import AdminPlans from './pages/AdminPlans'
 import AdminConnections from './pages/AdminConnections'
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function hasStoredToken(): boolean {
+  try {
+    return !!localStorage.getItem('access_token')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Raíz de la app (AC-1): sin sesión, `/` es la landing pública y cualquier ruta interna va a /login con `next`;
+ * con sesión, el shell (Layout) con el comportamiento de siempre.
+ */
+function RootGate() {
   const { user, loading } = useAuth()
-  if (loading) return <div className="loading">Cargando...</div>
-  if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
+  const { pathname, search, hash } = useLocation()
+  // Con token guardado se espera a `me` (evita mostrar la landing un instante a quien ya tiene sesión).
+  if (loading && hasStoredToken()) return <div className="loading">Cargando...</div>
+  if (!user) {
+    if (pathname === '/') return <Landing />
+    return <Navigate to={`/login?next=${encodeURIComponent(pathname + search + hash)}`} replace />
+  }
+  return <Layout />
 }
 
 const isSuperAdmin = (role?: string) => role === 'SuperAdmin'
@@ -99,14 +118,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Register />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
+        <Route path="/crear-cuenta" element={<CreateAccount />} />
+        <Route path="/" element={<RootGate />}>
           <Route index element={<HomeRoute />} />
           <Route path="pacientes" element={<StaffOnly><Patients /></StaffOnly>} />
           <Route path="pacientes/:id" element={<ClinicalOnly><PatientProfile /></ClinicalOnly>} />

@@ -63,6 +63,8 @@ public interface ISuperAdminService
 public interface ISubscriptionService
 {
     Task<IReadOnlyList<PlanDto>> GetPlansAsync();
+    /// <summary>Catálogo público: planes activos no-trial (por SortOrder) + días del trial.</summary>
+    Task<PublicPlansDto> GetPublicPlansAsync();
     Task<PlanDto> CreatePlanAsync(SavePlanRequest request);
     Task<PlanDto> UpdatePlanAsync(Guid id, SavePlanRequest request);
     Task<IReadOnlyList<TenantSubscriptionDto>> GetTenantSubscriptionsAsync(Guid tenantId);

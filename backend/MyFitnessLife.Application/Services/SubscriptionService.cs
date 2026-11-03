@@ -13,6 +13,7 @@ public class SubscriptionService : ISubscriptionService
     private const decimal MaxPriceUsd = 100000m;
     private const int MaxSortOrder = 10000;
     private const int MaxNoteLength = 500;
+    private const int DefaultTrialDays = 30;
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITenantActivityService _activityService;
@@ -32,6 +33,27 @@ public class SubscriptionService : ISubscriptionService
         var plans = await _unitOfWork.SubscriptionPlans.GetAllAsync();
         var counts = await CountTenantsByPlanAsync();
         return plans.Select(p => ToDto(p, counts.GetValueOrDefault(p.Id))).ToList();
+    }
+
+    public async Task<PublicPlansDto> GetPublicPlansAsync()
+    {
+        // GetAllAsync ya ordena por SortOrder y nombre.
+        var plans = await _unitOfWork.SubscriptionPlans.GetAllAsync();
+        var trial = plans.FirstOrDefault(p => p.IsTrial);
+        return new PublicPlansDto
+        {
+            TrialDays = trial is { DurationDays: > 0 } ? trial.DurationDays : DefaultTrialDays,
+            Plans = plans.Where(p => p.IsActive && !p.IsTrial)
+                .Select(p => new PublicPlanDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    DurationDays = p.DurationDays,
+                    PriceUsd = p.PriceUsd,
+                    SortOrder = p.SortOrder
+                })
+                .ToList()
+        };
     }
 
     public async Task<PlanDto> CreatePlanAsync(SavePlanRequest request)

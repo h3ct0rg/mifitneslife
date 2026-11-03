@@ -8,7 +8,7 @@ namespace MyFitnessLife.API.Middleware;
 /// Bloqueo por suscripción (U1/AC-7). Con la suscripción del tenant de la membresía actual
 /// vencida (o inexistente): staff (Admin/Nutritionist/Trainer) → 403 en todo; Patient → 403 solo
 /// en métodos que no son de lectura. Exentos: /api/auth/*, /api/admin/*, /health,
-/// POST /api/users/accept-invitation, GET /api/users/me, rutas fuera de
+/// POST /api/users/accept-invitation, GET /api/users/me, GET /api/plans, rutas fuera de
 /// /api, peticiones anónimas y usuarios sin tenant (SuperAdmin).
 /// Va después de UseAuthentication/UseAuthorization (necesita el usuario ya autenticado).
 /// </summary>
@@ -27,7 +27,9 @@ public class SubscriptionGuardMiddleware
     private static readonly (string Method, string Path)[] ExemptEndpoints =
     [
         ("POST", "/api/users/accept-invitation"),
-        ("GET", "/api/users/me")
+        ("GET", "/api/users/me"),
+        // Catálogo público de la landing: no depende del tenant (también con token de un centro vencido).
+        ("GET", "/api/plans")
     ];
 
     private readonly RequestDelegate _next;

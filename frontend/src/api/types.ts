@@ -138,6 +138,20 @@ export interface SubscriptionSummaryDto {
   daysLeft: number
 }
 
+/** Plan público de `GET /api/plans` (anónimo; solo activos y no-trial, ordenados por sortOrder). */
+export interface PublicPlanDto {
+  id: string
+  name: string
+  durationDays: number
+  priceUsd: number
+  sortOrder: number
+}
+
+export interface PublicPlansDto {
+  trialDays: number
+  plans: PublicPlanDto[]
+}
+
 export interface PlanDto {
   id: string
   name: string

@@ -123,6 +123,31 @@
   --mgmt-up: #006300;
   --mgmt-down: #b42318;
 
+  /* ---- Landing pública (01-ux.md §1; CSS en landing.css, prefijo lp-). No cambian por tema ---- */
+  --lp-ink: #0B1B33;
+  --lp-hero-bg: linear-gradient(135deg, #003F7D 0%, #0067B8 45%, #0E7490 100%);
+  --lp-lime: #C6F432;
+  --lp-lime-hover: #B5E61D;
+  --lp-coral: #FF7A59;
+  --lp-coral-subtle: #FFE8E1;
+  --lp-sky: #F1F7FE;
+  --lp-footer-bg: #0B1B33;
+  --lp-footer-text: #CBD5E1;
+  --lp-mark: linear-gradient(transparent 62%, rgba(198, 244, 50, 0.7) 62%);
+  --lp-shadow-shot: 0 30px 60px -20px rgba(0, 40, 90, 0.45);
+  --lp-on-dark: #FFFFFF;
+  --lp-on-dark-85: rgba(255, 255, 255, 0.85);
+  --lp-on-dark-line: rgba(255, 255, 255, 0.7);    /* borde del botón secundario sobre el hero */
+  --lp-on-dark-soft: rgba(255, 255, 255, 0.14);   /* chip eyebrow y hover sobre fondo oscuro */
+  --lp-footer-line: rgba(203, 213, 225, 0.18);
+  --lp-blob-coral: rgba(255, 122, 89, 0.14);
+  --lp-blob-lime: rgba(198, 244, 50, 0.12);
+  --lp-blob-white: rgba(255, 255, 255, 0.08);
+  --lp-browser-bar: #E8EEF6;
+  --lp-dot-1: #FF7A59;
+  --lp-dot-2: #F5B83D;
+  --lp-dot-3: #3CCB7F;
+
   /* ==== TEMA OCÉANO (por defecto) ==== */
   --shadow-rgb: 0, 72, 140;
   --color-bg: #EEF4FB;

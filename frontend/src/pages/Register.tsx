@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
 import { authApi, usersApi } from '../api'
 import { getErrorMessage } from '../api/client'
@@ -152,6 +152,9 @@ export default function Register() {
 
   const loginForInvite = () =>
     navigate(`/login?next=${encodeURIComponent(`/registro?token=${encodeURIComponent(token)}`)}`)
+
+  // AC-7: sin token no hay invitación que aceptar → el alta pública es /crear-cuenta.
+  if (!token) return <Navigate to="/crear-cuenta" replace />
 
   if (loading || authLoading) {
     return (

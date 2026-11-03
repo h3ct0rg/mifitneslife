@@ -9,6 +9,7 @@ import type {
   ConnectionQuery,
   ConnectionSummaryDto,
   PlanDto,
+  PublicPlansDto,
   SavePlanRequest,
   SubscriptionSummaryDto,
   TenantSubscriptionDto,
@@ -60,6 +61,11 @@ import type {
   UserListItem,
   UserDto,
 } from './types'
+
+/** Endpoints públicos (sin sesión) usados por la landing. */
+export const publicApi = {
+  plans: () => api.get<PublicPlansDto>('/plans').then((r) => r.data),
+}
 
 export const authApi = {
   login: (email: string, password: string) =>
