@@ -57,7 +57,8 @@ coverage.*
 
 # .NET Core / ASP.NET Core
 appsettings.*.json
-!appsettings.json
+appsettings.json
+!appsettings.example.json
 *.bak
 Dockerfile-*
 *.pubxml
