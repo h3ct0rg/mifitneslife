@@ -45,7 +45,28 @@ const STATUS: Record<string, { text: string; tone: string }> = {
   Inactive: { text: 'Inactivo', tone: 'badge--neutral' },
 }
 
-type PickerPage = { search?: string; page: number; pageSize: number }
+/**
+ * Fecha de calendario (sin zona) desde `YYYY-MM-DD` o `YYYY-MM-DDTHH:mm:ss[.fff][Z|±hh:mm]`:
+ * toma solo la parte de fecha, así nunca se desplaza un día por la zona horaria. null si no es válida.
+ */
+function calendarDateKey(value?: string | null): string | null {
+  const m = value ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim()) : null
+  if (!m) return null
+  const [, y, mo, d] = m
+  const date = new Date(Number(y), Number(mo) - 1, Number(d))
+  // Rechaza fechas imposibles (p. ej. 2023-02-30) y el valor por defecto de .NET (0001-01-01).
+  if (date.getMonth() !== Number(mo) - 1 || date.getDate() !== Number(d) || Number(y) < 1900) return null
+  return `${y}-${mo}-${d}`
+}
+
+/** `YYYY-MM-DD` → "12 de marzo de 1990" (es-ES), construida en hora local. */
+function formatCalendarDate(key: string | null): string | null {
+  if (!key) return null
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+type PickerPage ={ search?: string; page: number; pageSize: number }
 
 /** Menú "⋯" de acciones secundarias (Invitar/Reenviar, Eliminar). */
 function ActionsMenu({ items }: { items: { key: string; label: string; icon: string; danger?: boolean; disabled?: boolean; onSelect: () => void }[] }) {
@@ -359,13 +380,8 @@ export default function PatientProfile() {
     )
   }
 
-  const dob = patient.dateOfBirth
-    ? new Date(patient.dateOfBirth + 'T00:00:00').toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : null
+  const dobKey = calendarDateKey(patient.dateOfBirth)
+  const dob = formatCalendarDate(dobKey)
   const status = STATUS[patient.status] ?? { text: patient.status, tone: 'badge--neutral' }
   // Mismas iniciales y mismo gradiente que en la lista/agenda/dashboard (semilla = id del paciente).
   const initials = initialsOf(patient.fullName)
@@ -562,7 +578,8 @@ export default function PatientProfile() {
             lastName: patient.lastName,
             email: patient.email,
             phone: patient.phone ?? '',
-            dateOfBirth: patient.dateOfBirth ?? '',
+            // <input type="date"> necesita `YYYY-MM-DD`: con hora mostraría el campo vacío.
+            dateOfBirth: dobKey ?? '',
             notes: patient.notes ?? '',
             profilePhotoUrl: patient.profilePhotoUrl,
           }}

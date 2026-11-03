@@ -20,6 +20,16 @@ public class EmailService : IEmailService
 
     public async Task<bool> SendEmailAsync(string to, string subject, string htmlBody)
     {
+        // Redirección de demo (SmtpSettings:RedirectAllTo): el outbox conserva el destinatario real;
+        // solo cambia el envío. Sin valor → comportamiento normal.
+        var redirectTo = _settings.RedirectAllTo?.Trim();
+        if (!string.IsNullOrEmpty(redirectTo))
+        {
+            _logger.LogInformation("Redirección de correo activa: {Original} → {RedirectTo} ({Subject})", to, redirectTo, subject);
+            subject = $"[Para: {to}] {subject}";
+            to = redirectTo;
+        }
+
         try
         {
             using var client = new SmtpClient(_settings.Server, _settings.Port)
