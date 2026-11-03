@@ -4,7 +4,8 @@ namespace MyFitnessLife.Application.Interfaces;
 
 public interface ITokenService
 {
-    Task<TokenResponse> CreateTokenPairAsync(Guid userId);
+    /// <summary>Emite access+refresh para la membresía indicada (claims role/tenant_id/membership_id de ella).</summary>
+    Task<TokenResponse> CreateTokenPairAsync(Guid userId, Guid membershipId);
     string GenerateRefreshToken();
     Guid? GetUserIdFromExpiredToken(string accessToken);
     ClaimsPrincipalResult GetPrincipal(string token);

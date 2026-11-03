@@ -24,6 +24,11 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Acceso no autorizado: {Message}", ex.Message);
             await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, ex.Message);
         }
+        catch (MyFitnessLife.Application.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Acceso prohibido: {Message}", ex.Message);
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ex.Message);
+        }
         catch (KeyNotFoundException ex)
         {
             _logger.LogWarning(ex, "Recurso no encontrado: {Message}", ex.Message);

@@ -57,10 +57,22 @@ public class DataPurgeRepository : IDataPurgeRepository
         public required IQueryable<AuditLog> AuditLogs { get; init; }
     }
 
-    private TenantScope BuildTenantScope(Guid t)
+    /// <summary>
+    /// Multi-rol (D7): miembros del tenant = usuarios con alguna membresía en él (más usuarios
+    /// heredados sin membresías cuyo espejo apunte al tenant). Los SuperAdmin nunca se eliminan
+    /// con un tenant (su membresía no tiene tenant).
+    /// </summary>
+    private IQueryable<ApplicationUser> TenantMembers(Guid t)
+        => _context.Users.Where(u =>
+            u.Memberships.Any(m => m.TenantId == t)
+            || (u.TenantId == t && u.Role != UserRole.SuperAdmin && !u.Memberships.Any()));
+
+    /// <summary>Miembros a los que no les quedan membresías fuera del tenant → se borra la cuenta.</summary>
+    private IQueryable<ApplicationUser> TenantUsersToDelete(Guid t)
+        => TenantMembers(t).Where(u => !u.Memberships.Any(m => m.TenantId == null || m.TenantId != t));
+
+    private TenantScope BuildTenantScope(Guid t, IQueryable<ApplicationUser> users)
     {
-        // Los SuperAdmin nunca se eliminan con un tenant (D2 tarea previa: no tienen tenant).
-        var users = _context.Users.Where(u => u.TenantId == t && u.Role != UserRole.SuperAdmin);
         var userIds = users.Select(u => u.Id);
         var userEmails = users.Where(u => u.Email != null).Select(u => u.Email!);
 
@@ -94,9 +106,10 @@ public class DataPurgeRepository : IDataPurgeRepository
 
     public async Task<TenantDeleteImpact> GetTenantImpactAsync(Guid tenantId)
     {
-        var s = BuildTenantScope(tenantId);
+        var s = BuildTenantScope(tenantId, TenantUsersToDelete(tenantId));
 
-        var users = await s.Users.CountAsync();
+        // "users" = miembros afectados (pierden su membresía; la cuenta se borra solo si no les quedan otras).
+        var users = await TenantMembers(tenantId).CountAsync();
         var patients = await s.Patients.CountAsync();
         var appointments = await s.Appointments.CountAsync();
 
@@ -120,8 +133,18 @@ public class DataPurgeRepository : IDataPurgeRepository
     public Task PurgeTenantAsync(Guid tenantId, AuditLog deletionEvent)
         => InTransactionAsync(async () =>
         {
-            var s = BuildTenantScope(tenantId);
             var t = tenantId;
+
+            // 0. Se materializan los conjuntos antes de borrar nada (los predicados dependen de las
+            //    membresías, que se eliminan más adelante).
+            var deleteIds = await TenantUsersToDelete(t).Select(u => u.Id).ToListAsync();
+            var survivorIds = await TenantMembers(t)
+                .Where(u => u.Memberships.Any(m => m.TenantId == null || m.TenantId != t))
+                .Select(u => u.Id)
+                .ToListAsync();
+            var tenantMembershipIds = await _context.UserMemberships
+                .Where(m => m.TenantId == t).Select(m => m.Id).ToListAsync();
+            var s = BuildTenantScope(t, _context.Users.Where(u => deleteIds.Contains(u.Id)));
 
             // 1. Citas (RESTRICT sobre el profesional).
             await s.Appointments.ExecuteDeleteAsync();
@@ -156,11 +179,52 @@ public class DataPurgeRepository : IDataPurgeRepository
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.OwnedBy, (Guid?)null));
             await DeleteAuthArtifactsAsync(s.UserIds);
             await s.Users.ExecuteDeleteAsync();
-            // 10. Tenant (un SuperAdmin con TenantId residual queda en NULL por la FK SET NULL).
+            // 10. Miembros que conservan otras membresías: se les quita solo la de este tenant.
+            await _context.RefreshTokens
+                .Where(r => r.MembershipId != null && tenantMembershipIds.Contains(r.MembershipId.Value))
+                .ExecuteDeleteAsync();
+            await _context.UserMemberships.Where(m => m.TenantId == t).ExecuteDeleteAsync();
+            //     Espejo (D3) → su membresía restante más reciente.
+            await _context.Users.Where(u => survivorIds.Contains(u.Id) && u.TenantId == t)
+                .ExecuteUpdateAsync(u => u
+                    .SetProperty(x => x.TenantId, x => _context.UserMemberships
+                        .Where(m => m.UserId == x.Id)
+                        .OrderByDescending(m => m.LastUsedAt).ThenBy(m => m.CreatedAt)
+                        .Select(m => m.TenantId).FirstOrDefault())
+                    .SetProperty(x => x.Role, x => _context.UserMemberships
+                        .Where(m => m.UserId == x.Id)
+                        .OrderByDescending(m => m.LastUsedAt).ThenBy(m => m.CreatedAt)
+                        .Select(m => m.Role).FirstOrDefault()));
+            //     Roles de Identity: quitar los que ya no respalda ninguna membresía.
+            await RemoveOrphanIdentityRolesAsync(survivorIds);
+            // 11. Tenant (un SuperAdmin con TenantId residual queda en NULL por la FK SET NULL).
             await _context.Users.Where(u => u.TenantId == t)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.TenantId, (Guid?)null));
             await _context.Tenants.Where(x => x.Id == t).ExecuteDeleteAsync();
         }, deletionEvent);
+
+    private async Task RemoveOrphanIdentityRolesAsync(List<Guid> userIds)
+    {
+        if (userIds.Count == 0)
+            return;
+
+        var roleIds = await _context.Roles
+            .Where(r => r.NormalizedName != null)
+            .Select(r => new { r.Id, r.NormalizedName })
+            .ToListAsync();
+
+        foreach (var role in Enum.GetValues<UserRole>())
+        {
+            var roleId = roleIds.FirstOrDefault(r => r.NormalizedName == role.ToString().ToUpperInvariant())?.Id;
+            if (roleId is null)
+                continue;
+
+            await _context.UserRoles
+                .Where(ur => ur.RoleId == roleId.Value && userIds.Contains(ur.UserId)
+                    && !_context.UserMemberships.Any(m => m.UserId == ur.UserId && m.Role == role))
+                .ExecuteDeleteAsync();
+        }
+    }
 
     // ───────────────────────────── Usuario ─────────────────────────────
 
@@ -186,9 +250,17 @@ public class DataPurgeRepository : IDataPurgeRepository
 
         var email = user.Email ?? string.Empty;
 
-        // D3: solo si el rol es Patient se elimina su ficha (match email + tenant).
-        var patientIds = user.Role == UserRole.Patient && user.TenantId.HasValue && email.Length > 0
-            ? _context.Patients.Where(p => p.TenantId == user.TenantId.Value && p.Email == email).Select(p => p.Id)
+        // D3 + multi-rol: se elimina la ficha Patient (match email + tenant) de cada tenant donde
+        // el usuario tiene membresía Patient (más el espejo heredado, por compatibilidad).
+        var patientTenantIds = await _context.UserMemberships.AsNoTracking()
+            .Where(m => m.UserId == userId && m.Role == UserRole.Patient && m.TenantId != null)
+            .Select(m => m.TenantId!.Value)
+            .ToListAsync();
+        if (user.Role == UserRole.Patient && user.TenantId.HasValue && !patientTenantIds.Contains(user.TenantId.Value))
+            patientTenantIds.Add(user.TenantId.Value);
+
+        var patientIds = patientTenantIds.Count > 0 && email.Length > 0
+            ? _context.Patients.Where(p => patientTenantIds.Contains(p.TenantId) && p.Email == email).Select(p => p.Id)
             : _context.Patients.Where(_ => false).Select(p => p.Id);
 
         return new UserScope
@@ -256,6 +328,8 @@ public class DataPurgeRepository : IDataPurgeRepository
 
     private async Task DeleteAuthArtifactsAsync(IQueryable<Guid> userIds)
     {
+        await _context.LoginSelectionTokens.Where(x => userIds.Contains(x.UserId)).ExecuteDeleteAsync();
+        await _context.UserMemberships.Where(m => userIds.Contains(m.UserId)).ExecuteDeleteAsync();
         await _context.RefreshTokens.Where(r => userIds.Contains(r.UserId)).ExecuteDeleteAsync();
         await _context.UserRoles.Where(r => userIds.Contains(r.UserId)).ExecuteDeleteAsync();
         await _context.UserClaims.Where(c => userIds.Contains(c.UserId)).ExecuteDeleteAsync();

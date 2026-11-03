@@ -33,6 +33,7 @@ public record AuthResponse(
     DateTime ExpiresAt,
     UserDto User);
 
+/// <summary>Role y TenantId son los de la membresía actual (MembershipId).</summary>
 public record UserDto(
     Guid Id,
     string FirstName,
@@ -41,6 +42,46 @@ public record UserDto(
     Guid? TenantId,
     string Role,
     string Status,
-    string FullName);
+    string FullName,
+    Guid? MembershipId,
+    IReadOnlyList<MembershipDto> Memberships);
+
+public class MembershipDto
+{
+    public Guid Id { get; set; }
+    public Guid? TenantId { get; set; }
+    public string? TenantName { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? LastUsedAt { get; set; }
+}
+
+/// <summary>Respuesta de login cuando el usuario tiene más de una membresía activa (sin tokens).</summary>
+public class MembershipSelectionResponse
+{
+    public bool RequiresMembershipSelection { get; set; } = true;
+    public string SelectionToken { get; set; } = string.Empty;
+    public IReadOnlyList<MembershipDto> Memberships { get; set; } = [];
+}
+
+/// <summary>Resultado interno de login: exactamente uno de los dos está informado.</summary>
+public class LoginResult
+{
+    public AuthResponse? Auth { get; init; }
+    public MembershipSelectionResponse? Selection { get; init; }
+}
+
+public class SelectMembershipRequest
+{
+    public string SelectionToken { get; set; } = string.Empty;
+    public Guid MembershipId { get; set; }
+}
+
+public class SwitchMembershipRequest
+{
+    public Guid MembershipId { get; set; }
+    /// <summary>Opcional: refresh token actual a revocar. Si falta, se revocan los del perfil actual.</summary>
+    public string? RefreshToken { get; set; }
+}
 
 public record TokenResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt);

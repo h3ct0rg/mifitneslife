@@ -1,12 +1,13 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyFitnessLife.API.Authorization;
 using MyFitnessLife.Application.DTOs.Measurements;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
 
 namespace MyFitnessLife.API.Controllers;
 
+/// <summary>Lecturas: staff del tenant o el propio paciente. Escrituras: solo staff.</summary>
 [ApiController]
 [Route("api/patients/{patientId:guid}/measurements")]
 [Authorize]
@@ -14,10 +15,12 @@ public class MeasurementsController : ControllerBase
 {
     private const int MaxPageSize = 100;
     private readonly IMeasurementService _measurementService;
+    private readonly ICurrentUser _currentUser;
 
-    public MeasurementsController(IMeasurementService measurementService)
+    public MeasurementsController(IMeasurementService measurementService, ICurrentUser currentUser)
     {
         _measurementService = measurementService;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
@@ -27,8 +30,11 @@ public class MeasurementsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
+            return Forbid();
+
+        if (!await _currentUser.CanAccessPatientAsync(patientId))
             return Forbid();
 
         page = Math.Max(1, page);
@@ -48,8 +54,11 @@ public class MeasurementsController : ControllerBase
     [ProducesResponseType(typeof(MeasurementDashboardDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDashboard(Guid patientId)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
+            return Forbid();
+
+        if (!await _currentUser.CanAccessPatientAsync(patientId))
             return Forbid();
 
         try
@@ -67,8 +76,11 @@ public class MeasurementsController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid patientId, Guid id)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
+            return Forbid();
+
+        if (!await _currentUser.CanAccessPatientAsync(patientId))
             return Forbid();
 
         try
@@ -82,12 +94,13 @@ public class MeasurementsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(MeasurementDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(Guid patientId, [FromBody] CreateMeasurementRequest request)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         if (!ModelState.IsValid)
@@ -105,12 +118,13 @@ public class MeasurementsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(MeasurementDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(Guid patientId, Guid id, [FromBody] UpdateMeasurementRequest request)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -124,11 +138,12 @@ public class MeasurementsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid patientId, Guid id)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -140,11 +155,5 @@ public class MeasurementsController : ControllerBase
         {
             return NotFound(new { error = ex.Message });
         }
-    }
-
-    private Guid? GetTenantIdFromClaims()
-    {
-        var raw = User.FindFirstValue("tenant_id");
-        return Guid.TryParse(raw, out var tenantId) ? tenantId : null;
     }
 }

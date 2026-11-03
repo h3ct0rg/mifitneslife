@@ -74,7 +74,20 @@ public static class DbSeeder
             await userManager.AddToRoleAsync(tenantAdmin, UserRole.Admin.ToString());
         }
 
+        // Multi-rol: los usuarios semilla necesitan su membresía (BD nueva; en BD existente la crea el backfill).
+        await EnsureMembershipAsync(context, superAdmin.Id, null, UserRole.SuperAdmin);
+        await EnsureMembershipAsync(context, tenantAdmin.Id, demoTenant.Id, UserRole.Admin);
+
         await FoodSeeder.SeedFoodsAsync(context);
         await ExerciseSeeder.SeedExercisesAsync(context);
+    }
+
+    private static async Task EnsureMembershipAsync(AppDbContext context, Guid userId, Guid? tenantId, UserRole role)
+    {
+        if (await context.UserMemberships.AnyAsync(m => m.UserId == userId))
+            return;
+
+        await context.UserMemberships.AddAsync(new UserMembership { UserId = userId, TenantId = tenantId, Role = role });
+        await context.SaveChangesAsync();
     }
 }

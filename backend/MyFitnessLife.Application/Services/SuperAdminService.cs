@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Text;
 using MyFitnessLife.Application.DTOs.Admin;
+using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Exceptions;
 using MyFitnessLife.Application.Interfaces;
@@ -196,14 +197,15 @@ public class SuperAdminService : ISuperAdminService
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         var total = await _unitOfWork.Users.CountSearchAsync(search, tenantId, roleFilter);
-        var users = await _unitOfWork.Users.SearchAsync(search, tenantId, roleFilter, page, pageSize);
+        var users = (await _unitOfWork.Users.SearchAsync(search, tenantId, roleFilter, page, pageSize)).ToList();
+        var memberships = await _unitOfWork.Memberships.GetByUsersAsync(users.Select(u => u.Id).ToList());
 
         return new PagedResult<AdminUserDto>
         {
             Page = page,
             PageSize = pageSize,
             Total = total,
-            Items = users.Select(u => ToAdminUserDto(u, u.Tenant?.Name)).ToList()
+            Items = users.Select(u => ToAdminUserDto(u, u.Tenant?.Name, memberships.GetValueOrDefault(u.Id) ?? [])).ToList()
         };
     }
 
@@ -242,8 +244,10 @@ public class SuperAdminService : ISuperAdminService
             EmailConfirmed = true
         };
 
+        var membership = new UserMembership { UserId = user.Id, TenantId = tenant?.Id, Role = role, Tenant = tenant };
         await _unitOfWork.Users.AddAsync(user);
-        await _unitOfWork.Users.SyncIdentityRoleAsync(user.Id, role.ToString());
+        await _unitOfWork.Memberships.AddAsync(membership);
+        await _unitOfWork.Users.SyncIdentityRolesAsync(user.Id, [role]);
 
         if (role == UserRole.Patient && tenant is not null)
             await PatientProfiles.EnsureAsync(_unitOfWork, tenant.Id, email, firstName, lastName);
@@ -253,7 +257,7 @@ public class SuperAdminService : ISuperAdminService
 
         await _unitOfWork.SaveChangesAsync();
 
-        return ToAdminUserDto(user, tenant?.Name);
+        return ToAdminUserDto(user, tenant?.Name, [membership]);
     }
 
     public async Task<AdminUserDto> UpdateUserAsync(Guid actorId, Guid id, UpdateAdminUserRequest request)
@@ -269,8 +273,7 @@ public class SuperAdminService : ISuperAdminService
             if (user.Id == actorId)
                 throw new InvalidOperationException("No puedes desactivar tu propia cuenta.");
 
-            if (user.Role == UserRole.SuperAdmin
-                && await _unitOfWork.Users.CountActiveByRoleAsync(UserRole.SuperAdmin, user.Id) == 0)
+            if (await IsLastActiveSuperAdminAsync(user))
                 throw new InvalidOperationException("No se puede desactivar al último SuperAdmin activo de la plataforma.");
         }
 
@@ -287,44 +290,90 @@ public class SuperAdminService : ISuperAdminService
 
         await _unitOfWork.SaveChangesAsync();
 
-        return ToAdminUserDto(user, user.Tenant?.Name);
+        var memberships = await _unitOfWork.Memberships.GetByUserAsync(user.Id);
+        return ToAdminUserDto(user, user.Tenant?.Name, memberships);
     }
 
-    public async Task<AdminUserDto> AssignUserAsync(Guid actorId, Guid id, AssignUserRequest request)
+    // ───────────────────────────── Membresías (D8) ─────────────────────────────
+
+    public async Task<IEnumerable<MembershipDto>> GetUserMembershipsAsync(Guid userId)
     {
-        var user = await _unitOfWork.Users.GetByIdAsync(id)
+        _ = await _unitOfWork.Users.GetByIdAsync(userId) ?? throw new KeyNotFoundException("Usuario no encontrado.");
+        return (await _unitOfWork.Memberships.GetByUserAsync(userId)).Select(MembershipHelper.ToDto).ToList();
+    }
+
+    public async Task<MembershipDto> AddMembershipAsync(Guid actorId, Guid userId, AddMembershipRequest request)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
         var role = ParseRole(request.Role);
         var tenant = await ValidateAssignmentAsync(role, request.TenantId);
 
-        var losesSuperAdmin = user.Role == UserRole.SuperAdmin && role != UserRole.SuperAdmin;
-        if (losesSuperAdmin)
-        {
-            if (user.Id == actorId)
-                throw new InvalidOperationException("No puedes quitarte tu propio rol SuperAdmin.");
+        if (await _unitOfWork.Memberships.FindAsync(user.Id, tenant?.Id, role) is not null)
+            throw new ConflictException("El usuario ya tiene esa membresía.");
 
-            if (user.Status == UserStatus.Active
-                && await _unitOfWork.Users.CountActiveByRoleAsync(UserRole.SuperAdmin, user.Id) == 0)
-                throw new InvalidOperationException("No se puede dejar la plataforma sin un SuperAdmin activo.");
-        }
-
-        user.Role = role;
-        user.TenantId = tenant?.Id;
-        user.Tenant = tenant;
-        user.UpdatedAt = DateTime.UtcNow;
-
-        await _unitOfWork.Users.SyncIdentityRoleAsync(user.Id, role.ToString());
+        var membership = new UserMembership { UserId = user.Id, TenantId = tenant?.Id, Role = role, Tenant = tenant };
+        await _unitOfWork.Memberships.AddAsync(membership);
 
         if (role == UserRole.Patient && tenant is not null)
             await PatientProfiles.EnsureAsync(_unitOfWork, tenant.Id, user.Email!, user.FirstName, user.LastName);
 
         if (tenant is not null)
-            await _activityService.RecordEntityAsync(tenant.Id, "assign_role", "User", user.Id.ToString(), user.Email);
+            await _activityService.RecordEntityAsync(tenant.Id, "add_membership", "User", user.Id.ToString(), user.Email);
 
         await _unitOfWork.SaveChangesAsync();
+        await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
+        await _unitOfWork.SaveChangesAsync();
 
-        return ToAdminUserDto(user, tenant?.Name);
+        return MembershipHelper.ToDto(membership);
+    }
+
+    public async Task RemoveMembershipAsync(Guid actorId, Guid userId, Guid membershipId)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(userId)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        var memberships = await _unitOfWork.Memberships.GetByUserAsync(user.Id);
+        var membership = memberships.FirstOrDefault(m => m.Id == membershipId)
+            ?? throw new KeyNotFoundException("Membresía no encontrada.");
+
+        if (memberships.Count == 1)
+            throw new InvalidOperationException("No se puede quitar la última membresía del usuario. Usa eliminar usuario.");
+
+        if (membership.Role == UserRole.SuperAdmin)
+        {
+            if (user.Id == actorId)
+                throw new InvalidOperationException("No puedes quitarte tu propia membresía SuperAdmin.");
+
+            if (membership.Status == UserStatus.Active && user.Status == UserStatus.Active
+                && await _unitOfWork.Memberships.CountActiveSuperAdminsAsync(excludeMembershipId: membership.Id) == 0)
+                throw new InvalidOperationException("No se puede quitar la última membresía SuperAdmin activa de la plataforma.");
+        }
+
+        await _unitOfWork.Memberships.RemoveAsync(membership);
+        // Las sesiones emitidas con esa membresía dejan de poder refrescarse.
+        await _unitOfWork.RefreshTokens.RevokeForMembershipAsync(user.Id, membership.Id, "membership_removed");
+
+        // D3: si era la membresía espejo, el espejo pasa a la siguiente (última usada).
+        if (user.Role == membership.Role && user.TenantId == membership.TenantId)
+            MembershipHelper.ApplyMirror(user, memberships.First(m => m.Id != membership.Id));
+
+        if (membership.TenantId.HasValue)
+            await _activityService.RecordEntityAsync(membership.TenantId.Value, "remove_membership", "User", user.Id.ToString(), user.Email);
+
+        await _unitOfWork.SaveChangesAsync();
+        await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    private async Task<bool> IsLastActiveSuperAdminAsync(ApplicationUser user)
+    {
+        var isActiveSuperAdmin = user.Status == UserStatus.Active
+            && (await _unitOfWork.Memberships.GetByUserAsync(user.Id))
+                .Any(m => m.Role == UserRole.SuperAdmin && m.Status == UserStatus.Active);
+        return isActiveSuperAdmin
+            && await _unitOfWork.Memberships.CountActiveSuperAdminsAsync(excludeUserId: user.Id) == 0;
     }
 
     // ───────────────────────────── Eliminación (hard delete) ─────────────────────────────
@@ -389,9 +438,7 @@ public class SuperAdminService : ISuperAdminService
         if (user.Id == actorId)
             throw new InvalidOperationException("No puedes eliminar tu propia cuenta.");
 
-        if (user.Role == UserRole.SuperAdmin
-            && user.Status == UserStatus.Active
-            && await _unitOfWork.Users.CountActiveByRoleAsync(UserRole.SuperAdmin, user.Id) == 0)
+        if (await IsLastActiveSuperAdminAsync(user))
             throw new InvalidOperationException("No se puede eliminar al último SuperAdmin activo de la plataforma.");
 
         var tenantInfo = user.Tenant is not null ? $" [{user.Tenant.Name}]" : string.Empty;
@@ -465,7 +512,8 @@ public class SuperAdminService : ISuperAdminService
             CreatedAt = t.CreatedAt
         };
 
-    private static AdminUserDto ToAdminUserDto(ApplicationUser u, string? tenantName)
+    /// <summary>role/tenant = membresía por defecto (espejo D3) para compatibilidad; memberships = todas.</summary>
+    private static AdminUserDto ToAdminUserDto(ApplicationUser u, string? tenantName, IEnumerable<UserMembership> memberships)
         => new()
         {
             Id = u.Id,
@@ -476,7 +524,8 @@ public class SuperAdminService : ISuperAdminService
             TenantName = u.TenantId.HasValue ? tenantName : null,
             IsActive = u.Status == UserStatus.Active,
             CreatedAt = u.CreatedAt,
-            LastLoginAt = u.LastLoginAt
+            LastLoginAt = u.LastLoginAt,
+            Memberships = memberships.Select(MembershipHelper.ToDto).ToList()
         };
 
     private static UserRole ParseRole(string? role)

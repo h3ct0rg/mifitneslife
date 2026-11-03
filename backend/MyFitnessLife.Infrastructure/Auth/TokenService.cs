@@ -45,18 +45,23 @@ public class TokenService : ITokenService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<TokenResponse> CreateTokenPairAsync(Guid userId)
+    public async Task<TokenResponse> CreateTokenPairAsync(Guid userId, Guid membershipId)
     {
         var user = await _unitOfWork.Users.GetByIdAsync(userId)
             ?? throw new UnauthorizedAccessException("Usuario no encontrado.");
 
-        var accessToken = GenerateAccessToken(user);
+        var membership = await _unitOfWork.Memberships.GetByIdAsync(membershipId);
+        if (membership is null || membership.UserId != userId)
+            throw new UnauthorizedAccessException("Membresía no válida.");
+
+        var accessToken = GenerateAccessToken(user, membership);
         var refreshToken = GenerateRefreshToken();
 
         await _unitOfWork.RefreshTokens.AddAsync(new RefreshToken
         {
             UserId = userId,
             Token = refreshToken,
+            MembershipId = membership.Id,
             ExpiresAt = DateTime.UtcNow.AddDays(_options.RefreshTokenExpiryInDays)
         });
         await _unitOfWork.SaveChangesAsync();
@@ -65,15 +70,17 @@ public class TokenService : ITokenService
         return new TokenResponse(accessToken, refreshToken, expiresAt);
     }
 
-    private string GenerateAccessToken(ApplicationUser user)
+    private string GenerateAccessToken(ApplicationUser user, UserMembership membership)
     {
+        // D2: misma forma de claims que antes (role, tenant_id, email) + membership_id.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new("name", user.FullName),
-            new("role", user.Role.ToString()),
-            new("tenant_id", user.TenantId?.ToString() ?? string.Empty),
+            new("role", membership.Role.ToString()),
+            new("tenant_id", membership.TenantId?.ToString() ?? string.Empty),
+            new("membership_id", membership.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

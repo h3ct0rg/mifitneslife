@@ -2,6 +2,9 @@ import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:7115/api'
 
+/** Evento emitido tras un refresh de tokens exitoso; `detail` = UserDto. */
+export const AUTH_REFRESHED_EVENT = 'auth:refreshed'
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -27,6 +30,10 @@ api.interceptors.response.use(
           })
           localStorage.setItem('access_token', data.accessToken)
           localStorage.setItem('refresh_token', data.refreshToken)
+          // AuthContext escucha este evento para actualizar `user` (membresía/rol/tenant).
+          if (data.user) {
+            window.dispatchEvent(new CustomEvent(AUTH_REFRESHED_EVENT, { detail: data.user }))
+          }
           original.headers.Authorization = `Bearer ${data.accessToken}`
           return api(original)
         } catch {

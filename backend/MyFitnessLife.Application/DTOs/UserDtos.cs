@@ -44,14 +44,14 @@ public class InvitationInfoDto
     public string TenantName { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public bool Valid { get; set; }
+    /// <summary>Ya existe una cuenta con ese email: iniciar sesión y aceptar (no registrarse).</summary>
+    public bool ExistingAccount { get; set; }
 }
 
+/// <summary>Aceptación con cuenta existente (autenticado): solo el token; agrega la membresía.</summary>
 public class AcceptInvitationRequest
 {
     public string Token { get; set; } = string.Empty;
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
 }
 
 public class UpdateUserRoleRequest

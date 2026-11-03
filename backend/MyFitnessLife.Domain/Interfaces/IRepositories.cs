@@ -13,6 +13,8 @@ public interface IUserRepository
     Task AddAsync(ApplicationUser user);
     Task UpdateAsync(ApplicationUser user);
     Task<bool> EmailExistsAsync(string email);
+    /// <summary>Subconjunto de <paramref name="emails"/> con cuenta de usuario en el tenant (una consulta).</summary>
+    Task<HashSet<string>> GetEmailsWithAccountAsync(Guid tenantId, IReadOnlyCollection<string> emails);
 
     // Consultas de plataforma (SuperAdmin): paginadas/agregadas en BD.
     Task<IEnumerable<ApplicationUser>> SearchAsync(string? search, Guid? tenantId, UserRole? role, int page, int pageSize);
@@ -24,8 +26,35 @@ public interface IUserRepository
     Task<Dictionary<Guid, int>> CountGroupedByTenantAsync();
     Task<Dictionary<Guid, int>> CountLoggedInSinceGroupedByTenantAsync(DateTime since);
     Task<int> CountActiveByRoleAsync(UserRole role, Guid? excludeUserId = null);
-    /// <summary>Deja al usuario con un único rol de Identity (AspNetUserRoles). Se persiste con SaveChanges.</summary>
-    Task SyncIdentityRoleAsync(Guid userId, string roleName);
+    /// <summary>Deja en AspNetUserRoles exactamente el conjunto de roles indicado. Se persiste con SaveChanges.</summary>
+    Task SyncIdentityRolesAsync(Guid userId, IReadOnlyCollection<UserRole> roles);
+}
+
+public interface IMembershipRepository
+{
+    /// <summary>Membresías del usuario (con Tenant). usableOnly: Status Active y tenant activo (o SuperAdmin). Orden: última usada primero.</summary>
+    Task<IReadOnlyList<UserMembership>> GetByUserAsync(Guid userId, bool usableOnly = false);
+    Task<Dictionary<Guid, List<UserMembership>>> GetByUsersAsync(IReadOnlyCollection<Guid> userIds);
+    /// <summary>Membresías activas de un tenant (con User), opcionalmente filtradas por roles.</summary>
+    Task<IReadOnlyList<UserMembership>> GetByTenantAsync(Guid tenantId, IReadOnlyCollection<UserRole>? roles = null);
+    Task<UserMembership?> GetByIdAsync(Guid id);
+    Task<UserMembership?> FindAsync(Guid userId, Guid? tenantId, UserRole role);
+    Task<int> CountByUserAsync(Guid userId);
+    /// <summary>Membresías SuperAdmin activas de usuarios activos, excluyendo opcionalmente una membresía o un usuario.</summary>
+    Task<int> CountActiveSuperAdminsAsync(Guid? excludeMembershipId = null, Guid? excludeUserId = null);
+    Task AddAsync(UserMembership membership);
+    Task RemoveAsync(UserMembership membership);
+}
+
+public interface ILoginSelectionTokenRepository
+{
+    Task AddAsync(LoginSelectionToken token);
+    Task<LoginSelectionToken?> GetByHashAsync(string tokenHash);
+    /// <summary>
+    /// Consume el token de forma atómica (UPDATE ... WHERE hash AND UsedAt IS NULL AND ExpiresAt &gt; now).
+    /// Devuelve el UserId solo si esta llamada lo consumió (1 fila afectada); si no, null.
+    /// </summary>
+    Task<Guid?> TryConsumeAsync(string tokenHash, DateTime now);
 }
 
 public interface ITenantRepository
@@ -48,6 +77,9 @@ public interface IInvitationRepository
     Task<Invitation?> GetByIdAsync(Guid id);
     Task<Invitation?> GetByTokenAsync(string token);
     Task<Invitation?> GetPendingByEmailAsync(Guid tenantId, string email);
+    Task<Invitation?> GetPendingByEmailAndRoleAsync(Guid tenantId, string email, UserRole role);
+    /// <summary>Subconjunto de <paramref name="emails"/> con invitación Pending en el tenant (una consulta).</summary>
+    Task<HashSet<string>> GetEmailsWithPendingInvitationAsync(Guid tenantId, IReadOnlyCollection<string> emails);
     Task<IEnumerable<Invitation>> GetByTenantAsync(Guid tenantId);
     Task AddAsync(Invitation invitation);
     Task UpdateAsync(Invitation invitation);
@@ -68,6 +100,8 @@ public interface IRefreshTokenRepository
     Task AddAsync(RefreshToken token);
     Task UpdateAsync(RefreshToken token);
     Task RevokeAllForUserAsync(Guid userId);
+    /// <summary>Marca revocados (sin guardar) los refresh tokens vigentes del usuario emitidos para esa membresía (null = tokens antiguos).</summary>
+    Task RevokeForMembershipAsync(Guid userId, Guid? membershipId, string reason);
 }
 
 public interface IPatientRepository
@@ -214,9 +248,34 @@ public interface IDataPurgeRepository
     Task PurgeUserAsync(Guid userId, AuditLog deletionEvent);
 }
 
+public record PatientKpis(int Total, int Active, int NewThisMonth, int NewPrevMonth, int WithDiet, int WithWorkout, int WithoutFollowUp);
+public record MonthStatusCount(int Year, int Month, AppointmentStatus Status, int Count);
+public record ProfessionalKpiRow(Guid Id, string FullName, UserRole Role, int CompletedThisMonth, int NoShowThisMonth, int Upcoming, int PatientsAttendedThisMonth);
+public record AtRiskPatientRow(Guid Id, string FullName, DateTime? LastActivityAt);
+public record TodayAppointmentRow(Guid Id, DateTime StartAt, Guid PatientId, string PatientName, string ProfessionalName, AppointmentStatus Status);
+
+/// <summary>
+/// Consultas agregadas (solo lectura) para el dashboard de gestión del tenant.
+/// professionalId != null restringe las consultas de citas a ese profesional.
+/// </summary>
+public interface IDashboardRepository
+{
+    Task<PatientKpis> GetPatientKpisAsync(Guid tenantId, DateTime thisMonthStart, DateTime prevMonthStart, DateTime followUpCutoff, DateTime now);
+    Task<IReadOnlyList<MonthStatusCount>> GetAppointmentsByMonthAndStatusAsync(Guid tenantId, Guid? professionalId, DateTime from, DateTime to);
+    Task<int> CountAppointmentsAsync(Guid tenantId, Guid? professionalId, DateTime from, DateTime to, IReadOnlyCollection<AppointmentStatus> statuses);
+    Task<Dictionary<(int Year, int Month), int>> GetNewPatientsByMonthAsync(Guid tenantId, DateTime from, DateTime to);
+    Task<Dictionary<(int Year, int Month), int>> GetMeasurementsByMonthAsync(Guid tenantId, DateTime from, DateTime to);
+    Task<IReadOnlyList<ProfessionalKpiRow>> GetProfessionalKpisAsync(Guid tenantId, DateTime monthStart, DateTime monthEnd, DateTime now);
+    Task<IReadOnlyList<AtRiskPatientRow>> GetAtRiskPatientsAsync(Guid tenantId, DateTime followUpCutoff, DateTime now, int take);
+    Task<IReadOnlyList<TodayAppointmentRow>> GetAppointmentsInRangeAsync(Guid tenantId, Guid? professionalId, DateTime from, DateTime to, int take);
+}
+
 public interface IUnitOfWork : IDisposable, IAsyncDisposable
 {
     IDataPurgeRepository Purge { get; }
+    IDashboardRepository Dashboard { get; }
+    IMembershipRepository Memberships { get; }
+    ILoginSelectionTokenRepository SelectionTokens { get; }
     IUserRepository Users { get; }
     ITenantRepository Tenants { get; }
     IInvitationRepository Invitations { get; }

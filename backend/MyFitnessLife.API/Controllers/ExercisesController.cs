@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyFitnessLife.API.Authorization;
 using MyFitnessLife.Application.DTOs.Exercises;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
@@ -8,7 +9,9 @@ namespace MyFitnessLife.API.Controllers;
 
 [ApiController]
 [Route("api/exercises")]
-[Authorize]
+// Catálogo usado solo por la UI del staff (el paciente ve su rutina vía workout-plans/patient y la media
+// vía uploads/exercise-*); Patient y usuarios sin tenant (SuperAdmin) → 403.
+[Authorize(Policy = AuthPolicies.StaffOnly)]
 public class ExercisesController : ControllerBase
 {
     private const int MaxPageSize = 200;

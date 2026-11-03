@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { dietsApi, patientPhotosApi, patientsApi, workoutPlansApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/toastContext'
 import type { PatientDto } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
@@ -65,6 +66,41 @@ export default function PatientProfile() {
   const [routineSaving, setRoutineSaving] = useState(false)
   const [routineVersion, setRoutineVersion] = useState(0)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [inviting, setInviting] = useState(false)
+  const toast = useToast()
+
+  const handleInvite = async () => {
+    if (!id || !patient) return
+    setInviting(true)
+    try {
+      const { invitationStatus } = await patientsApi.invite(id)
+      switch (invitationStatus) {
+        case 'sent':
+        case 'resent':
+          toast.success(
+            invitationStatus === 'resent'
+              ? `Invitación reenviada a ${patient.email}.`
+              : `Invitación enviada a ${patient.email}.`,
+          )
+          setPatient((p) => (p ? { ...p, pendingInvitation: true } : p))
+          break
+        case 'already_member':
+        case 'existing_user':
+          toast.show(`${patient.email} ya tiene acceso como paciente en este centro; no se envió invitación.`, 'info')
+          setPatient((p) => (p ? { ...p, hasAccount: true } : p))
+          break
+        case 'failed':
+          toast.error(`No se pudo crear la invitación para ${patient.email}. Inténtalo de nuevo más tarde.`)
+          break
+        default:
+          toast.error('No se envió la invitación: el paciente no tiene un email válido.')
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setInviting(false)
+    }
+  }
 
   const load = useCallback(async () => {
     if (!id) return
@@ -243,6 +279,24 @@ export default function PatientProfile() {
               <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
                 Historial
               </button>
+              {patient.hasAccount === false && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={handleInvite}
+                  disabled={inviting}
+                  title={patient.pendingInvitation ? 'Ya hay una invitación pendiente' : undefined}
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1.1rem', verticalAlign: 'middle' }}>
+                    forward_to_inbox
+                  </span>{' '}
+                  {inviting
+                    ? 'Enviando...'
+                    : patient.pendingInvitation
+                      ? 'Reenviar invitación'
+                      : 'Enviar invitación'}
+                </button>
+              )}
               <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
                 Editar
               </button>

@@ -39,6 +39,33 @@ public class PatientDto
     public string? Notes { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    /// <summary>Existe un usuario (ApplicationUser) con este email en el tenant.</summary>
+    public bool HasAccount { get; set; }
+    /// <summary>Existe una invitación Pending para este email en el tenant.</summary>
+    public bool PendingInvitation { get; set; }
+}
+
+public static class PatientInvitationStatus
+{
+    public const string Sent = "sent";
+    public const string Resent = "resent";
+    /// <summary>Multi-rol: el usuario ya tiene la membresía Patient en este tenant.</summary>
+    public const string AlreadyMember = "already_member";
+    /// <summary>N2: no se pudo generar la invitación (el paciente sí se creó).</summary>
+    public const string Failed = "failed";
+    /// <summary>Sin email válido.</summary>
+    public const string None = "none";
+}
+
+/// <summary>Respuesta de POST api/patients: PatientDto + resultado de la invitación.</summary>
+public class PatientCreatedDto : PatientDto
+{
+    public string InvitationStatus { get; set; } = PatientInvitationStatus.None;
+}
+
+public class PatientInviteResultDto
+{
+    public string InvitationStatus { get; set; } = PatientInvitationStatus.None;
 }
 
 public class PagedResult<T>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import ProfileSwitcher from './ProfileSwitcher'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { roleLabel } from '../api/types'
@@ -46,14 +47,19 @@ export default function Layout() {
   const isPatient = user?.role === 'Patient'
   const isSuperAdmin = user?.role === 'SuperAdmin'
 
+  const membershipId = user?.membershipId
+
+  // Se recalcula también al cambiar de membresía (paciente en otro tenant).
   useEffect(() => {
     if (isPatient) {
       patientsApi
         .me()
         .then((p) => setMyPatientId(p.id))
         .catch(() => setMyPatientId(null))
+    } else {
+      setMyPatientId(null)
     }
-  }, [isPatient])
+  }, [isPatient, membershipId])
 
   if (!user) return null
 
@@ -241,6 +247,7 @@ export default function Layout() {
             <span className="badge">{roleLabel(user.role)}</span>
           </div>
           <div className="header-user">
+            <ProfileSwitcher />
             <span className="header-name">
               {user.fullName} ({user.email})
             </span>
@@ -253,7 +260,10 @@ export default function Layout() {
 
 
         <main className="app-content">
-          <Outlet />
+          {/* key: al cambiar de membresía se remonta la página para no mostrar datos de otro tenant/rol. */}
+          <Fragment key={user.membershipId ?? 'default'}>
+            <Outlet />
+          </Fragment>
         </main>
 
         <footer className="app-footer">

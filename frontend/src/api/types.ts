@@ -7,6 +7,18 @@ export interface UserDto {
   role: string
   status: string
   fullName: string
+  /** Membresía actual (la del token). role/tenantId son los de esta membresía. */
+  membershipId: string
+  memberships: MembershipDto[]
+}
+
+export interface MembershipDto {
+  id: string
+  tenantId: string | null
+  tenantName: string | null
+  role: string
+  status: string
+  lastUsedAt: string | null
 }
 
 export interface AuthResponse {
@@ -14,6 +26,24 @@ export interface AuthResponse {
   refreshToken: string
   expiresAt: string
   user: UserDto
+}
+
+/** Respuesta de login/google-login cuando el usuario tiene >1 membresía activa. */
+export interface MembershipSelectionResponse {
+  requiresMembershipSelection: true
+  selectionToken: string
+  memberships: MembershipDto[]
+}
+
+export type LoginResult = AuthResponse | MembershipSelectionResponse
+
+export function isMembershipSelection(res: LoginResult): res is MembershipSelectionResponse {
+  return (res as MembershipSelectionResponse).requiresMembershipSelection === true
+}
+
+export interface CreateMembershipRequest {
+  role: string
+  tenantId?: string | null
 }
 
 export interface InviteRequest {
@@ -53,6 +83,8 @@ export interface InvitationInfoDto {
   role?: string
   tenantName?: string
   expiresAt?: string
+  /** true si ya existe una cuenta con ese email → iniciar sesión y aceptar. */
+  existingAccount?: boolean
 }
 
 export interface UserListItem {
@@ -109,6 +141,8 @@ export interface AdminUserDto {
   isActive: boolean
   createdAt: string
   lastLoginAt?: string | null
+  /** role/tenant de arriba = membresía por defecto (compatibilidad). */
+  memberships: MembershipDto[]
 }
 
 export interface AdminUserListDto {
@@ -158,11 +192,6 @@ export interface UserDeleteImpactDto {
   otherRecords: number
 }
 
-export interface AssignUserRequest {
-  role: string
-  tenantId?: string | null
-}
-
 export interface TenantActivityDto {
   tenantId: string
   tenantName: string
@@ -185,6 +214,81 @@ export interface AdminDashboardDto {
   registrationsByMonth: RegistrationMonthDto[]
   tenants: TenantDto[]
   recentActivity: TenantActivityDto[]
+}
+
+// ===== Dashboard de gestión (GET api/dashboard/kpis) =====
+export interface AppointmentCountsDto {
+  scheduled: number
+  completed: number
+  cancelled: number
+  noShow: number
+}
+
+export interface DashboardKpisDto {
+  scope: 'tenant' | 'professional'
+  generatedAt: string
+  patients: {
+    total: number
+    active: number
+    newThisMonth: number
+    newPrevMonth: number
+    withDiet: number
+    withWorkout: number
+    withoutFollowUp30d: number
+  }
+  appointments: {
+    today: number
+    next7Days: number
+    thisMonth: AppointmentCountsDto
+    prevMonth: AppointmentCountsDto
+    /** completed/(completed+noShow) este mes, 0..1; null si denominador 0. */
+    attendanceRate: number | null
+    /** cancelled/total este mes, 0..1; null si denominador 0. */
+    cancellationRate: number | null
+    /** noShow/(completed+noShow) este mes, 0..1; null si denominador 0. */
+    noShowRate: number | null
+  }
+  /** Últimos 6 meses incl. actual, orden ascendente. */
+  monthly: DashboardMonthDto[]
+  /** Solo Admin; ordenado por completedThisMonth desc. */
+  professionals: DashboardProfessionalDto[]
+  atRiskPatients: DashboardAtRiskPatientDto[]
+  todayAppointments: DashboardTodayAppointmentDto[]
+}
+
+export interface DashboardMonthDto {
+  month: string // "YYYY-MM"
+  newPatients: number
+  completed: number
+  cancelled: number
+  noShow: number
+  measurements: number
+}
+
+export interface DashboardProfessionalDto {
+  id: string
+  fullName: string
+  role: string
+  completedThisMonth: number
+  upcoming: number
+  patientsAttendedThisMonth: number
+  noShowRate: number | null
+}
+
+export interface DashboardAtRiskPatientDto {
+  id: string
+  fullName: string
+  lastActivityAt: string | null
+  daysSinceActivity: number | null
+}
+
+export interface DashboardTodayAppointmentDto {
+  id: string
+  startAt: string
+  patientId: string
+  patientName: string
+  professionalName: string
+  status: AppointmentStatus
 }
 
 /** Roles en el orden en que se muestran en selectores del panel de plataforma. */
@@ -224,6 +328,26 @@ export interface PatientDto {
   notes?: string
   status: string
   createdAt: string
+  /** Existe ApplicationUser con ese email en el tenant. */
+  hasAccount: boolean
+  /** Hay una invitación pendiente para ese email en el tenant. */
+  pendingInvitation: boolean
+}
+
+/**
+ * `already_member` = ya tiene esa misma membresía (tenant+rol); `failed` = falló la creación de la invitación;
+ * `none` = sin email válido. `existing_user` se conserva por compatibilidad.
+ */
+export type PatientInvitationStatus = 'sent' | 'resent' | 'already_member' | 'failed' | 'existing_user' | 'none'
+
+/** Respuesta de POST api/patients. */
+export interface CreatePatientResponse extends PatientDto {
+  invitationStatus: PatientInvitationStatus
+}
+
+/** Respuesta de POST api/patients/{id}/invite. */
+export interface PatientInviteResponse {
+  invitationStatus: PatientInvitationStatus
 }
 
 export interface PagedResult<T> {

@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyFitnessLife.API.Authorization;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.DTOs.WorkoutPlans;
 using MyFitnessLife.Application.Interfaces;
@@ -13,33 +13,37 @@ namespace MyFitnessLife.API.Controllers;
 public class WorkoutPlansController : ControllerBase
 {
     private readonly IWorkoutPlanService _workoutPlanService;
+    private readonly ICurrentUser _currentUser;
 
-    public WorkoutPlansController(IWorkoutPlanService workoutPlanService)
+    public WorkoutPlansController(IWorkoutPlanService workoutPlanService, ICurrentUser currentUser)
     {
         _workoutPlanService = workoutPlanService;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(PagedResult<WorkoutPlanDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         return Ok(await _workoutPlanService.GetPagedAsync(tenantId.Value, search, page, pageSize));
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -52,12 +56,16 @@ public class WorkoutPlansController : ControllerBase
         }
     }
 
+    /// <summary>Rutina asignada. Staff: cualquier paciente del tenant. Patient: solo la propia.</summary>
     [HttpGet("patient/{patientId:guid}")]
     [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByPatient(Guid patientId)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
+            return Forbid();
+
+        if (!await _currentUser.CanAccessPatientAsync(patientId))
             return Forbid();
 
         var plan = await _workoutPlanService.GetByPatientAsync(tenantId.Value, patientId);
@@ -68,12 +76,13 @@ public class WorkoutPlansController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateWorkoutPlanRequest request)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -92,12 +101,13 @@ public class WorkoutPlansController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWorkoutPlanRequest request)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -111,11 +121,12 @@ public class WorkoutPlansController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -130,12 +141,13 @@ public class WorkoutPlansController : ControllerBase
     }
 
     [HttpPut("assign")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(WorkoutPlanDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AssignToPatient([FromBody] AssignWorkoutPlanRequest request)
     {
-        var tenantId = GetTenantIdFromClaims();
-        if (tenantId is null || tenantId == Guid.Empty)
+        var tenantId = _currentUser.TenantId;
+        if (tenantId is null)
             return Forbid();
 
         try
@@ -148,11 +160,5 @@ public class WorkoutPlansController : ControllerBase
         {
             return NotFound(new { error = ex.Message });
         }
-    }
-
-    private Guid? GetTenantIdFromClaims()
-    {
-        var raw = User.FindFirstValue("tenant_id");
-        return Guid.TryParse(raw, out var tenantId) ? tenantId : null;
     }
 }

@@ -93,7 +93,10 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// Policy "StaffOnly" (Admin/Nutritionist/Trainer del tenant) + contexto del usuario actual (paciente propio).
+builder.Services.AddAuthorization(MyFitnessLife.API.Authorization.AuthPolicies.AddStaffOnly);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<MyFitnessLife.API.Authorization.ICurrentUser, MyFitnessLife.API.Authorization.CurrentUser>();
 
 var allowedOrigins = (builder.Configuration["FrontendUrl"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

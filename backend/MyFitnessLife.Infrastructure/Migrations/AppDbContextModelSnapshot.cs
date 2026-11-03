@@ -663,6 +663,39 @@ namespace Infrastructure.Migrations
                     b.ToTable("Invitations");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.LoginSelectionToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("LoginSelectionTokens");
+                });
+
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Meal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1065,6 +1098,9 @@ namespace Infrastructure.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("MembershipId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ReplacedByToken")
                         .HasColumnType("nvarchar(max)");
 
@@ -1132,6 +1168,40 @@ namespace Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.UserMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Role");
+
+                    b.HasIndex("UserId", "TenantId", "Role")
+                        .IsUnique();
+
+                    b.ToTable("UserMemberships");
                 });
 
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutDay", b =>
@@ -1368,6 +1438,15 @@ namespace Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.LoginSelectionToken", b =>
+                {
+                    b.HasOne("MyFitnessLife.Domain.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Meal", b =>
                 {
                     b.HasOne("MyFitnessLife.Domain.Entities.Diet", "Diet")
@@ -1450,6 +1529,24 @@ namespace Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.UserMembership", b =>
+                {
+                    b.HasOne("MyFitnessLife.Domain.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MyFitnessLife.Domain.Entities.ApplicationUser", "User")
+                        .WithMany("Memberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.WorkoutDay", b =>
                 {
                     b.HasOne("MyFitnessLife.Domain.Entities.WorkoutPlan", "Plan")
@@ -1488,6 +1585,11 @@ namespace Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("MyFitnessLife.Domain.Entities.ApplicationUser", b =>
+                {
+                    b.Navigation("Memberships");
                 });
 
             modelBuilder.Entity("MyFitnessLife.Domain.Entities.Diet", b =>

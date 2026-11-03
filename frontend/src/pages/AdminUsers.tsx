@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { adminApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { AdminUserDto, TenantDto } from '../api/types'
+import type { AdminUserDto, MembershipDto, TenantDto } from '../api/types'
 import { ROLE_KEYS, roleLabel } from '../api/types'
+import { membershipLabel, membershipTenant, roleIcon, sortMemberships } from '../components/membershipUtils'
 import { useAuth } from '../context/AuthContext'
 import Modal, { ConfirmModal, DeleteConfirmModal } from '../components/Modal'
 import { useToast } from '../context/toastContext'
@@ -55,23 +56,24 @@ function RoleTenantFields({
           ))}
         </select>
       </label>
-      <label>
-        Tenant {isSuper ? '(no aplica)' : '*'}
-        <select
-          value={isSuper ? '' : tenantId}
-          onChange={(e) => onTenant(e.target.value)}
-          disabled={isSuper}
-          required={!isSuper}
-        >
-          <option value="">{isSuper ? 'Sin tenant (plataforma)' : 'Selecciona un tenant'}</option>
-          {tenants.map((t) => (
-            <option key={t.id} value={t.id} disabled={!t.isActive}>
-              {t.name}
-              {t.isActive ? '' : ' (inactivo)'}
-            </option>
-          ))}
-        </select>
-      </label>
+      {isSuper ? (
+        <p className="text-muted admin-sub" style={{ alignSelf: 'center' }}>
+          Super Administrador no pertenece a ningún tenant (plataforma).
+        </p>
+      ) : (
+        <label>
+          Tenant *
+          <select value={tenantId} onChange={(e) => onTenant(e.target.value)} required>
+            <option value="">Selecciona un tenant</option>
+            {tenants.map((t) => (
+              <option key={t.id} value={t.id} disabled={!t.isActive}>
+                {t.name}
+                {t.isActive ? '' : ' (inactivo)'}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </>
   )
 }
@@ -207,48 +209,186 @@ function EditUserModal({
   )
 }
 
-function AssignModal({
+const MAX_CHIPS = 2
+
+/** Indicador compacto de membresías en la tabla. */
+function MembershipChips({ user, onOpen }: { user: AdminUserDto; onOpen: () => void }) {
+  const list = user.memberships?.length
+    ? sortMemberships(user.memberships)
+    : // Compatibilidad: si el backend no envía memberships, se muestra la por defecto.
+      [{ id: 'default', tenantId: user.tenantId, tenantName: user.tenantName, role: user.role, status: 'Active', lastUsedAt: null }]
+  const extra = list.length - MAX_CHIPS
+  return (
+    <div className="membership-chips" title={list.map(membershipLabel).join('\n')}>
+      {list.slice(0, MAX_CHIPS).map((m) => (
+        <span key={m.id} className={`membership-chip${m.status !== 'Active' ? ' inactive' : ''}`}>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {roleIcon(m.role)}
+          </span>
+          {membershipTenant(m)} · {roleLabel(m.role)}
+        </span>
+      ))}
+      {extra > 0 && (
+        <button type="button" className="membership-chip more" onClick={onOpen} aria-label={`Ver ${extra} perfil(es) más`}>
+          +{extra}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Gestión de membresías (tenant + rol) de un usuario: listar, agregar y quitar. */
+function MembershipsModal({
   user,
   tenants,
-  onSaved,
-  onCancel,
+  isMe,
+  onChanged,
+  onClose,
 }: {
   user: AdminUserDto
   tenants: TenantDto[]
-  onSaved: (u: AdminUserDto) => void
-  onCancel: () => void
+  isMe: boolean
+  onChanged: () => void
+  onClose: () => void
 }) {
-  const [role, setRole] = useState(user.role)
-  const [tenantId, setTenantId] = useState(user.tenantId ?? '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
+  const [memberships, setMemberships] = useState<MembershipDto[]>(user.memberships ?? [])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [role, setRole] = useState('Admin')
+  const [tenantId, setTenantId] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
+  const load = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
     try {
-      onSaved(
-        await adminApi.assignUser(user.id, {
-          role,
-          tenantId: role === 'SuperAdmin' ? null : tenantId || null,
-        }),
-      )
+      setMemberships(await adminApi.userMemberships(user.id))
     } catch (err) {
-      setError(getErrorMessage(err))
+      setLoadError(getErrorMessage(err))
     } finally {
-      setSaving(false)
+      setLoading(false)
+    }
+  }, [user.id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAdding(true)
+    setAddError(null)
+    try {
+      const m = await adminApi.addMembership(user.id, {
+        role,
+        tenantId: role === 'SuperAdmin' ? null : tenantId || null,
+      })
+      toast.success(`Perfil agregado: ${membershipLabel(m)}`)
+      setTenantId('')
+      onChanged()
+      await load()
+    } catch (err) {
+      setAddError(getErrorMessage(err))
+    } finally {
+      setAdding(false)
     }
   }
 
+  const handleRemove = async (m: MembershipDto) => {
+    setRemovingId(m.id)
+    try {
+      await adminApi.removeMembership(user.id, m.id)
+      toast.success(`Perfil quitado: ${membershipLabel(m)}`)
+      setConfirmId(null)
+      onChanged()
+      await load()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+      setConfirmId(null)
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  const isLast = memberships.length <= 1
+
   return (
-    <Modal title={`Asignar rol y tenant — ${user.fullName}`} onClose={onCancel}>
-      {error && <div className="alert err">{error}</div>}
+    <Modal title={`Perfiles de ${user.fullName}`} onClose={onClose} className="modal-wide">
       <p className="text-muted">
-        Los cambios se aplican en el próximo inicio de sesión o renovación de token del usuario.
-        {role === 'Patient' && ' Al asignar Paciente se creará su ficha de paciente en el tenant.'}
+        {user.email} · Los cambios se aplican en el próximo inicio de sesión o renovación de token del usuario.
       </p>
-      <form onSubmit={handleSubmit}>
+
+      <h3 className="fieldset-title">Membresías actuales</h3>
+      {loading && memberships.length === 0 ? (
+        <p>Cargando...</p>
+      ) : loadError ? (
+        <div className="alert err">
+          {loadError}{' '}
+          <button type="button" className="btn-ghost" onClick={load}>
+            Reintentar
+          </button>
+        </div>
+      ) : memberships.length === 0 ? (
+        <p className="empty-state">Sin membresías.</p>
+      ) : (
+        <ul className="membership-admin-list">
+          {sortMemberships(memberships).map((m) => {
+            const ownSuper = isMe && m.role === 'SuperAdmin'
+            const blockReason = isLast
+              ? 'Es su única membresía: usa "Eliminar usuario".'
+              : ownSuper
+                ? 'No puedes quitarte tu propio perfil de Super Administrador.'
+                : null
+            return (
+              <li key={m.id}>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  {roleIcon(m.role)}
+                </span>
+                <span className="membership-admin-body">
+                  <strong>{membershipTenant(m)}</strong>
+                  <span className="text-muted">
+                    {roleLabel(m.role)}
+                    {m.status !== 'Active' ? ` · ${m.status}` : ''}
+                    {m.lastUsedAt ? ` · último uso ${fmtDate(m.lastUsedAt)}` : ''}
+                  </span>
+                </span>
+                {confirmId === m.id ? (
+                  <span className="membership-admin-confirm" role="group" aria-label="Confirmar quitar perfil">
+                    <span>¿Quitar este perfil?</span>
+                    <button type="button" className="btn-ghost" onClick={() => setConfirmId(null)} disabled={removingId !== null}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="btn-danger" onClick={() => handleRemove(m)} disabled={removingId !== null}>
+                      {removingId === m.id ? 'Quitando...' : 'Quitar'}
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-danger-soft btn-icon-danger"
+                    onClick={() => setConfirmId(m.id)}
+                    disabled={!!blockReason}
+                    title={blockReason ?? 'Quitar perfil'}
+                    aria-label={`Quitar perfil ${membershipLabel(m)}`}
+                  >
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      remove_circle
+                    </span>
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <h3 className="fieldset-title">Agregar perfil</h3>
+      {addError && <div className="alert err">{addError}</div>}
+      <form onSubmit={handleAdd}>
         <div className="form-grid">
           <RoleTenantFields
             role={role}
@@ -258,12 +398,15 @@ function AssignModal({
             onTenant={setTenantId}
           />
         </div>
+        {role === 'Patient' && (
+          <p className="text-muted admin-sub">Se creará su ficha de paciente en el tenant si no existe.</p>
+        )}
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={saving}>
-            Cancelar
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cerrar
           </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar asignación'}
+          <button type="submit" className="btn-primary" disabled={adding}>
+            {adding ? 'Agregando...' : 'Agregar perfil'}
           </button>
         </div>
       </form>
@@ -286,7 +429,8 @@ export default function AdminUsers() {
   const [message, setMessage] = useState<Msg>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AdminUserDto | null>(null)
-  const [assigning, setAssigning] = useState<AdminUserDto | null>(null)
+  const [managing, setManaging] = useState<AdminUserDto | null>(null)
+  const [membershipsChanged, setMembershipsChanged] = useState(false)
   const [toggling, setToggling] = useState<AdminUserDto | null>(null)
   const [toggleBusy, setToggleBusy] = useState(false)
   const [deleting, setDeleting] = useState<AdminUserDto | null>(null)
@@ -453,8 +597,7 @@ export default function AdminUsers() {
                 <tr>
                   <th>Nombre</th>
                   <th>Email</th>
-                  <th>Rol</th>
-                  <th>Tenant</th>
+                  <th>Perfiles (tenant · rol)</th>
                   <th>Estado</th>
                   <th>Último acceso</th>
                   <th>Acciones</th>
@@ -471,9 +614,8 @@ export default function AdminUsers() {
                       </td>
                       <td>{u.email}</td>
                       <td>
-                        <span className="badge">{roleLabel(u.role)}</span>
+                        <MembershipChips user={u} onOpen={() => setManaging(u)} />
                       </td>
-                      <td>{u.tenantName || '—'}</td>
                       <td>
                         <span className={`badge ${u.isActive ? '' : 'badge-inactive'}`}>
                           {u.isActive ? 'Activo' : 'Inactivo'}
@@ -494,9 +636,9 @@ export default function AdminUsers() {
                           <button
                             type="button"
                             className="btn-ghost"
-                            onClick={() => setAssigning(u)}
-                            aria-label={`Asignar rol y tenant a ${u.fullName}`}
-                            title="Asignar rol y tenant"
+                            onClick={() => setManaging(u)}
+                            aria-label={`Gestionar perfiles de ${u.fullName}`}
+                            title="Gestionar perfiles (membresías)"
                           >
                             <span className="material-symbols-outlined">badge</span>
                           </button>
@@ -577,16 +719,18 @@ export default function AdminUsers() {
         />
       )}
 
-      {assigning && (
-        <AssignModal
-          user={assigning}
+      {managing && (
+        <MembershipsModal
+          user={managing}
           tenants={tenants}
-          onCancel={() => setAssigning(null)}
-          onSaved={(u) => {
-            setAssigning(null)
-            afterSave(
-              `Asignación de ${u.email} actualizada: ${roleLabel(u.role)}${u.tenantName ? ` en ${u.tenantName}` : ''}.`,
-            )
+          isMe={me?.id === managing.id}
+          onChanged={() => setMembershipsChanged(true)}
+          onClose={() => {
+            setManaging(null)
+            if (membershipsChanged) {
+              setMembershipsChanged(false)
+              load()
+            }
           }}
         />
       )}

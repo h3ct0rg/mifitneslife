@@ -19,8 +19,37 @@ public class ApplicationUser : IdentityUser<Guid>
     public DateTime? UpdatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
 
+    // D3 (multi-rol): Role/TenantId son solo un espejo de la membresía por defecto (última usada),
+    // por compatibilidad. La fuente de verdad es Memberships.
     public Tenant? Tenant { get; set; }
+    public ICollection<UserMembership> Memberships { get; set; } = new List<UserMembership>();
     public string FullName => $"{FirstName} {LastName}".Trim();
+}
+
+/// <summary>Pertenencia de un usuario a un tenant con un rol. SuperAdmin = TenantId null.</summary>
+public class UserMembership
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public Guid? TenantId { get; set; }
+    public UserRole Role { get; set; }
+    public UserStatus Status { get; set; } = UserStatus.Active;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastUsedAt { get; set; }
+
+    public ApplicationUser? User { get; set; }
+    public Tenant? Tenant { get; set; }
+}
+
+/// <summary>Token de un solo uso (5 min) para elegir membresía tras el login (se guarda solo el hash).</summary>
+public class LoginSelectionToken
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public string TokenHash { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class ApplicationRole : IdentityRole<Guid>
@@ -82,6 +111,8 @@ public class RefreshToken : BaseEntity
     public bool IsUsed { get; set; }
     public string? ReplacedByToken { get; set; }
     public string? RevokedReason { get; set; }
+    /// <summary>Membresía con la que se emitió (null = tokens previos a multi-rol → membresía por defecto).</summary>
+    public Guid? MembershipId { get; set; }
 
     public ApplicationUser? User { get; set; }
 }

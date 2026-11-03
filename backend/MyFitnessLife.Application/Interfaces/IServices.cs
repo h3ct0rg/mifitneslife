@@ -1,6 +1,7 @@
 using MyFitnessLife.Application.DTOs.Admin;
 using MyFitnessLife.Application.DTOs.Appointments;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.DTOs.Dashboard;
 using MyFitnessLife.Application.DTOs.Diets;
 using MyFitnessLife.Application.DTOs.Exercises;
 using MyFitnessLife.Application.DTOs.Foods;
@@ -15,21 +16,23 @@ namespace MyFitnessLife.Application.Interfaces;
 
 public interface IAuthService
 {
-    Task<AuthResponse> LoginAsync(LoginRequest request);
-    Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request);
+    Task<LoginResult> LoginAsync(LoginRequest request);
+    Task<LoginResult> GoogleLoginAsync(GoogleLoginRequest request);
     Task<AuthResponse> RegisterAsync(RegisterRequest request);
+    Task<AuthResponse> SelectMembershipAsync(SelectMembershipRequest request);
+    Task<AuthResponse> SwitchMembershipAsync(Guid userId, Guid? currentMembershipId, SwitchMembershipRequest request);
     Task<AuthResponse> RefreshTokenAsync(string refreshToken);
     Task LogoutAsync(Guid userId);
-    Task<UserDto> GetUserByIdAsync(Guid id);
+    Task<UserDto> GetUserByIdAsync(Guid id, Guid? currentMembershipId = null);
 }
 
 public interface IUserManagementService
 {
     Task<InviteUserResponse> InviteUserAsync(Guid inviterId, Guid tenantId, InviteUserRequest request);
-    Task AcceptInvitationAsync(Guid userId, AcceptInvitationRequest request);
+    Task<MembershipDto> AcceptInvitationAsync(Guid userId, AcceptInvitationRequest request);
     Task UpdateUserRoleAsync(Guid actorId, Guid tenantId, UpdateUserRoleRequest request);
     Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId);
-    Task<UserDto> GetUserByIdAsync(Guid id);
+    Task<UserDto> GetUserByIdAsync(Guid id, Guid? currentMembershipId = null);
     Task<IEnumerable<InvitationDto>> GetInvitationsAsync(Guid tenantId);
     Task<InvitationDto> ResendInvitationAsync(Guid tenantId, Guid invitationId);
     Task<InvitationDto> RevokeInvitationAsync(Guid tenantId, Guid invitationId);
@@ -47,11 +50,18 @@ public interface ISuperAdminService
     Task<PagedResult<AdminUserDto>> GetUsersAsync(string? search, Guid? tenantId, string? role, int page, int pageSize);
     Task<AdminUserDto> CreateUserAsync(CreateAdminUserRequest request);
     Task<AdminUserDto> UpdateUserAsync(Guid actorId, Guid id, UpdateAdminUserRequest request);
-    Task<AdminUserDto> AssignUserAsync(Guid actorId, Guid id, AssignUserRequest request);
+    Task<IEnumerable<MembershipDto>> GetUserMembershipsAsync(Guid userId);
+    Task<MembershipDto> AddMembershipAsync(Guid actorId, Guid userId, AddMembershipRequest request);
+    Task RemoveMembershipAsync(Guid actorId, Guid userId, Guid membershipId);
     Task<TenantDeleteImpactDto> GetTenantDeleteImpactAsync(Guid id);
     Task DeleteTenantAsync(Guid actorId, Guid id);
     Task<UserDeleteImpactDto> GetUserDeleteImpactAsync(Guid id);
     Task DeleteUserAsync(Guid actorId, Guid id);
+}
+
+public interface IDashboardService
+{
+    Task<DashboardKpisDto> GetKpisAsync(Guid tenantId, Guid userId, Domain.Enums.UserRole role);
 }
 
 public interface ITenantActivityService
@@ -70,7 +80,8 @@ public interface IPatientService
         int pageSize = 20);
     Task<PatientDto> GetByIdAsync(Guid tenantId, Guid id);
     Task<PatientDto?> GetByEmailAsync(Guid tenantId, string email);
-    Task<PatientDto> CreateAsync(Guid tenantId, CreatePatientRequest request);
+    Task<PatientCreatedDto> CreateAsync(Guid tenantId, Guid actorId, CreatePatientRequest request);
+    Task<PatientInviteResultDto> InviteAsync(Guid tenantId, Guid actorId, Guid patientId);
     Task<PatientDto> UpdateAsync(Guid tenantId, Guid id, UpdatePatientRequest request);
     Task DeleteAsync(Guid tenantId, Guid id);
 }

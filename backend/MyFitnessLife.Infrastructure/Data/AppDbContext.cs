@@ -12,6 +12,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<UserMembership> UserMemberships => Set<UserMembership>();
+    public DbSet<LoginSelectionToken> LoginSelectionTokens => Set<LoginSelectionToken>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -53,6 +55,36 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
             e.HasIndex(u => u.GoogleSubject)
                 .IsUnique()
                 .HasFilter("[GoogleSubject] IS NOT NULL");
+        });
+
+        builder.Entity<UserMembership>(e =>
+        {
+            e.HasKey(m => m.Id);
+            // HasFilter(null): sin el filtro "IS NOT NULL" por defecto, para que SQL Server
+            // trate TenantId NULL como valor y no permita duplicar la membresía SuperAdmin.
+            e.HasIndex(m => new { m.UserId, m.TenantId, m.Role }).IsUnique().HasFilter(null);
+            e.HasIndex(m => new { m.TenantId, m.Role });
+            e.HasOne(m => m.User)
+                .WithMany(u => u.Memberships)
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // NO ACTION: evita rutas de cascada múltiples (Tenant→Users SET NULL); la purga
+            // borra las membresías del tenant explícitamente.
+            e.HasOne(m => m.Tenant)
+                .WithMany()
+                .HasForeignKey(m => m.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<LoginSelectionToken>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.TokenHash).HasMaxLength(128).IsRequired();
+            e.HasIndex(t => t.TokenHash).IsUnique();
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Invitation>(e =>

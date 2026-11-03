@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
 using MyFitnessLife.Application.DTOs.Auth;
+using MyFitnessLife.Application.Exceptions;
 using MyFitnessLife.Application.Interfaces;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Enums;
@@ -8,6 +11,8 @@ namespace MyFitnessLife.Application.Services;
 
 public class AuthService : IAuthService
 {
+    private static readonly TimeSpan SelectionTokenLifetime = TimeSpan.FromMinutes(5);
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
     private readonly IGoogleAuthService _googleAuthService;
@@ -28,10 +33,12 @@ public class AuthService : IAuthService
         _activityService = activityService;
     }
 
-    public async Task<AuthResponse> LoginAsync(LoginRequest request)
+    // ───────────────────────────── Login ─────────────────────────────
+
+    public async Task<LoginResult> LoginAsync(LoginRequest request)
     {
         var user = await _unitOfWork.Users.GetByEmailAsync(request.Email.Trim().ToLowerInvariant());
-        if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash!))
+        if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Credenciales inválidas.");
 
         if (user.Status is not UserStatus.Active)
@@ -39,19 +46,15 @@ public class AuthService : IAuthService
 
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
-        await _unitOfWork.Users.UpdateAsync(user);
         await _unitOfWork.SaveChangesAsync();
 
-        var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
-        await _activityService.RecordLoginAsync(user.TenantId, user.Email);
-        await _unitOfWork.SaveChangesAsync();
-
-        return BuildResponse(user, tokens);
+        return await CompleteLoginAsync(user);
     }
 
-    public async Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request)
+    public async Task<LoginResult> GoogleLoginAsync(GoogleLoginRequest request)
     {
         var payload = await _googleAuthService.ValidateIdTokenAsync(request.IdToken);
+        var touchedMemberships = false;
 
         var user = await _unitOfWork.Users.GetByGoogleSubjectAsync(payload.Subject);
         if (user is null)
@@ -59,8 +62,7 @@ public class AuthService : IAuthService
             user = await _unitOfWork.Users.GetByEmailAsync(payload.Email);
             if (user is null)
             {
-                // Si hay una invitación pendiente para este email, aplicar su rol y tenant.
-                // Si no, el usuario crea y administra su propio tenant.
+                // Invitación pendiente → su rol y tenant; si no, el usuario crea y administra su propio tenant.
                 var invitation = await FindPendingInvitationAsync(payload.Email);
                 var newUserId = Guid.NewGuid();
                 UserRole role;
@@ -96,16 +98,14 @@ public class AuthService : IAuthService
                     LastLoginAt = DateTime.UtcNow
                 };
                 await _unitOfWork.Users.AddAsync(user);
+                await _unitOfWork.Memberships.AddAsync(new UserMembership { UserId = user.Id, TenantId = tenantId, Role = role });
+                touchedMemberships = true;
 
                 if (invitation is not null)
-                {
-                    invitation.Status = InvitationStatus.Accepted;
-                    invitation.AcceptedAt = DateTime.UtcNow;
-                    await _unitOfWork.Invitations.UpdateAsync(invitation);
-                }
+                    MarkAccepted(invitation);
 
                 if (tenantId.HasValue && role == UserRole.Patient)
-                    await EnsurePatientProfileAsync(tenantId.Value, payload.Email, payload.FirstName, payload.LastName);
+                    await PatientProfiles.EnsureAsync(_unitOfWork, tenantId.Value, payload.Email, payload.FirstName, payload.LastName);
             }
             else
             {
@@ -113,34 +113,31 @@ public class AuthService : IAuthService
                 user.GoogleSubject = payload.Subject;
                 user.EmailConfirmed = true;
 
-                // Si el email tenía una invitación pendiente, aceptarla al vincular con Google.
+                // D6: una invitación pendiente AGREGA la membresía; nunca sobrescribe las existentes.
                 var invitation = await FindPendingInvitationAsync(payload.Email);
                 if (invitation is not null)
                 {
-                    user.Role = invitation.Role;
-                    user.TenantId = invitation.TenantId;
-                    invitation.Status = InvitationStatus.Accepted;
-                    invitation.AcceptedAt = DateTime.UtcNow;
-                    await _unitOfWork.Invitations.UpdateAsync(invitation);
-
-                    if (user.Role == UserRole.Patient && user.TenantId.HasValue)
-                        await EnsurePatientProfileAsync(user.TenantId.Value, payload.Email, user.FirstName, user.LastName);
+                    touchedMemberships = await AddMembershipFromInvitationAsync(user, invitation);
+                    MarkAccepted(invitation);
                 }
             }
         }
 
+        if (user.Status is not UserStatus.Active)
+            throw new UnauthorizedAccessException("El usuario está desactivado o pendiente de invitación.");
+
         user.LastLoginAt = DateTime.UtcNow;
         user.UpdatedAt = DateTime.UtcNow;
-        // No usar UpdateAsync aquí: el usuario está trackeado (Added si es nuevo o
-        // cargado con tracking si ya existía), así SaveChangesAsync hará el INSERT
-        // o UPDATE correcto sin forzar Modified sobre un Added.
+        // Usuario trackeado (Added o cargado): SaveChanges hace INSERT/UPDATE sin UpdateAsync.
         await _unitOfWork.SaveChangesAsync();
 
-        var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
-        await _activityService.RecordLoginAsync(user.TenantId, user.Email);
-        await _unitOfWork.SaveChangesAsync();
+        if (touchedMemberships)
+        {
+            await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
+            await _unitOfWork.SaveChangesAsync();
+        }
 
-        return BuildResponse(user, tokens);
+        return await CompleteLoginAsync(user);
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -191,26 +188,68 @@ public class AuthService : IAuthService
             LastLoginAt = DateTime.UtcNow
         };
 
+        var membership = new UserMembership { UserId = user.Id, TenantId = tenantId, Role = role };
         await _unitOfWork.Users.AddAsync(user);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.Memberships.AddAsync(membership);
 
         if (invitation is not null)
-        {
-            invitation.Status = InvitationStatus.Accepted;
-            invitation.AcceptedAt = DateTime.UtcNow;
-            await _unitOfWork.Invitations.UpdateAsync(invitation);
-        }
+            MarkAccepted(invitation);
 
         if (role == UserRole.Patient && tenantId.HasValue)
-            await EnsurePatientProfileAsync(tenantId.Value, email, request.FirstName, request.LastName);
+            await PatientProfiles.EnsureAsync(_unitOfWork, tenantId.Value, email, request.FirstName, request.LastName);
 
         await _unitOfWork.SaveChangesAsync();
-
-        var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
-        await _activityService.RecordLoginAsync(user.TenantId, user.Email);
+        await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
         await _unitOfWork.SaveChangesAsync();
 
-        return BuildResponse(user, tokens);
+        return await IssueAsync(user, membership, recordLogin: true);
+    }
+
+    // ───────────────────────────── Membresías ─────────────────────────────
+
+    public async Task<AuthResponse> SelectMembershipAsync(SelectMembershipRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.SelectionToken))
+            throw new UnauthorizedAccessException("Token de selección inválido o expirado.");
+
+        // Un solo uso, atómico: se consume antes de validar la membresía (un intento fallido obliga
+        // a reloguear) y dos peticiones simultáneas no pueden canjear el mismo token.
+        var userId = await _unitOfWork.SelectionTokens.TryConsumeAsync(Hash(request.SelectionToken), DateTime.UtcNow)
+            ?? throw new UnauthorizedAccessException("Token de selección inválido o expirado.");
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId);
+        if (user is null || user.Status is not UserStatus.Active)
+            throw new UnauthorizedAccessException("Usuario no encontrado o desactivado.");
+
+        var membership = await RequireUsableMembershipAsync(user.Id, request.MembershipId);
+        return await IssueAsync(user, membership, recordLogin: true);
+    }
+
+    public async Task<AuthResponse> SwitchMembershipAsync(Guid userId, Guid? currentMembershipId, SwitchMembershipRequest request)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(userId);
+        if (user is null || user.Status is not UserStatus.Active)
+            throw new UnauthorizedAccessException("Usuario no encontrado o desactivado.");
+
+        var membership = await RequireUsableMembershipAsync(user.Id, request.MembershipId);
+
+        // Revoca el refresh token de la sesión actual: el indicado o, si no llega, los del perfil actual.
+        var revoked = false;
+        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            var current = await _unitOfWork.RefreshTokens.GetByTokenAsync(request.RefreshToken);
+            if (current is not null && current.UserId == user.Id && !current.IsRevoked)
+            {
+                current.IsRevoked = true;
+                current.RevokedReason = "switched_membership";
+                await _unitOfWork.RefreshTokens.UpdateAsync(current);
+                revoked = true;
+            }
+        }
+        if (!revoked)
+            await _unitOfWork.RefreshTokens.RevokeForMembershipAsync(user.Id, currentMembershipId, "switched_membership");
+
+        return await IssueAsync(user, membership, recordLogin: false);
     }
 
     public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
@@ -223,13 +262,22 @@ public class AuthService : IAuthService
         if (user is null || user.Status is not UserStatus.Active)
             throw new UnauthorizedAccessException("Usuario no encontrado o desactivado.");
 
+        // Conserva la membresía del refresh token; los tokens antiguos (sin membresía) usan la por defecto.
+        var usable = await _unitOfWork.Memberships.GetByUserAsync(user.Id, usableOnly: true);
+        var membership = stored.MembershipId.HasValue
+            ? usable.FirstOrDefault(m => m.Id == stored.MembershipId.Value)
+            : MembershipHelper.ResolveDefault(user, usable);
+        if (membership is null)
+            throw new UnauthorizedAccessException("El perfil de la sesión ya no está disponible. Inicia sesión de nuevo.");
+
         stored.IsUsed = true;
         await _unitOfWork.RefreshTokens.UpdateAsync(stored);
 
-        var tokens = await _tokenService.CreateTokenPairAsync(user.Id);
+        var tokens = await _tokenService.CreateTokenPairAsync(user.Id, membership.Id);
         await _unitOfWork.SaveChangesAsync();
 
-        return BuildResponse(user, tokens);
+        return new AuthResponse(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresAt,
+            await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, membership.Id));
     }
 
     public async Task LogoutAsync(Guid userId)
@@ -238,24 +286,95 @@ public class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync();
     }
 
-    public async Task<UserDto> GetUserByIdAsync(Guid id)
+    public async Task<UserDto> GetUserByIdAsync(Guid id, Guid? currentMembershipId = null)
     {
         var user = await _unitOfWork.Users.GetByIdAsync(id)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
-
-        return new UserDto(
-            user.Id,
-            user.FirstName,
-            user.LastName,
-            user.Email!,
-            user.TenantId,
-            user.Role.ToString(),
-            user.Status.ToString(),
-            user.FullName);
+        return await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, currentMembershipId);
     }
 
-    private Task EnsurePatientProfileAsync(Guid tenantId, string email, string firstName, string lastName)
-        => PatientProfiles.EnsureAsync(_unitOfWork, tenantId, email, firstName, lastName);
+    // ───────────────────────────── Helpers ─────────────────────────────
+
+    /// <summary>D4: 1 membresía utilizable → tokens; >1 → selección; 0 → 403.</summary>
+    private async Task<LoginResult> CompleteLoginAsync(ApplicationUser user)
+    {
+        var usable = await _unitOfWork.Memberships.GetByUserAsync(user.Id, usableOnly: true);
+
+        if (usable.Count == 0)
+            throw new ForbiddenException("No tienes ningún perfil activo. Contacta al administrador.");
+
+        if (usable.Count == 1)
+            return new LoginResult { Auth = await IssueAsync(user, usable[0], recordLogin: true) };
+
+        var rawToken = GenerateSelectionToken();
+        await _unitOfWork.SelectionTokens.AddAsync(new LoginSelectionToken
+        {
+            UserId = user.Id,
+            TokenHash = Hash(rawToken),
+            ExpiresAt = DateTime.UtcNow.Add(SelectionTokenLifetime)
+        });
+        await _unitOfWork.SaveChangesAsync();
+
+        return new LoginResult
+        {
+            Selection = new MembershipSelectionResponse
+            {
+                RequiresMembershipSelection = true,
+                SelectionToken = rawToken,
+                Memberships = usable.Select(MembershipHelper.ToDto).ToList()
+            }
+        };
+    }
+
+    /// <summary>Emite tokens para la membresía, actualiza LastUsedAt y el espejo (D3).</summary>
+    private async Task<AuthResponse> IssueAsync(ApplicationUser user, UserMembership membership, bool recordLogin)
+    {
+        membership.LastUsedAt = DateTime.UtcNow;
+        MembershipHelper.ApplyMirror(user, membership);
+        await _unitOfWork.SaveChangesAsync();
+
+        var tokens = await _tokenService.CreateTokenPairAsync(user.Id, membership.Id);
+        if (recordLogin)
+            await _activityService.RecordLoginAsync(membership.TenantId, user.Email ?? string.Empty);
+        await _unitOfWork.SaveChangesAsync();
+
+        return new AuthResponse(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresAt,
+            await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, membership.Id));
+    }
+
+    /// <summary>AC-6: la membresía debe ser del usuario, activa y de tenant activo.</summary>
+    private async Task<UserMembership> RequireUsableMembershipAsync(Guid userId, Guid membershipId)
+    {
+        var membership = await _unitOfWork.Memberships.GetByIdAsync(membershipId);
+        if (membership is null || membership.UserId != userId || !MembershipHelper.IsUsable(membership))
+            throw new ForbiddenException("El perfil seleccionado no está disponible.");
+        return membership;
+    }
+
+    /// <summary>Agrega la membresía de la invitación si no existe (Patient → ficha). Devuelve true si la agregó.</summary>
+    private async Task<bool> AddMembershipFromInvitationAsync(ApplicationUser user, Invitation invitation)
+    {
+        if (await _unitOfWork.Memberships.FindAsync(user.Id, invitation.TenantId, invitation.Role) is not null)
+            return false;
+
+        await _unitOfWork.Memberships.AddAsync(new UserMembership
+        {
+            UserId = user.Id,
+            TenantId = invitation.TenantId,
+            Role = invitation.Role
+        });
+
+        if (invitation.Role == UserRole.Patient)
+            await PatientProfiles.EnsureAsync(_unitOfWork, invitation.TenantId, user.Email!, user.FirstName, user.LastName);
+
+        return true;
+    }
+
+    private void MarkAccepted(Invitation invitation)
+    {
+        invitation.Status = InvitationStatus.Accepted;
+        invitation.AcceptedAt = DateTime.UtcNow;
+    }
 
     private async Task<Tenant> CreateTenantForNewUserAsync(Guid ownerId, string firstName, string lastName, string email)
     {
@@ -295,18 +414,9 @@ public class AuthService : IAuthService
         return null;
     }
 
-    private AuthResponse BuildResponse(ApplicationUser user, TokenResponse tokens)
-    {
-        var dto = new UserDto(
-            user.Id,
-            user.FirstName,
-            user.LastName,
-            user.Email!,
-            user.TenantId,
-            user.Role.ToString(),
-            user.Status.ToString(),
-            user.FullName);
+    private static string GenerateSelectionToken()
+        => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-        return new AuthResponse(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresAt, dto);
-    }
+    private static string Hash(string token)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

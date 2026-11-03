@@ -26,9 +26,15 @@ public class UnitOfWork : IUnitOfWork
         PatientPhotos = new PatientPhotoRepository(context);
         Outbox = new OutboxRepository(context);
         Purge = new DataPurgeRepository(context);
+        Dashboard = new DashboardRepository(context);
+        Memberships = new MembershipRepository(context);
+        SelectionTokens = new LoginSelectionTokenRepository(context);
     }
 
+    public IMembershipRepository Memberships { get; }
+    public ILoginSelectionTokenRepository SelectionTokens { get; }
     public IDataPurgeRepository Purge { get; }
+    public IDashboardRepository Dashboard { get; }
     public IUserRepository Users { get; }
     public ITenantRepository Tenants { get; }
     public IInvitationRepository Invitations { get; }

@@ -75,6 +75,7 @@ public class AdminUserDto
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public IReadOnlyList<MyFitnessLife.Application.DTOs.Auth.MembershipDto> Memberships { get; set; } = [];
 }
 
 public class CreateAdminUserRequest
@@ -113,7 +114,7 @@ public class UserDeleteImpactDto
     public int OtherRecords { get; set; }
 }
 
-public class AssignUserRequest
+public class AddMembershipRequest
 {
     public string Role { get; set; } = string.Empty;
     public Guid? TenantId { get; set; }

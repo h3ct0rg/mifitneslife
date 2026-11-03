@@ -26,12 +26,12 @@ public class UserRepository : IUserRepository
     {
         var query = _context.Users.AsNoTracking().Include(u => u.Tenant).AsQueryable();
         if (tenantId != Guid.Empty)
-            query = query.Where(u => u.TenantId == tenantId);
+            query = query.Where(u => u.Memberships.Any(m => m.TenantId == tenantId)); // multi-rol (D7)
         return await query.ToListAsync();
     }
 
     public Task<int> CountByTenantAsync(Guid tenantId)
-        => _context.Users.CountAsync(u => u.TenantId == tenantId);
+        => _context.Users.CountAsync(u => u.Memberships.Any(m => m.TenantId == tenantId));
 
     public async Task AddAsync(ApplicationUser user)
         => await _context.Users.AddAsync(user);
@@ -45,15 +45,32 @@ public class UserRepository : IUserRepository
     public Task<bool> EmailExistsAsync(string email)
         => _context.Users.AnyAsync(u => u.Email == email);
 
+    public async Task<HashSet<string>> GetEmailsWithAccountAsync(Guid tenantId, IReadOnlyCollection<string> emails)
+    {
+        if (emails.Count == 0)
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var list = emails.ToList();
+        // Multi-rol (D7): "cuenta en el tenant" = alguna membresía en ese tenant.
+        var found = await _context.Users.AsNoTracking()
+            .Where(u => u.Email != null && list.Contains(u.Email)
+                && u.Memberships.Any(m => m.TenantId == tenantId))
+            .Select(u => u.Email!)
+            .ToListAsync();
+        return new HashSet<string>(found, StringComparer.OrdinalIgnoreCase);
+    }
+
     private IQueryable<ApplicationUser> ApplyFilters(string? search, Guid? tenantId, UserRole? role)
     {
         var query = _context.Users.AsNoTracking().AsQueryable();
 
-        if (tenantId.HasValue)
-            query = query.Where(u => u.TenantId == tenantId.Value);
-
-        if (role.HasValue)
-            query = query.Where(u => u.Role == role.Value);
+        // D7: filtrar por tenant/rol busca en cualquier membresía (ambos sobre la misma si van juntos).
+        if (tenantId.HasValue && role.HasValue)
+            query = query.Where(u => u.Memberships.Any(m => m.TenantId == tenantId.Value && m.Role == role.Value));
+        else if (tenantId.HasValue)
+            query = query.Where(u => u.Memberships.Any(m => m.TenantId == tenantId.Value));
+        else if (role.HasValue)
+            query = query.Where(u => u.Memberships.Any(m => m.Role == role.Value));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -88,10 +105,11 @@ public class UserRepository : IUserRepository
     public Task<int> CountCreatedSinceAsync(DateTime since)
         => _context.Users.CountAsync(u => u.CreatedAt >= since);
 
+    /// <summary>Usuarios distintos con al menos una membresía de cada rol.</summary>
     public async Task<Dictionary<UserRole, int>> CountByRoleAsync()
-        => await _context.Users.AsNoTracking()
-            .GroupBy(u => u.Role)
-            .Select(g => new { Role = g.Key, Count = g.Count() })
+        => await _context.UserMemberships.AsNoTracking()
+            .GroupBy(m => m.Role)
+            .Select(g => new { Role = g.Key, Count = g.Select(m => m.UserId).Distinct().Count() })
             .ToDictionaryAsync(x => x.Role, x => x.Count);
 
     public async Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since)
@@ -104,39 +122,42 @@ public class UserRepository : IUserRepository
         return rows.ToDictionary(r => (r.Year, r.Month), r => r.Count);
     }
 
+    /// <summary>Usuarios distintos con membresía en cada tenant.</summary>
     public async Task<Dictionary<Guid, int>> CountGroupedByTenantAsync()
-        => await _context.Users.AsNoTracking()
-            .Where(u => u.TenantId != null)
-            .GroupBy(u => u.TenantId!.Value)
-            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+        => await _context.UserMemberships.AsNoTracking()
+            .Where(m => m.TenantId != null)
+            .GroupBy(m => m.TenantId!.Value)
+            .Select(g => new { TenantId = g.Key, Count = g.Select(m => m.UserId).Distinct().Count() })
             .ToDictionaryAsync(x => x.TenantId, x => x.Count);
 
     public async Task<Dictionary<Guid, int>> CountLoggedInSinceGroupedByTenantAsync(DateTime since)
-        => await _context.Users.AsNoTracking()
-            .Where(u => u.TenantId != null && u.LastLoginAt != null && u.LastLoginAt >= since)
-            .GroupBy(u => u.TenantId!.Value)
-            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+        => await _context.UserMemberships.AsNoTracking()
+            .Where(m => m.TenantId != null && m.User!.LastLoginAt != null && m.User.LastLoginAt >= since)
+            .GroupBy(m => m.TenantId!.Value)
+            .Select(g => new { TenantId = g.Key, Count = g.Select(m => m.UserId).Distinct().Count() })
             .ToDictionaryAsync(x => x.TenantId, x => x.Count);
 
+    /// <summary>Usuarios activos con una membresía activa del rol (excluyendo opcionalmente un usuario).</summary>
     public Task<int> CountActiveByRoleAsync(UserRole role, Guid? excludeUserId = null)
         => _context.Users.CountAsync(u =>
-            u.Role == role &&
             u.Status == UserStatus.Active &&
+            u.Memberships.Any(m => m.Role == role && m.Status == UserStatus.Active) &&
             (excludeUserId == null || u.Id != excludeUserId.Value));
 
-    public async Task SyncIdentityRoleAsync(Guid userId, string roleName)
+    public async Task SyncIdentityRolesAsync(Guid userId, IReadOnlyCollection<UserRole> roles)
     {
-        var normalized = roleName.ToUpperInvariant();
-        var roleId = await _context.Roles
-            .Where(r => r.NormalizedName == normalized)
-            .Select(r => (Guid?)r.Id)
-            .FirstOrDefaultAsync()
-            ?? throw new InvalidOperationException($"El rol '{roleName}' no está configurado.");
+        var wanted = roles.Select(r => r.ToString().ToUpperInvariant()).Distinct().ToList();
+        var roleIds = await _context.Roles
+            .Where(r => r.NormalizedName != null && wanted.Contains(r.NormalizedName))
+            .Select(r => r.Id)
+            .ToListAsync();
+        if (roleIds.Count != wanted.Count)
+            throw new InvalidOperationException("Alguno de los roles no está configurado en Identity.");
 
         var current = await _context.UserRoles.Where(ur => ur.UserId == userId).ToListAsync();
-        _context.UserRoles.RemoveRange(current.Where(ur => ur.RoleId != roleId));
+        _context.UserRoles.RemoveRange(current.Where(ur => !roleIds.Contains(ur.RoleId)));
 
-        if (!current.Any(ur => ur.RoleId == roleId))
+        foreach (var roleId in roleIds.Where(id => current.All(ur => ur.RoleId != id)))
             await _context.UserRoles.AddAsync(new IdentityUserRole<Guid> { UserId = userId, RoleId = roleId });
     }
 }
@@ -162,7 +183,8 @@ public class TenantRepository : ITenantRepository
     }
 
     public Task<int> CountActiveUsersAsync(Guid tenantId)
-        => _context.Users.CountAsync(u => u.TenantId == tenantId && u.Status == Domain.Enums.UserStatus.Active);
+        => _context.Users.CountAsync(u => u.Memberships.Any(m => m.TenantId == tenantId)
+            && u.Status == Domain.Enums.UserStatus.Active);
 
     public Task<int> CountTotalAsync()
         => _context.Tenants.CountAsync();
@@ -219,6 +241,27 @@ public class InvitationRepository : IInvitationRepository
         => _context.Invitations.FirstOrDefaultAsync(i =>
             i.TenantId == tenantId && i.Email == email && i.Status == Domain.Enums.InvitationStatus.Pending);
 
+    public Task<Invitation?> GetPendingByEmailAndRoleAsync(Guid tenantId, string email, UserRole role)
+        => _context.Invitations.FirstOrDefaultAsync(i =>
+            i.TenantId == tenantId && i.Email == email && i.Role == role
+            && i.Status == Domain.Enums.InvitationStatus.Pending);
+
+    public async Task<HashSet<string>> GetEmailsWithPendingInvitationAsync(Guid tenantId, IReadOnlyCollection<string> emails)
+    {
+        if (emails.Count == 0)
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var list = emails.ToList();
+        var found = await _context.Invitations.AsNoTracking()
+            .Where(i => i.TenantId == tenantId
+                && i.Status == Domain.Enums.InvitationStatus.Pending
+                && list.Contains(i.Email))
+            .Select(i => i.Email)
+            .Distinct()
+            .ToListAsync();
+        return new HashSet<string>(found, StringComparer.OrdinalIgnoreCase);
+    }
+
     public async Task<IEnumerable<Invitation>> GetByTenantAsync(Guid tenantId)
         => await _context.Invitations.AsNoTracking().Where(i => i.TenantId == tenantId).ToListAsync();
 
@@ -265,6 +308,18 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         }
         _context.RefreshTokens.UpdateRange(tokens);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task RevokeForMembershipAsync(Guid userId, Guid? membershipId, string reason)
+    {
+        var tokens = await _context.RefreshTokens
+            .Where(t => t.UserId == userId && !t.IsRevoked && t.MembershipId == membershipId)
+            .ToListAsync();
+        foreach (var t in tokens)
+        {
+            t.IsRevoked = true;
+            t.RevokedReason = reason;
+        }
     }
 }
 

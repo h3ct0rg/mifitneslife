@@ -96,29 +96,33 @@ public class AppointmentService : IAppointmentService
         await _unitOfWork.SaveChangesAsync();
     }
 
+    private static readonly UserRole[] StaffRoles = [UserRole.Admin, UserRole.Nutritionist, UserRole.Trainer];
+
+    /// <summary>Multi-rol (D7): profesionales = usuarios con membresía staff activa en el tenant.</summary>
     public async Task<IEnumerable<ProfessionalDto>> GetProfessionalsAsync(Guid tenantId)
     {
-        var users = await _unitOfWork.Users.GetByTenantAsync(tenantId);
-        var professionals = users
-            .Where(u => u.Role == UserRole.Admin
-                || u.Role == UserRole.Nutritionist
-                || u.Role == UserRole.Trainer)
+        var memberships = await _unitOfWork.Memberships.GetByTenantAsync(tenantId, StaffRoles);
+        return memberships
+            .Where(m => m.User is not null)
+            .GroupBy(m => m.UserId)
+            .Select(g =>
+            {
+                var m = g.OrderBy(x => x.Role).First();
+                var dto = m.User!.ToProfessionalDto();
+                dto.Role = m.Role.ToString();
+                return dto;
+            })
             .ToList();
-
-        return professionals.Select(p => p.ToProfessionalDto());
     }
 
     private async Task<ApplicationUser?> GetProfessionalAsync(Guid tenantId, Guid professionalId)
     {
         var user = await _unitOfWork.Users.GetByIdAsync(professionalId);
-        if (user is null || user.TenantId != tenantId)
+        if (user is null)
             return null;
 
-        return user.Role == UserRole.Admin
-            || user.Role == UserRole.Nutritionist
-            || user.Role == UserRole.Trainer
-            ? user
-            : null;
+        var memberships = await _unitOfWork.Memberships.GetByUserAsync(professionalId, usableOnly: true);
+        return memberships.Any(m => m.TenantId == tenantId && StaffRoles.Contains(m.Role)) ? user : null;
     }
 
     private async Task<bool> PatientExistsAsync(Guid tenantId, Guid patientId)

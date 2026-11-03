@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyFitnessLife.Application.DTOs.Admin;
+using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Exceptions;
 using MyFitnessLife.Application.Interfaces;
@@ -98,16 +99,39 @@ public class AdminController : ControllerBase
             return Ok(await _superAdminService.UpdateUserAsync(actorId, id, request));
         });
 
-    [HttpPut("users/{id:guid}/assignment")]
-    [ProducesResponseType(typeof(AdminUserDto), StatusCodes.Status200OK)]
+    // ───────────── Membresías (multi-rol D8) ─────────────
+
+    [HttpGet("users/{id:guid}/memberships")]
+    [ProducesResponseType(typeof(IEnumerable<MembershipDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> GetUserMemberships(Guid id)
+        => Execute(async () => Ok(await _superAdminService.GetUserMembershipsAsync(id)));
+
+    [HttpPost("users/{id:guid}/memberships")]
+    [ProducesResponseType(typeof(MembershipDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
-    public Task<IActionResult> AssignUser(Guid id, [FromBody] AssignUserRequest request)
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public Task<IActionResult> AddMembership(Guid id, [FromBody] AddMembershipRequest request)
         => Execute(async () =>
         {
             if (!TryGetUserId(out var actorId))
                 return Unauthorized();
-            return Ok(await _superAdminService.AssignUserAsync(actorId, id, request));
+            var membership = await _superAdminService.AddMembershipAsync(actorId, id, request);
+            return StatusCode(StatusCodes.Status201Created, membership);
+        });
+
+    [HttpDelete("users/{id:guid}/memberships/{membershipId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> RemoveMembership(Guid id, Guid membershipId)
+        => Execute(async () =>
+        {
+            if (!TryGetUserId(out var actorId))
+                return Unauthorized();
+            await _superAdminService.RemoveMembershipAsync(actorId, id, membershipId);
+            return NoContent();
         });
 
     // ───────────── Eliminación ─────────────

@@ -1,35 +1,27 @@
-using Microsoft.Extensions.Configuration;
 using MyFitnessLife.Application.DTOs.Auth;
 using MyFitnessLife.Application.DTOs.Users;
+using MyFitnessLife.Application.Exceptions;
 using MyFitnessLife.Application.Interfaces;
-using MyFitnessLife.Application.Mapping;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Enums;
 using MyFitnessLife.Domain.Interfaces;
-using System.Net.Mail;
 
 namespace MyFitnessLife.Application.Services;
 
 public class UserManagementService : IUserManagementService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IPasswordHasher _passwordHasher;
     private readonly ITenantActivityService _activityService;
-    private readonly IEmailService _emailService;
-    private readonly string _frontendUrl;
+    private readonly InvitationDispatcher _invitations;
 
     public UserManagementService(
         IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher,
         ITenantActivityService activityService,
-        IEmailService emailService,
-        IConfiguration configuration)
+        InvitationDispatcher invitations)
     {
         _unitOfWork = unitOfWork;
-        _passwordHasher = passwordHasher;
         _activityService = activityService;
-        _emailService = emailService;
-        _frontendUrl = configuration["FrontendUrl"]?.TrimEnd('/') ?? "http://localhost:5173";
+        _invitations = invitations;
     }
 
     public async Task<InviteUserResponse> InviteUserAsync(Guid inviterId, Guid tenantId, InviteUserRequest request)
@@ -43,33 +35,20 @@ public class UserManagementService : IUserManagementService
         if (role == UserRole.SuperAdmin)
             throw new ArgumentException("No se puede invitar a un usuario con rol SuperAdmin.");
 
-        var email = request.Email.Trim().ToLowerInvariant();
-        if (!IsValidEmail(email))
+        var email = (request.Email ?? string.Empty).Trim().ToLowerInvariant();
+        if (!InvitationDispatcher.IsValidEmail(email))
             throw new ArgumentException("El email no es válido.");
 
-        if (await _unitOfWork.Users.EmailExistsAsync(email))
-            throw new InvalidOperationException("Ya existe un usuario con ese email.");
+        // D6: se permite invitar a cuentas existentes (al aceptar se agrega la membresía);
+        // solo la misma membresía (tenant + rol) es conflicto.
+        if (await _invitations.HasMembershipAsync(email, tenantId, role))
+            throw new ConflictException("Ese usuario ya tiene ese rol en este centro.");
 
-        var existing = await _unitOfWork.Invitations.GetPendingByEmailAsync(tenantId, email);
+        var existing = await _unitOfWork.Invitations.GetPendingByEmailAndRoleAsync(tenantId, email, role);
         if (existing is not null)
-            throw new InvalidOperationException("Ya existe una invitación pendiente para ese email.");
+            throw new InvalidOperationException("Ya existe una invitación pendiente para ese email y rol.");
 
-        var invitation = new Invitation
-        {
-            TenantId = tenantId,
-            Email = email,
-            Role = role,
-            InvitedBy = inviterId,
-            Token = Guid.NewGuid().ToString("N"),
-            ExpiresAt = DateTime.UtcNow.AddHours(24),
-            Status = InvitationStatus.Pending
-        };
-
-        await _unitOfWork.Invitations.AddAsync(invitation);
-        await _activityService.RecordEntityAsync(tenantId, "invite", "User", invitation.Id.ToString(), email);
-        await _unitOfWork.SaveChangesAsync();
-
-        await EnqueueInvitationEmailAsync(tenant, invitation);
+        var invitation = await _invitations.CreateAsync(tenant, email, role, inviterId);
 
         return ToInviteResponse(invitation);
     }
@@ -101,7 +80,8 @@ public class UserManagementService : IUserManagementService
             Email = invitation.Email,
             Role = invitation.Role.ToString(),
             TenantName = tenant?.Name ?? "el centro",
-            ExpiresAt = invitation.ExpiresAt
+            ExpiresAt = invitation.ExpiresAt,
+            ExistingAccount = await _unitOfWork.Users.EmailExistsAsync(invitation.Email)
         };
     }
 
@@ -140,17 +120,11 @@ public class UserManagementService : IUserManagementService
         if (invitation.Status == InvitationStatus.Accepted)
             throw new InvalidOperationException("La invitación ya fue aceptada.");
 
+        var tenant = await _unitOfWork.Tenants.GetByIdAsync(tenantId)
+            ?? throw new KeyNotFoundException("Tenant no encontrado.");
+
         // Nuevo token y vencimiento para el enlace reenviado.
-        invitation.Token = Guid.NewGuid().ToString("N");
-        invitation.ExpiresAt = DateTime.UtcNow.AddHours(24);
-        invitation.Status = InvitationStatus.Pending;
-        invitation.UpdatedAt = DateTime.UtcNow;
-
-        await _unitOfWork.Invitations.UpdateAsync(invitation);
-        await _unitOfWork.SaveChangesAsync();
-
-        var tenant = await _unitOfWork.Tenants.GetByIdAsync(tenantId);
-        await EnqueueInvitationEmailAsync(tenant!, invitation);
+        await _invitations.ResendAsync(tenant, invitation);
 
         return ToInvitationDto(invitation);
     }
@@ -174,7 +148,11 @@ public class UserManagementService : IUserManagementService
         return ToInvitationDto(invitation);
     }
 
-    public async Task AcceptInvitationAsync(Guid userId, AcceptInvitationRequest request)
+    /// <summary>
+    /// Cuenta existente (autenticada) acepta una invitación: se AGREGA la membresía (D6), nunca se
+    /// sobrescriben datos ni otras membresías. Idempotente si ya la tenía.
+    /// </summary>
+    public async Task<MembershipDto> AcceptInvitationAsync(Guid userId, AcceptInvitationRequest request)
     {
         var invitation = await _unitOfWork.Invitations.GetByTokenAsync(request.Token);
         if (invitation is null || invitation.Status != InvitationStatus.Pending)
@@ -184,120 +162,115 @@ public class UserManagementService : IUserManagementService
         if (invitation.Role == UserRole.SuperAdmin)
             throw new InvalidOperationException("La invitación no es válida.");
 
-        var user = await _unitOfWork.Users.GetByIdAsync(userId);
-        if (user is null)
-            throw new KeyNotFoundException("Usuario no encontrado.");
+        var user = await _unitOfWork.Users.GetByIdAsync(userId)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
         if (!string.Equals(user.Email, invitation.Email, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("La invitación no corresponde al email del usuario.");
 
-        user.FirstName = request.FirstName;
-        user.LastName = request.LastName;
-        user.PasswordHash = _passwordHasher.Hash(request.Password);
-        user.TenantId = invitation.TenantId;
-        user.Role = invitation.Role;
-        user.Status = UserStatus.Active;
-        user.UpdatedAt = DateTime.UtcNow;
+        var membership = await _unitOfWork.Memberships.FindAsync(user.Id, invitation.TenantId, invitation.Role);
+        var added = membership is null;
+        if (membership is null)
+        {
+            membership = new UserMembership
+            {
+                UserId = user.Id,
+                TenantId = invitation.TenantId,
+                Role = invitation.Role
+            };
+            await _unitOfWork.Memberships.AddAsync(membership);
+
+            if (invitation.Role == UserRole.Patient)
+                await PatientProfiles.EnsureAsync(_unitOfWork, invitation.TenantId, user.Email!, user.FirstName, user.LastName);
+        }
 
         invitation.Status = InvitationStatus.Accepted;
         invitation.AcceptedAt = DateTime.UtcNow;
-
-        await _unitOfWork.Users.UpdateAsync(user);
-        await _unitOfWork.Invitations.UpdateAsync(invitation);
+        await _activityService.RecordEntityAsync(invitation.TenantId, "accept_invitation", "User", user.Id.ToString(), user.Email);
         await _unitOfWork.SaveChangesAsync();
+
+        if (added)
+        {
+            await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        membership.Tenant ??= await _unitOfWork.Tenants.GetByIdAsync(invitation.TenantId);
+        return MembershipHelper.ToDto(membership);
     }
 
+    /// <summary>
+    /// Cambia el rol de la membresía del usuario en el tenant del llamante. Si el usuario tiene
+    /// varias membresías en este tenant, se debe gestionar desde SuperAdmin (ambigüedad).
+    /// </summary>
     public async Task UpdateUserRoleAsync(Guid actorId, Guid tenantId, UpdateUserRoleRequest request)
     {
         var user = await _unitOfWork.Users.GetByIdAsync(request.UserId);
-        // El usuario objetivo debe pertenecer al tenant del llamante; si no, se responde
-        // como inexistente para no filtrar usuarios de otros tenants.
-        if (user is null || user.TenantId != tenantId)
+        var inTenant = user is null
+            ? []
+            : (await _unitOfWork.Memberships.GetByUserAsync(user.Id)).Where(m => m.TenantId == tenantId).ToList();
+        // El usuario objetivo debe pertenecer al tenant del llamante; si no, se responde como
+        // inexistente para no filtrar usuarios de otros tenants.
+        if (user is null || inTenant.Count == 0)
             throw new KeyNotFoundException("Usuario no encontrado.");
-
-        if (user.Role == UserRole.SuperAdmin)
-            throw new UnauthorizedAccessException("No se puede modificar un super admin.");
 
         if (request.Role == UserRole.SuperAdmin)
             throw new UnauthorizedAccessException("No se puede asignar el rol super admin.");
 
-        user.Role = request.Role;
-        user.UpdatedAt = DateTime.UtcNow;
+        if (inTenant.Any(m => m.Role == request.Role))
+            return; // Ya tiene ese rol en el tenant.
 
-        await _unitOfWork.Users.UpdateAsync(user);
-        await _unitOfWork.Users.SyncIdentityRoleAsync(user.Id, request.Role.ToString());
+        if (inTenant.Count > 1)
+            throw new UnauthorizedAccessException("El usuario tiene varios perfiles en este centro; gestiónalo desde el panel de plataforma.");
+
+        var membership = inTenant[0];
+        var wasDefault = user.Role == membership.Role && user.TenantId == membership.TenantId;
+        membership.Role = request.Role;
+        if (wasDefault)
+            MembershipHelper.ApplyMirror(user, membership);
+
+        if (request.Role == UserRole.Patient)
+            await PatientProfiles.EnsureAsync(_unitOfWork, tenantId, user.Email!, user.FirstName, user.LastName);
+
         await _activityService.RecordEntityAsync(tenantId, "assign_role", "User", user.Id.ToString(), user.Email);
         await _unitOfWork.SaveChangesAsync();
-    }
-
-    public async Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId)
-    {
-        var users = await _unitOfWork.Users.GetByTenantAsync(tenantId);
-        return users.Select(u => u.ToUserListItem());
-    }
-
-    public async Task<UserDto> GetUserByIdAsync(Guid id)
-    {
-        var user = await _unitOfWork.Users.GetByIdAsync(id);
-        if (user is null)
-            throw new KeyNotFoundException("Usuario no encontrado.");
-
-        return new UserDto(
-            user.Id,
-            user.FirstName,
-            user.LastName,
-            user.Email!,
-            user.TenantId,
-            user.Role.ToString(),
-            user.Status.ToString(),
-            user.FullName);
-    }
-
-    private async Task EnqueueInvitationEmailAsync(Tenant tenant, Invitation invitation)
-    {
-        var acceptUrl = $"{_frontendUrl}/registro?token={invitation.Token}";
-        var html = _emailService.BuildInvitationEmail(
-            invitation.Email,
-            invitation.Email,
-            tenant.Name,
-            RoleLabel(invitation.Role),
-            acceptUrl);
-
-        await _unitOfWork.Outbox.AddAsync(new OutboxMessage
-        {
-            TenantId = invitation.TenantId,
-            Recipient = invitation.Email,
-            Type = "invitation",
-            Subject = $"Te han invitado a MyFitnessLife ({tenant.Name})",
-            BodyHtml = html,
-            Payload = invitation.Id.ToString(),
-            Status = NotificationStatus.Pending
-        });
-
+        await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
         await _unitOfWork.SaveChangesAsync();
     }
 
-    private static bool IsValidEmail(string email)
+    /// <summary>D7: usuarios del tenant = usuarios con membresía en él (rol = el de esa membresía).</summary>
+    public async Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId)
     {
-        try
-        {
-            var address = new MailAddress(email);
-            return address.Address == email;
-        }
-        catch
-        {
-            return false;
-        }
+        var memberships = await _unitOfWork.Memberships.GetByTenantAsync(tenantId);
+        return memberships
+            .Where(m => m.User is not null)
+            .GroupBy(m => m.UserId)
+            .Select(g =>
+            {
+                var m = g.OrderBy(x => x.Role).First(); // Varias en el mismo tenant → la de mayor rango.
+                var u = m.User!;
+                return new UserListItemDto
+                {
+                    Id = u.Id,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    Email = u.Email ?? string.Empty,
+                    Role = m.Role.ToString(),
+                    Status = u.Status.ToString(),
+                    TenantId = tenantId,
+                    LastLoginAt = u.LastLoginAt
+                };
+            })
+            .ToList();
     }
 
-    private static string RoleLabel(UserRole role) => role switch
+    public async Task<UserDto> GetUserByIdAsync(Guid id, Guid? currentMembershipId = null)
     {
-        UserRole.Admin => "Administrador",
-        UserRole.Nutritionist => "Nutricionista",
-        UserRole.Trainer => "Entrenador",
-        UserRole.Patient => "Paciente",
-        _ => role.ToString()
-    };
+        var user = await _unitOfWork.Users.GetByIdAsync(id)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+        return await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, currentMembershipId);
+    }
+
 
     private static InviteUserResponse ToInviteResponse(Invitation i)
         => new()

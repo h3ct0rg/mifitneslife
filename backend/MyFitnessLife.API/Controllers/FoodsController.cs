@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyFitnessLife.API.Authorization;
 using MyFitnessLife.Application.DTOs.Foods;
 using MyFitnessLife.Application.DTOs.Patients;
 using MyFitnessLife.Application.Interfaces;
@@ -8,7 +9,8 @@ namespace MyFitnessLife.API.Controllers;
 
 [ApiController]
 [Route("api/foods")]
-[Authorize]
+// Catálogo usado solo por la UI del staff; Patient y usuarios sin tenant (SuperAdmin) → 403.
+[Authorize(Policy = AuthPolicies.StaffOnly)]
 public class FoodsController : ControllerBase
 {
     private const int MaxPageSize = 200;

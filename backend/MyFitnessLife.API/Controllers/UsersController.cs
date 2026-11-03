@@ -25,7 +25,8 @@ public class UsersController : ControllerBase
     {
         if (!TryGetUserId(out var userId))
             return Unauthorized();
-        return Ok(await _userManagementService.GetUserByIdAsync(userId));
+        var membershipId = Guid.TryParse(User.FindFirstValue("membership_id"), out var mid) ? mid : (Guid?)null;
+        return Ok(await _userManagementService.GetUserByIdAsync(userId, membershipId));
     }
 
     [HttpGet]
@@ -56,6 +57,10 @@ public class UsersController : ControllerBase
         {
             var result = await _userManagementService.InviteUserAsync(inviterId, tenantId.Value, request);
             return Ok(result);
+        }
+        catch (MyFitnessLife.Application.Exceptions.ConflictException ex)
+        {
+            return Conflict(new { error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
@@ -129,16 +134,21 @@ public class UsersController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+    /// <summary>Cuenta existente acepta una invitación: agrega la membresía (multi-rol D6).</summary>
     [HttpPost("accept-invitation")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(MyFitnessLife.Application.DTOs.Auth.MembershipDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)
     {
         if (!TryGetUserId(out var userId))
             return Unauthorized();
         try
         {
-            await _userManagementService.AcceptInvitationAsync(userId, request);
-            return NoContent();
+            return Ok(await _userManagementService.AcceptInvitationAsync(userId, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

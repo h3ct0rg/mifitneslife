@@ -31,6 +31,9 @@ public static class Mappers
         };
 
     public static PatientDto ToDto(this Patient patient)
+        => patient.ToDto<PatientDto>();
+
+    public static T ToDto<T>(this Patient patient) where T : PatientDto, new()
         => new()
         {
             Id = patient.Id,

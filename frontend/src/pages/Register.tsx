@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
-import { authApi } from '../api'
+import { authApi, usersApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/toastContext'
 import { roleLabel } from '../api/types'
+import type { InvitationInfoDto, MembershipSelectionResponse } from '../api/types'
+import MembershipPicker from '../components/MembershipPicker'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
@@ -12,9 +15,13 @@ export default function Register() {
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
   const navigate = useNavigate()
-  const { setAuth } = useAuth()
+  const { user, loading: authLoading, setAuth, handleLoginResult, selectMembership, switchMembership, logout } = useAuth()
+  const toast = useToast()
 
-  const [info, setInfo] = useState<{ valid: boolean; email?: string; role?: string; tenantName?: string } | null>(null)
+  const [info, setInfo] = useState<InvitationInfoDto | null>(null)
+  const [selection, setSelection] = useState<MembershipSelectionResponse | null>(null)
+  const [selectingId, setSelectingId] = useState<string | null>(null)
+  const [accepting, setAccepting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -69,9 +76,9 @@ export default function Register() {
     setError('')
     setSubmitting(true)
     try {
-      const res = await authApi.googleLogin(credential)
-      setAuth(res.accessToken, res.refreshToken, res.user)
-      navigate('/')
+      const pending = handleLoginResult(await authApi.googleLogin(credential))
+      if (pending) setSelection(pending)
+      else navigate('/')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -79,7 +86,42 @@ export default function Register() {
     }
   }
 
-  if (loading) {
+  const handleSelect = async (membershipId: string) => {
+    if (!selection) return
+    setSelectingId(membershipId)
+    try {
+      await selectMembership(selection.selectionToken, membershipId)
+      setSelection(null)
+      navigate('/')
+    } catch (err) {
+      setSelection(null)
+      setError(getErrorMessage(err))
+    } finally {
+      setSelectingId(null)
+    }
+  }
+
+  /** Cuenta existente: agrega la membresía de la invitación y entra con ella. */
+  const handleAccept = async () => {
+    setAccepting(true)
+    setError('')
+    try {
+      const membership = await usersApi.acceptInvitation(token)
+      // switch-membership devuelve el user con la lista de membresías ya actualizada.
+      await switchMembership(membership.id)
+      toast.success(`Invitación aceptada: ahora eres ${roleLabel(membership.role)} en ${membership.tenantName ?? info?.tenantName ?? 'el centro'}.`)
+      navigate('/')
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const loginForInvite = () =>
+    navigate(`/login?next=${encodeURIComponent(`/registro?token=${encodeURIComponent(token)}`)}`)
+
+  if (loading || authLoading) {
     return (
       <div className="auth-page">
         <div className="auth-card"><p className="hint">Cargando invitación...</p></div>
@@ -100,6 +142,61 @@ export default function Register() {
           <button type="button" className="btn-primary" onClick={() => navigate('/login')}>
             Ir a iniciar sesión
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (selection) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>MyFitnessLife</h1>
+          <MembershipPicker
+            memberships={selection.memberships}
+            busyId={selectingId}
+            onSelect={handleSelect}
+            onBack={() => setSelection(null)}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (info.existingAccount) {
+    const invitedEmail = info.email ?? ''
+    const sameAccount = !!user && user.email.toLowerCase() === invitedEmail.toLowerCase()
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>MyFitnessLife</h1>
+          <p className="auth-subtitle">
+            Invitación a <strong>{info.tenantName}</strong> como <strong>{roleLabel(info.role)}</strong>
+          </p>
+          <p className="hint">
+            Ya existe una cuenta con <strong>{invitedEmail}</strong>. Al aceptar se agregará este perfil a tu cuenta;
+            tus perfiles actuales se mantienen.
+          </p>
+          {error && <div className="error-box">{error}</div>}
+          {!user ? (
+            <button type="button" className="btn-primary" onClick={loginForInvite}>
+              Iniciar sesión para aceptar
+            </button>
+          ) : sameAccount ? (
+            <button type="button" className="btn-primary" onClick={handleAccept} disabled={accepting}>
+              {accepting ? 'Aceptando...' : 'Aceptar invitación'}
+            </button>
+          ) : (
+            <>
+              <p className="hint">
+                Has iniciado sesión como <strong>{user.email}</strong>. Cierra sesión e inicia con{' '}
+                <strong>{invitedEmail}</strong> para aceptar.
+              </p>
+              <button type="button" className="btn-primary" onClick={() => logout()}>
+                Cerrar sesión
+              </button>
+            </>
+          )}
         </div>
       </div>
     )

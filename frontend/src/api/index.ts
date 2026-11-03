@@ -4,9 +4,14 @@ import type {
   AdminUserDto,
   AdminUserListDto,
   AdminUserQuery,
-  AssignUserRequest,
+  CreateMembershipRequest,
+  LoginResult,
+  MembershipDto,
   CreateAdminUserRequest,
   CreateTenantRequest,
+  CreatePatientResponse,
+  PatientInviteResponse,
+  DashboardKpisDto,
   TenantDeleteImpactDto,
   UpdateAdminUserRequest,
   UpdateTenantRequest,
@@ -50,9 +55,18 @@ import type {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data),
+    api.post<LoginResult>('/auth/login', { email, password }).then((r) => r.data),
   googleLogin: (idToken: string) =>
-    api.post<AuthResponse>('/auth/google-login', { idToken }).then((r) => r.data),
+    api.post<LoginResult>('/auth/google-login', { idToken }).then((r) => r.data),
+  selectMembership: (selectionToken: string, membershipId: string) =>
+    api
+      .post<AuthResponse>('/auth/select-membership', { selectionToken, membershipId })
+      .then((r) => r.data),
+  /** `refreshToken` (opcional): el backend revoca solo ese, sin cerrar el perfil en otros dispositivos. */
+  switchMembership: (membershipId: string, refreshToken?: string) =>
+    api
+      .post<AuthResponse>('/auth/switch-membership', { membershipId, refreshToken })
+      .then((r) => r.data),
   register: (payload: {
     firstName: string
     lastName: string
@@ -77,6 +91,13 @@ export const usersApi = {
     api.post<InvitationDto>(`/users/invitations/${id}/revoke`).then((r) => r.data),
   updateRole: (userId: string, role: number) =>
     api.put('/users/role', { userId, role }).then(() => undefined),
+  /** Acepta una invitación con la cuenta autenticada (agrega la membresía). */
+  acceptInvitation: (token: string) =>
+    api.post<MembershipDto>('/users/accept-invitation', { token }).then((r) => r.data),
+}
+
+export const dashboardApi = {
+  kpis: () => api.get<DashboardKpisDto>('/dashboard/kpis').then((r) => r.data),
 }
 
 export const adminApi = {
@@ -95,8 +116,12 @@ export const adminApi = {
     api.post<AdminUserDto>('/admin/users', payload).then((r) => r.data),
   updateUser: (id: string, payload: UpdateAdminUserRequest) =>
     api.put<AdminUserDto>(`/admin/users/${id}`, payload).then((r) => r.data),
-  assignUser: (id: string, payload: AssignUserRequest) =>
-    api.put<AdminUserDto>(`/admin/users/${id}/assignment`, payload).then((r) => r.data),
+  userMemberships: (id: string) =>
+    api.get<MembershipDto[]>(`/admin/users/${id}/memberships`).then((r) => r.data),
+  addMembership: (id: string, payload: CreateMembershipRequest) =>
+    api.post<MembershipDto>(`/admin/users/${id}/memberships`, payload).then((r) => r.data),
+  removeMembership: (id: string, membershipId: string) =>
+    api.delete(`/admin/users/${id}/memberships/${membershipId}`).then(() => undefined),
   tenantDeleteImpact: (id: string) =>
     api.get<TenantDeleteImpactDto>(`/admin/tenants/${id}/delete-impact`).then((r) => r.data),
   deleteTenant: (id: string) => api.delete(`/admin/tenants/${id}`).then(() => undefined),
@@ -111,7 +136,9 @@ export const patientsApi = {
   getById: (id: string) => api.get<PatientDto>(`/patients/${id}`).then((r) => r.data),
   me: () => api.get<PatientDto>('/patients/me').then((r) => r.data),
   create: (payload: CreatePatientRequest) =>
-    api.post<PatientDto>('/patients', payload).then((r) => r.data),
+    api.post<CreatePatientResponse>('/patients', payload).then((r) => r.data),
+  invite: (id: string) =>
+    api.post<PatientInviteResponse>(`/patients/${id}/invite`).then((r) => r.data),
   update: (id: string, payload: UpdatePatientRequest) =>
     api.put<PatientDto>(`/patients/${id}`, payload).then((r) => r.data),
   remove: (id: string) => api.delete(`/patients/${id}`).then(() => undefined),

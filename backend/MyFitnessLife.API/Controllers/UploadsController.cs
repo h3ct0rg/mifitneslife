@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using MyFitnessLife.API.Authorization;
 using MyFitnessLife.Application.Interfaces;
 using MyFitnessLife.Domain.Constants;
 
@@ -16,15 +17,21 @@ public class UploadsController : ControllerBase
     private readonly IMinioService _minioService;
     private readonly ILogger<UploadsController> _logger;
     private readonly MinioSettings _minioSettings;
+    private readonly ICurrentUser _currentUser;
+    private readonly IPatientPhotoService _photoService;
 
     public UploadsController(
         IMinioService minioService,
         ILogger<UploadsController> logger,
-        IOptions<MinioSettings> minioSettings)
+        IOptions<MinioSettings> minioSettings,
+        ICurrentUser currentUser,
+        IPatientPhotoService photoService)
     {
         _minioService = minioService;
         _logger = logger;
         _minioSettings = minioSettings.Value;
+        _currentUser = currentUser;
+        _photoService = photoService;
 
         _logger.LogInformation(
             "MinioSettings inicializado: Endpoint={Endpoint}, UseSSL={UseSSL}, BucketName={BucketName}, ImageExerciseBucket={ImageExerciseBucket}, VideoExerciseBucket={VideoExerciseBucket}, AccessKeySet={AccessKeySet}, SecretKeySet={SecretKeySet}",
@@ -38,6 +45,7 @@ public class UploadsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [RequestSizeLimit(5_242_880)] // 5 MB
@@ -67,6 +75,10 @@ public class UploadsController : ControllerBase
         if (string.IsNullOrWhiteSpace(fileName) || Path.GetFileName(fileName) != fileName)
             return BadRequest(new { error = "Nombre de archivo inválido." });
 
+        // Staff del tenant: sin cambios. Patient: solo su foto de perfil o sus fotos de progreso. Resto → 403.
+        if (!_currentUser.IsStaff && !await IsOwnPatientFileAsync(fileName))
+            return Forbid();
+
         try
         {
             var (stream, contentType) = await _minioService.GetImageAsync(fileName);
@@ -83,6 +95,10 @@ public class UploadsController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetExerciseImage(string fileName)
     {
+        // Media del catálogo global: staff o paciente del tenant (la rutina del paciente la muestra).
+        if (!_currentUser.IsStaff && !_currentUser.IsPatient)
+            return Forbid();
+
         fileName = NormalizePath(fileName);
         if (string.IsNullOrWhiteSpace(fileName) || !IsSafeExercisePath(fileName))
             return BadRequest(new { error = "Nombre de archivo inválido." });
@@ -106,6 +122,9 @@ public class UploadsController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetExerciseVideo(string fileName)
     {
+        if (!_currentUser.IsStaff && !_currentUser.IsPatient)
+            return Forbid();
+
         fileName = NormalizePath(fileName);
         if (string.IsNullOrWhiteSpace(fileName) || !IsSafeExercisePath(fileName))
             return BadRequest(new { error = "Nombre de archivo inválido." });
@@ -145,7 +164,24 @@ public class UploadsController : ControllerBase
         return !string.IsNullOrWhiteSpace(fileName) && Path.GetFileName(fileName) == fileName;
     }
 
+    private async Task<bool> IsOwnPatientFileAsync(string fileName)
+    {
+        if (!_currentUser.IsPatient || _currentUser.TenantId is not { } tenantId)
+            return false;
+
+        var own = await _currentUser.GetOwnPatientAsync();
+        if (own is null)
+            return false;
+
+        if (string.Equals(own.ProfilePhotoUrl, fileName, StringComparison.Ordinal))
+            return true;
+
+        var photos = await _photoService.GetByPatientAsync(tenantId, own.Id);
+        return photos.Any(p => string.Equals(p.FileName, fileName, StringComparison.Ordinal));
+    }
+
     [HttpDelete("{fileName}")]
+    [Authorize(Policy = AuthPolicies.StaffOnly)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(string fileName)
     {

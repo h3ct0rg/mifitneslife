@@ -2,9 +2,27 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { PatientDto } from '../api/types'
+import type { PatientDto, PatientInvitationStatus } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
+
+function createdMessage(status: PatientInvitationStatus | undefined, email: string): string {
+  switch (status) {
+    case 'sent':
+      return `Paciente creado. Se envió una invitación a ${email}.`
+    case 'resent':
+      return `Paciente creado. Se reenvió la invitación pendiente a ${email}.`
+    case 'already_member':
+    case 'existing_user':
+      return `Paciente creado. ${email} ya tiene cuenta como paciente en este centro, no se envió invitación.`
+    case 'failed':
+      return `Paciente creado, pero no se pudo crear la invitación para ${email}. Reintenta desde su perfil con "Enviar invitación".`
+    case 'none':
+      return 'Paciente creado. No se envió invitación (sin email válido).'
+    default:
+      return 'Paciente creado correctamente.'
+  }
+}
 
 export default function Patients() {
   const navigate = useNavigate()
@@ -47,7 +65,7 @@ export default function Patients() {
 
   const handleCreate = async (values: PatientFormValues) => {
     try {
-      await patientsApi.create({
+      const created = await patientsApi.create({
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
@@ -57,7 +75,11 @@ export default function Patients() {
         notes: values.notes || undefined,
       })
       setShowCreate(false)
-      setMessage({ type: 'ok', text: 'Paciente creado correctamente.' })
+      setMessage({
+        // El paciente se creó igual; `failed` se resalta para que el staff reintente la invitación.
+        type: created.invitationStatus === 'failed' ? 'err' : 'ok',
+        text: createdMessage(created.invitationStatus, created.email),
+      })
       loadPatients(1, appliedSearch)
     } catch (err) {
       setMessage({
