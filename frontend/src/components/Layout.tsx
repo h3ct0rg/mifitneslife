@@ -27,7 +27,12 @@ const CONFIG_NAV = [
   { to: '/configuracion/whatsapp', label: 'WhatsApp', icon: 'chat' },
 ]
 
-const SUPER_ADMIN_NAV = [{ to: '/admin', label: 'Super Admin', icon: 'admin_panel_settings' }]
+// Navegación de plataforma (solo SuperAdmin; no ve la UI clínica).
+const SUPER_ADMIN_NAV = [
+  { to: '/', label: 'Dashboard', icon: 'monitoring', end: true },
+  { to: '/admin/tenants', label: 'Tenants', icon: 'domain' },
+  { to: '/admin/usuarios', label: 'Usuarios', icon: 'manage_accounts' },
+]
 
 export default function Layout() {
   const { user, logout } = useAuth()
@@ -39,6 +44,7 @@ export default function Layout() {
   const [myPatientId, setMyPatientId] = useState<string | null>(null)
 
   const isPatient = user?.role === 'Patient'
+  const isSuperAdmin = user?.role === 'SuperAdmin'
 
   useEffect(() => {
     if (isPatient) {
@@ -71,7 +77,22 @@ export default function Layout() {
         </div>
 
         <nav className="sidebar-nav">
-          {isPatient ? (
+          {isSuperAdmin ? (
+            SUPER_ADMIN_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                onClick={closeMobile}
+                className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+              >
+                <div className="nav-link-content">
+                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              </NavLink>
+            ))
+          ) : isPatient ? (
             <NavLink
               to={myProfileTo}
               onClick={closeMobile}
@@ -198,26 +219,6 @@ export default function Layout() {
                   </div>
                 )}
               </div>
-
-              {user.role === 'SuperAdmin' && (
-                <div className="nav-segment">
-                  {SUPER_ADMIN_NAV.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={closeMobile}
-                      className={({ isActive }) =>
-                        isActive ? 'nav-link active' : 'nav-link'
-                      }
-                    >
-                      <div className="nav-link-content">
-                        <span className="material-symbols-outlined">{item.icon}</span>
-                        <span>{item.label}</span>
-                      </div>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
             </>
           )}
         </nav>

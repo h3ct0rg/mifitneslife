@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MyFitnessLife.Domain.Entities;
 using MyFitnessLife.Domain.Enums;
@@ -43,6 +44,101 @@ public class UserRepository : IUserRepository
 
     public Task<bool> EmailExistsAsync(string email)
         => _context.Users.AnyAsync(u => u.Email == email);
+
+    private IQueryable<ApplicationUser> ApplyFilters(string? search, Guid? tenantId, UserRole? role)
+    {
+        var query = _context.Users.AsNoTracking().AsQueryable();
+
+        if (tenantId.HasValue)
+            query = query.Where(u => u.TenantId == tenantId.Value);
+
+        if (role.HasValue)
+            query = query.Where(u => u.Role == role.Value);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(u =>
+                (u.Email != null && u.Email.Contains(s)) ||
+                u.FirstName.Contains(s) ||
+                u.LastName.Contains(s) ||
+                (u.FirstName + " " + u.LastName).Contains(s));
+        }
+
+        return query;
+    }
+
+    public async Task<IEnumerable<ApplicationUser>> SearchAsync(string? search, Guid? tenantId, UserRole? role, int page, int pageSize)
+        => await ApplyFilters(search, tenantId, role)
+            .Include(u => u.Tenant)
+            .OrderByDescending(u => u.CreatedAt)
+            .ThenBy(u => u.Email)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+    public Task<int> CountSearchAsync(string? search, Guid? tenantId, UserRole? role)
+        => ApplyFilters(search, tenantId, role).CountAsync();
+
+    public Task<int> CountAllAsync(UserStatus? status = null)
+        => status.HasValue
+            ? _context.Users.CountAsync(u => u.Status == status.Value)
+            : _context.Users.CountAsync();
+
+    public Task<int> CountCreatedSinceAsync(DateTime since)
+        => _context.Users.CountAsync(u => u.CreatedAt >= since);
+
+    public async Task<Dictionary<UserRole, int>> CountByRoleAsync()
+        => await _context.Users.AsNoTracking()
+            .GroupBy(u => u.Role)
+            .Select(g => new { Role = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Role, x => x.Count);
+
+    public async Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since)
+    {
+        var rows = await _context.Users.AsNoTracking()
+            .Where(u => u.CreatedAt >= since)
+            .GroupBy(u => new { u.CreatedAt.Year, u.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync();
+        return rows.ToDictionary(r => (r.Year, r.Month), r => r.Count);
+    }
+
+    public async Task<Dictionary<Guid, int>> CountGroupedByTenantAsync()
+        => await _context.Users.AsNoTracking()
+            .Where(u => u.TenantId != null)
+            .GroupBy(u => u.TenantId!.Value)
+            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TenantId, x => x.Count);
+
+    public async Task<Dictionary<Guid, int>> CountLoggedInSinceGroupedByTenantAsync(DateTime since)
+        => await _context.Users.AsNoTracking()
+            .Where(u => u.TenantId != null && u.LastLoginAt != null && u.LastLoginAt >= since)
+            .GroupBy(u => u.TenantId!.Value)
+            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TenantId, x => x.Count);
+
+    public Task<int> CountActiveByRoleAsync(UserRole role, Guid? excludeUserId = null)
+        => _context.Users.CountAsync(u =>
+            u.Role == role &&
+            u.Status == UserStatus.Active &&
+            (excludeUserId == null || u.Id != excludeUserId.Value));
+
+    public async Task SyncIdentityRoleAsync(Guid userId, string roleName)
+    {
+        var normalized = roleName.ToUpperInvariant();
+        var roleId = await _context.Roles
+            .Where(r => r.NormalizedName == normalized)
+            .Select(r => (Guid?)r.Id)
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException($"El rol '{roleName}' no está configurado.");
+
+        var current = await _context.UserRoles.Where(ur => ur.UserId == userId).ToListAsync();
+        _context.UserRoles.RemoveRange(current.Where(ur => ur.RoleId != roleId));
+
+        if (!current.Any(ur => ur.RoleId == roleId))
+            await _context.UserRoles.AddAsync(new IdentityUserRole<Guid> { UserId = userId, RoleId = roleId });
+    }
 }
 
 public class TenantRepository : ITenantRepository
@@ -91,6 +187,19 @@ public class TenantRepository : ITenantRepository
             .Where(t => t.IsActive)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
+    }
+
+    public Task<int> CountCreatedSinceAsync(DateTime since)
+        => _context.Tenants.CountAsync(t => t.CreatedAt >= since);
+
+    public async Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since)
+    {
+        var rows = await _context.Tenants.AsNoTracking()
+            .Where(t => t.CreatedAt >= since)
+            .GroupBy(t => new { t.CreatedAt.Year, t.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync();
+        return rows.ToDictionary(r => (r.Year, r.Month), r => r.Count);
     }
 }
 
@@ -493,6 +602,28 @@ public class PatientRepository : IPatientRepository
         _context.Patients.Remove(patient);
         return Task.CompletedTask;
     }
+
+    public Task<int> CountAllAsync()
+        => _context.Patients.CountAsync();
+
+    public Task<int> CountCreatedSinceAsync(DateTime since)
+        => _context.Patients.CountAsync(p => p.CreatedAt >= since);
+
+    public async Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since)
+    {
+        var rows = await _context.Patients.AsNoTracking()
+            .Where(p => p.CreatedAt >= since)
+            .GroupBy(p => new { p.CreatedAt.Year, p.CreatedAt.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync();
+        return rows.ToDictionary(r => (r.Year, r.Month), r => r.Count);
+    }
+
+    public async Task<Dictionary<Guid, int>> CountGroupedByTenantAsync()
+        => await _context.Patients.AsNoTracking()
+            .GroupBy(p => p.TenantId)
+            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TenantId, x => x.Count);
 }
 
 public class MeasurementRepository : IMeasurementRepository

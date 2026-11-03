@@ -5,7 +5,8 @@ namespace MyFitnessLife.Application.DTOs.Users;
 public class InviteUserRequest
 {
     public string Email { get; set; } = string.Empty;
-    public UserRole Role { get; set; }
+    // Nullable para distinguir "no enviado" del valor por defecto 0 (= SuperAdmin).
+    public UserRole? Role { get; set; }
 }
 
 public class InviteUserResponse

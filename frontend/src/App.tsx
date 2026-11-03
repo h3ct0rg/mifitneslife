@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { patientsApi } from './api'
 import Layout from './components/Layout'
+import ToastProvider from './components/ToastProvider'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -19,12 +20,23 @@ import Settings from './pages/Settings'
 import Users from './pages/Users'
 import WhatsApp from './pages/WhatsApp'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminTenants from './pages/AdminTenants'
+import AdminUsers from './pages/AdminUsers'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="loading">Cargando...</div>
   if (!user) return <Navigate to="/login" replace />
   return <>{children}</>
+}
+
+const isSuperAdmin = (role?: string) => role === 'SuperAdmin'
+
+// Índice: SuperAdmin → dashboard de plataforma; paciente → su perfil; resto → dashboard clínico.
+function HomeRoute() {
+  const { user } = useAuth()
+  if (isSuperAdmin(user?.role)) return <AdminDashboard />
+  return <PatientHomeRedirect />
 }
 
 // El home del paciente es su perfil.
@@ -45,16 +57,31 @@ function PatientHomeRedirect() {
   return <Dashboard />
 }
 
-// Rutas solo para personal (no pacientes).
+// Rutas clínicas: el SuperAdmin no opera la UI clínica.
+function ClinicalOnly({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  if (isSuperAdmin(user?.role)) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+// Rutas solo para personal clínico (no pacientes ni SuperAdmin).
 function StaffOnly({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
-  if (user?.role === 'Patient') return <Navigate to="/" replace />
+  if (user?.role === 'Patient' || isSuperAdmin(user?.role)) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+// Rutas de plataforma: solo SuperAdmin.
+function SuperAdminOnly({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  if (!isSuperAdmin(user?.role)) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ToastProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Register />} />
@@ -66,9 +93,9 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<PatientHomeRedirect />} />
+          <Route index element={<HomeRoute />} />
           <Route path="pacientes" element={<StaffOnly><Patients /></StaffOnly>} />
-          <Route path="pacientes/:id" element={<PatientProfile />} />
+          <Route path="pacientes/:id" element={<ClinicalOnly><PatientProfile /></ClinicalOnly>} />
           <Route path="pacientes/:id/historial" element={<StaffOnly><MeasurementHistory /></StaffOnly>} />
           <Route path="agenda" element={<StaffOnly><Agenda /></StaffOnly>} />
           <Route path="citas" element={<StaffOnly><Citas /></StaffOnly>} />
@@ -79,10 +106,14 @@ export default function App() {
           <Route path="configuracion" element={<StaffOnly><Settings /></StaffOnly>} />
           <Route path="configuracion/usuarios" element={<StaffOnly><Users /></StaffOnly>} />
           <Route path="configuracion/whatsapp" element={<StaffOnly><WhatsApp /></StaffOnly>} />
-          <Route path="admin" element={<StaffOnly><AdminDashboard /></StaffOnly>} />
+          <Route path="admin" element={<Navigate to="/" replace />} />
+          <Route path="admin/tenants" element={<SuperAdminOnly><AdminTenants /></SuperAdminOnly>} />
+          <Route path="admin/usuarios" element={<SuperAdminOnly><AdminUsers /></SuperAdminOnly>} />
+          <Route path="admin/*" element={<Navigate to="/" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

@@ -70,12 +70,97 @@ export interface TenantDto {
   id: string
   name: string
   slug: string
+  description?: string | null
+  logoUrl?: string | null
+  isActive: boolean
+  createdAt: string
+  userCount: number
+  patientCount: number
+  activeUsersLast30Days: number
+  lastActivityAt?: string | null
+}
+
+export interface CreateTenantRequest {
+  name: string
+  description?: string
+  slug?: string
+}
+
+export interface UpdateTenantRequest {
+  name: string
   description?: string
   isActive: boolean
-  userCount: number
-  activeUsersLast30Days: number
-  lastActivityAt?: string
+}
+
+export interface RegistrationMonthDto {
+  month: string // "YYYY-MM"
+  users: number
+  tenants: number
+  patients: number
+}
+
+export interface AdminUserDto {
+  id: string
+  email: string
+  fullName: string
+  role: string
+  tenantId: string | null
+  tenantName: string | null
+  isActive: boolean
   createdAt: string
+  lastLoginAt?: string | null
+}
+
+export interface AdminUserListDto {
+  items: AdminUserDto[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface AdminUserQuery {
+  search?: string
+  tenantId?: string
+  role?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface CreateAdminUserRequest {
+  email: string
+  fullName: string
+  password: string
+  role: string
+  tenantId?: string | null
+}
+
+export interface UpdateAdminUserRequest {
+  fullName: string
+  isActive: boolean
+}
+
+export interface TenantDeleteImpactDto {
+  tenantId: string
+  name: string
+  users: number
+  patients: number
+  appointments: number
+  otherRecords: number
+}
+
+export interface UserDeleteImpactDto {
+  userId: string
+  email: string
+  role: string
+  tenantName: string | null
+  patientProfile: boolean
+  appointments: number
+  otherRecords: number
+}
+
+export interface AssignUserRequest {
+  role: string
+  tenantId?: string | null
 }
 
 export interface TenantActivityDto {
@@ -92,9 +177,18 @@ export interface AdminDashboardDto {
   activeTenants: number
   totalUsers: number
   activeUsers: number
+  totalPatients: number
+  usersByRole: Record<string, number>
+  newUsersLast30Days: number
+  newTenantsLast30Days: number
+  newPatientsLast30Days: number
+  registrationsByMonth: RegistrationMonthDto[]
   tenants: TenantDto[]
   recentActivity: TenantActivityDto[]
 }
+
+/** Roles en el orden en que se muestran en selectores del panel de plataforma. */
+export const ROLE_KEYS = ['SuperAdmin', 'Admin', 'Nutritionist', 'Trainer', 'Patient'] as const
 
 export const ROLES: Record<number, string> = {
   0: 'SuperAdmin',

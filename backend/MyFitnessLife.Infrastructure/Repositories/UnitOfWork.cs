@@ -25,8 +25,10 @@ public class UnitOfWork : IUnitOfWork
         WorkoutPlans = new WorkoutPlanRepository(context);
         PatientPhotos = new PatientPhotoRepository(context);
         Outbox = new OutboxRepository(context);
+        Purge = new DataPurgeRepository(context);
     }
 
+    public IDataPurgeRepository Purge { get; }
     public IUserRepository Users { get; }
     public ITenantRepository Tenants { get; }
     public IInvitationRepository Invitations { get; }

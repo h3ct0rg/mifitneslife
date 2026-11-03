@@ -1,6 +1,16 @@
 import { api } from './client'
 import type {
   AdminDashboardDto,
+  AdminUserDto,
+  AdminUserListDto,
+  AdminUserQuery,
+  AssignUserRequest,
+  CreateAdminUserRequest,
+  CreateTenantRequest,
+  TenantDeleteImpactDto,
+  UpdateAdminUserRequest,
+  UpdateTenantRequest,
+  UserDeleteImpactDto,
   AppointmentDto,
   AuthResponse,
   CreateAppointmentRequest,
@@ -72,10 +82,27 @@ export const usersApi = {
 export const adminApi = {
   dashboard: () => api.get<AdminDashboardDto>('/admin/dashboard').then((r) => r.data),
   tenants: () => api.get<TenantDto[]>('/admin/tenants').then((r) => r.data),
-  createTenant: (name: string, description?: string) =>
-    api.post<TenantDto>('/admin/tenants', { name, description }).then((r) => r.data),
+  tenant: (id: string) => api.get<TenantDto>(`/admin/tenants/${id}`).then((r) => r.data),
+  createTenant: (payload: CreateTenantRequest) =>
+    api.post<TenantDto>('/admin/tenants', payload).then((r) => r.data),
+  updateTenant: (id: string, payload: UpdateTenantRequest) =>
+    api.put<TenantDto>(`/admin/tenants/${id}`, payload).then((r) => r.data),
   tenantActivity: (tenantId: string) =>
     api.get<TenantActivityDto[]>(`/admin/tenants/${tenantId}/activity`).then((r) => r.data),
+  users: (params: AdminUserQuery = {}) =>
+    api.get<AdminUserListDto>('/admin/users', { params }).then((r) => r.data),
+  createUser: (payload: CreateAdminUserRequest) =>
+    api.post<AdminUserDto>('/admin/users', payload).then((r) => r.data),
+  updateUser: (id: string, payload: UpdateAdminUserRequest) =>
+    api.put<AdminUserDto>(`/admin/users/${id}`, payload).then((r) => r.data),
+  assignUser: (id: string, payload: AssignUserRequest) =>
+    api.put<AdminUserDto>(`/admin/users/${id}/assignment`, payload).then((r) => r.data),
+  tenantDeleteImpact: (id: string) =>
+    api.get<TenantDeleteImpactDto>(`/admin/tenants/${id}/delete-impact`).then((r) => r.data),
+  deleteTenant: (id: string) => api.delete(`/admin/tenants/${id}`).then(() => undefined),
+  userDeleteImpact: (id: string) =>
+    api.get<UserDeleteImpactDto>(`/admin/users/${id}/delete-impact`).then((r) => r.data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`).then(() => undefined),
 }
 
 export const patientsApi = {

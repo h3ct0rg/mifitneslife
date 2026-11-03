@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { dietsApi, patientPhotosApi, patientsApi, workoutPlansApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -13,11 +13,41 @@ import PhotoCapture from '../components/PhotoCapture'
 import PhotoHistory from '../components/PhotoHistory'
 import WorkoutDashboard from '../components/WorkoutDashboard'
 import AssignPicker from '../components/AssignPicker'
+import Tabs, { type TabItem } from '../components/Tabs'
+
+type ProfileTab = 'evolucion' | 'dieta' | 'entrenamiento' | 'fotos' | 'info'
+
+const PROFILE_TABS: TabItem<ProfileTab>[] = [
+  { key: 'evolucion', label: 'Evolución', icon: 'monitoring' },
+  { key: 'dieta', label: 'Dieta', icon: 'restaurant_menu' },
+  { key: 'entrenamiento', label: 'Entrenamiento', icon: 'fitness_center' },
+  { key: 'fotos', label: 'Fotos', icon: 'photo_library' },
+  { key: 'info', label: 'Información', icon: 'badge' },
+]
+
+const DEFAULT_TAB: ProfileTab = 'evolucion'
+
+function parseTab(value: string | null): ProfileTab {
+  return PROFILE_TABS.some((t) => t.key === value) ? (value as ProfileTab) : DEFAULT_TAB
+}
 
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = parseTab(searchParams.get('tab'))
+
+  const setActiveTab = (tab: ProfileTab) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('tab', tab)
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const isPatient = user?.role === 'Patient'
 
@@ -213,15 +243,6 @@ export default function PatientProfile() {
               <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
                 Historial
               </button>
-              <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
-                Dieta
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
-                📷 Foto
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
-                Asignar rutina
-              </button>
               <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
                 Editar
               </button>
@@ -233,45 +254,100 @@ export default function PatientProfile() {
         </div>
       </div>
 
-      <div className="card">
-        <h2>Evolución antropométrica</h2>
-        <MeasurementDashboard patientId={patient.id} />
-      </div>
+      <Tabs
+        tabs={PROFILE_TABS}
+        active={activeTab}
+        onChange={setActiveTab}
+        idPrefix="patient-profile"
+        ariaLabel="Secciones del perfil del paciente"
+      >
+        {activeTab === 'evolucion' && (
+          <div className="card">
+            <h2>Evolución antropométrica</h2>
+            <MeasurementDashboard patientId={patient.id} />
+          </div>
+        )}
 
-      <DietDashboard key={dietVersion} patientId={patient.id} />
-      <DietHistory patientId={patient.id} version={dietVersion} />
-      <PhotoHistory patientId={patient.id} version={photoVersion} />
-      <WorkoutDashboard patientId={patient.id} version={routineVersion} />
+        {activeTab === 'dieta' && (
+          <>
+            {!isPatient && (
+              <div className="tab-toolbar">
+                <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">restaurant_menu</span>
+                  Asignar dieta
+                </button>
+              </div>
+            )}
+            {/* Si ambos hijos no renderizan nada, el CSS :empty muestra el texto vacío. */}
+            <div className="tab-empty-aware" data-empty-text="No hay una dieta asignada ni historial de dietas.">
+              <DietDashboard key={dietVersion} patientId={patient.id} />
+              <DietHistory patientId={patient.id} version={dietVersion} />
+            </div>
+          </>
+        )}
 
-      <div className="card">
-        <h2>Información</h2>
-        <div className="detail-list">
-          <div className="detail-item">
-            <span>Nombre completo</span>
-            <strong>{patient.fullName}</strong>
+        {activeTab === 'entrenamiento' && (
+          <>
+            {!isPatient && (
+              <div className="tab-toolbar">
+                <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">fitness_center</span>
+                  Asignar rutina
+                </button>
+              </div>
+            )}
+            <div className="tab-empty-aware" data-empty-text="No hay una rutina asignada.">
+              <WorkoutDashboard patientId={patient.id} version={routineVersion} />
+            </div>
+          </>
+        )}
+
+        {activeTab === 'fotos' && (
+          <>
+            {!isPatient && (
+              <div className="tab-toolbar">
+                <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+                  Tomar foto
+                </button>
+              </div>
+            )}
+            <PhotoHistory patientId={patient.id} version={photoVersion} />
+          </>
+        )}
+
+        {activeTab === 'info' && (
+          <div className="card">
+            <h2>Información</h2>
+            <div className="detail-list">
+              <div className="detail-item">
+                <span>Nombre completo</span>
+                <strong>{patient.fullName}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Email</span>
+                <strong>{patient.email}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Teléfono</span>
+                <strong>{patient.phone ?? '—'}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Fecha de nacimiento</span>
+                <strong>{dob ?? '—'}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Registrado el</span>
+                <strong>{new Date(patient.createdAt).toLocaleString('es-ES')}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Notas</span>
+                <strong>{patient.notes ?? 'Sin notas'}</strong>
+              </div>
+            </div>
           </div>
-          <div className="detail-item">
-            <span>Email</span>
-            <strong>{patient.email}</strong>
-          </div>
-          <div className="detail-item">
-            <span>Teléfono</span>
-            <strong>{patient.phone ?? '—'}</strong>
-          </div>
-          <div className="detail-item">
-            <span>Fecha de nacimiento</span>
-            <strong>{dob ?? '—'}</strong>
-          </div>
-          <div className="detail-item">
-            <span>Registrado el</span>
-            <strong>{new Date(patient.createdAt).toLocaleString('es-ES')}</strong>
-          </div>
-          <div className="detail-item">
-            <span>Notas</span>
-            <strong>{patient.notes ?? 'Sin notas'}</strong>
-          </div>
-        </div>
-      </div>
+        )}
+      </Tabs>
 
       {editing && (
         <PatientForm

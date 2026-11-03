@@ -161,6 +161,8 @@ public class AuthService : IAuthService
                 throw new InvalidOperationException("La invitación no es válida o ya fue utilizada.");
             if (invitation.ExpiresAt < DateTime.UtcNow)
                 throw new InvalidOperationException("La invitación expiró.");
+            if (invitation.Role == UserRole.SuperAdmin)
+                throw new InvalidOperationException("La invitación no es válida.");
 
             role = invitation.Role;
             tenantId = invitation.TenantId;
@@ -252,21 +254,8 @@ public class AuthService : IAuthService
             user.FullName);
     }
 
-    private async Task EnsurePatientProfileAsync(Guid tenantId, string email, string firstName, string lastName)
-    {
-        var existing = await _unitOfWork.Patients.GetByEmailAsync(tenantId, email);
-        if (existing is not null)
-            return;
-
-        await _unitOfWork.Patients.AddAsync(new Patient
-        {
-            TenantId = tenantId,
-            FirstName = firstName,
-            LastName = lastName,
-            Email = email,
-            Status = UserStatus.Active
-        });
-    }
+    private Task EnsurePatientProfileAsync(Guid tenantId, string email, string firstName, string lastName)
+        => PatientProfiles.EnsureAsync(_unitOfWork, tenantId, email, firstName, lastName);
 
     private async Task<Tenant> CreateTenantForNewUserAsync(Guid ownerId, string firstName, string lastName, string email)
     {
@@ -298,7 +287,9 @@ public class AuthService : IAuthService
         foreach (var tenant in tenants)
         {
             var invitation = await _unitOfWork.Invitations.GetPendingByEmailAsync(tenant.Id, normalized);
-            if (invitation is not null && invitation.ExpiresAt >= DateTime.UtcNow)
+            // Una invitación nunca puede otorgar SuperAdmin.
+            if (invitation is not null && invitation.ExpiresAt >= DateTime.UtcNow
+                && invitation.Role != UserRole.SuperAdmin)
                 return invitation;
         }
         return null;

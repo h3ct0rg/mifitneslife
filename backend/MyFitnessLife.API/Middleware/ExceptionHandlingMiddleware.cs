@@ -29,6 +29,11 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Recurso no encontrado: {Message}", ex.Message);
             await WriteErrorAsync(context, StatusCodes.Status404NotFound, ex.Message);
         }
+        catch (MyFitnessLife.Application.Exceptions.ConflictException ex)
+        {
+            _logger.LogWarning(ex, "Conflicto: {Message}", ex.Message);
+            await WriteErrorAsync(context, StatusCodes.Status409Conflict, ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Operación inválida: {Message}", ex.Message);

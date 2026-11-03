@@ -1,4 +1,5 @@
 using MyFitnessLife.Domain.Entities;
+using MyFitnessLife.Domain.Enums;
 
 namespace MyFitnessLife.Domain.Interfaces;
 
@@ -12,6 +13,19 @@ public interface IUserRepository
     Task AddAsync(ApplicationUser user);
     Task UpdateAsync(ApplicationUser user);
     Task<bool> EmailExistsAsync(string email);
+
+    // Consultas de plataforma (SuperAdmin): paginadas/agregadas en BD.
+    Task<IEnumerable<ApplicationUser>> SearchAsync(string? search, Guid? tenantId, UserRole? role, int page, int pageSize);
+    Task<int> CountSearchAsync(string? search, Guid? tenantId, UserRole? role);
+    Task<int> CountAllAsync(UserStatus? status = null);
+    Task<int> CountCreatedSinceAsync(DateTime since);
+    Task<Dictionary<UserRole, int>> CountByRoleAsync();
+    Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since);
+    Task<Dictionary<Guid, int>> CountGroupedByTenantAsync();
+    Task<Dictionary<Guid, int>> CountLoggedInSinceGroupedByTenantAsync(DateTime since);
+    Task<int> CountActiveByRoleAsync(UserRole role, Guid? excludeUserId = null);
+    /// <summary>Deja al usuario con un único rol de Identity (AspNetUserRoles). Se persiste con SaveChanges.</summary>
+    Task SyncIdentityRoleAsync(Guid userId, string roleName);
 }
 
 public interface ITenantRepository
@@ -25,6 +39,8 @@ public interface ITenantRepository
     Task AddAsync(Tenant tenant);
     Task UpdateAsync(Tenant tenant);
     Task<IEnumerable<Tenant>> GetWithRecentActivityAsync(int days);
+    Task<int> CountCreatedSinceAsync(DateTime since);
+    Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since);
 }
 
 public interface IInvitationRepository
@@ -67,6 +83,10 @@ public interface IPatientRepository
     Task AddAsync(Patient patient);
     Task UpdateAsync(Patient patient);
     Task DeleteAsync(Patient patient);
+    Task<int> CountAllAsync();
+    Task<int> CountCreatedSinceAsync(DateTime since);
+    Task<Dictionary<(int Year, int Month), int>> CountCreatedByMonthAsync(DateTime since);
+    Task<Dictionary<Guid, int>> CountGroupedByTenantAsync();
 }
 
 public interface IMeasurementRepository
@@ -176,8 +196,27 @@ public interface IAuditLogRepository
     Task<IEnumerable<AuditLog>> GetRecentAsync(int take);
 }
 
+public record TenantDeleteImpact(int Users, int Patients, int Appointments, int OtherRecords);
+
+public record UserDeleteImpact(bool PatientProfile, int Appointments, int OtherRecords);
+
+/// <summary>
+/// Borrado físico (hard delete) de tenants y usuarios. Cada Purge* ejecuta todas las
+/// sentencias en orden explícito dentro de una transacción propia (todo o nada) e
+/// inserta el evento de auditoría recibido en la misma transacción.
+/// Los Get*Impact usan exactamente los mismos filtros que el borrado.
+/// </summary>
+public interface IDataPurgeRepository
+{
+    Task<TenantDeleteImpact> GetTenantImpactAsync(Guid tenantId);
+    Task<UserDeleteImpact> GetUserImpactAsync(Guid userId);
+    Task PurgeTenantAsync(Guid tenantId, AuditLog deletionEvent);
+    Task PurgeUserAsync(Guid userId, AuditLog deletionEvent);
+}
+
 public interface IUnitOfWork : IDisposable, IAsyncDisposable
 {
+    IDataPurgeRepository Purge { get; }
     IUserRepository Users { get; }
     ITenantRepository Tenants { get; }
     IInvitationRepository Invitations { get; }

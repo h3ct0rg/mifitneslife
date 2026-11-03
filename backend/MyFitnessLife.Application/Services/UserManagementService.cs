@@ -38,6 +38,11 @@ public class UserManagementService : IUserManagementService
         if (tenant is null)
             throw new KeyNotFoundException("Tenant no encontrado.");
 
+        if (request.Role is not { } role || !Enum.IsDefined(role))
+            throw new ArgumentException("Debes indicar un rol válido para la invitación.");
+        if (role == UserRole.SuperAdmin)
+            throw new ArgumentException("No se puede invitar a un usuario con rol SuperAdmin.");
+
         var email = request.Email.Trim().ToLowerInvariant();
         if (!IsValidEmail(email))
             throw new ArgumentException("El email no es válido.");
@@ -53,7 +58,7 @@ public class UserManagementService : IUserManagementService
         {
             TenantId = tenantId,
             Email = email,
-            Role = request.Role,
+            Role = role,
             InvitedBy = inviterId,
             Token = Guid.NewGuid().ToString("N"),
             ExpiresAt = DateTime.UtcNow.AddHours(24),
@@ -176,6 +181,8 @@ public class UserManagementService : IUserManagementService
             throw new InvalidOperationException("La invitación no es válida o ya fue utilizada.");
         if (invitation.ExpiresAt < DateTime.UtcNow)
             throw new InvalidOperationException("La invitación expiró.");
+        if (invitation.Role == UserRole.SuperAdmin)
+            throw new InvalidOperationException("La invitación no es válida.");
 
         var user = await _unitOfWork.Users.GetByIdAsync(userId);
         if (user is null)
@@ -200,20 +207,26 @@ public class UserManagementService : IUserManagementService
         await _unitOfWork.SaveChangesAsync();
     }
 
-    public async Task UpdateUserRoleAsync(Guid actorId, UpdateUserRoleRequest request)
+    public async Task UpdateUserRoleAsync(Guid actorId, Guid tenantId, UpdateUserRoleRequest request)
     {
         var user = await _unitOfWork.Users.GetByIdAsync(request.UserId);
-        if (user is null)
+        // El usuario objetivo debe pertenecer al tenant del llamante; si no, se responde
+        // como inexistente para no filtrar usuarios de otros tenants.
+        if (user is null || user.TenantId != tenantId)
             throw new KeyNotFoundException("Usuario no encontrado.");
 
         if (user.Role == UserRole.SuperAdmin)
             throw new UnauthorizedAccessException("No se puede modificar un super admin.");
 
+        if (request.Role == UserRole.SuperAdmin)
+            throw new UnauthorizedAccessException("No se puede asignar el rol super admin.");
+
         user.Role = request.Role;
         user.UpdatedAt = DateTime.UtcNow;
 
         await _unitOfWork.Users.UpdateAsync(user);
-        await _activityService.RecordEntityAsync(user.TenantId!.Value, "assign_role", "User", user.Id.ToString(), user.Email);
+        await _unitOfWork.Users.SyncIdentityRoleAsync(user.Id, request.Role.ToString());
+        await _activityService.RecordEntityAsync(tenantId, "assign_role", "User", user.Id.ToString(), user.Email);
         await _unitOfWork.SaveChangesAsync();
     }
 

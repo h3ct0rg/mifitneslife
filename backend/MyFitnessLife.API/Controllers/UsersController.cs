@@ -155,9 +155,13 @@ public class UsersController : ControllerBase
         if (!IsTenantAdmin())
             return Forbid();
 
+        var tenantId = GetTenantIdFromClaims();
+        if (tenantId is null)
+            return Forbid();
+
         try
         {
-            await _userManagementService.UpdateUserRoleAsync(actorId, request);
+            await _userManagementService.UpdateUserRoleAsync(actorId, tenantId.Value, request);
             return NoContent();
         }
         catch (KeyNotFoundException ex)

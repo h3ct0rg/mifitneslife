@@ -1,9 +1,93 @@
 import { useCallback, useEffect, useState } from 'react'
 import { dietsApi } from '../api'
-import type { DietDto } from '../api/types'
+import type { DietDto, MealDto } from '../api/types'
 
 interface Props {
   patientId: string
+}
+
+/** Normaliza "8:00", "08:00:00" o ISO a "HH:mm"; null si no hay hora válida. */
+function formatTime(value?: string | null): string | null {
+  if (!value) return null
+  const m = /(\d{1,2}):(\d{2})/.exec(value)
+  if (!m) return null
+  return `${m[1].padStart(2, '0')}:${m[2]}`
+}
+
+function sortMeals(meals: MealDto[]): MealDto[] {
+  return [...meals].sort((a, b) => {
+    const bySort = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    if (bySort !== 0) return bySort
+    const ta = formatTime(a.scheduledTime) ?? '99:99'
+    const tb = formatTime(b.scheduledTime) ?? '99:99'
+    return ta.localeCompare(tb)
+  })
+}
+
+const r0 = (n?: number) => Math.round(n ?? 0)
+
+function MacroLine({ kcal, p, c, g }: { kcal?: number; p?: number; c?: number; g?: number }) {
+  return (
+    <span className="diet-meal-macros">
+      <strong>{r0(kcal)} kcal</strong>
+      <span>P {r0(p)}g</span>
+      <span>C {r0(c)}g</span>
+      <span>G {r0(g)}g</span>
+    </span>
+  )
+}
+
+function MealPlan({ meals }: { meals: MealDto[] }) {
+  return (
+    <div style={{ marginBottom: '1.25rem' }}>
+      <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
+        Plan de comidas
+      </h4>
+      {meals.length === 0 ? (
+        <p className="diet-meal-empty">Aún no se han definido las comidas de esta dieta.</p>
+      ) : (
+        <div className="diet-meals">
+          {sortMeals(meals).map((meal) => {
+            const time = formatTime(meal.scheduledTime)
+            const items = meal.items ?? []
+            return (
+              <section key={meal.id} className="diet-meal" aria-label={meal.name}>
+                <header className="diet-meal-head">
+                  <div className="diet-meal-title">
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      {time ? 'schedule' : 'restaurant'}
+                    </span>
+                    <strong>{meal.name}</strong>
+                    {time && <span className="diet-meal-time">{time}</span>}
+                  </div>
+                  <MacroLine kcal={meal.calories} p={meal.protein} c={meal.carbohydrates} g={meal.fat} />
+                </header>
+                {meal.instructions && <p className="diet-meal-instructions">{meal.instructions}</p>}
+                {items.length === 0 ? (
+                  <p className="diet-meal-empty">Sin alimentos asignados</p>
+                ) : (
+                  <ul className="diet-meal-items">
+                    {items.map((it) => (
+                      <li key={it.id}>
+                        <span className="diet-meal-food">
+                          {it.foodName}
+                          <span className="diet-meal-qty">
+                            {' '}
+                            · {it.quantity} {it.unit}
+                          </span>
+                        </span>
+                        <MacroLine kcal={it.calories} p={it.protein} c={it.carbohydrates} g={it.fat} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function pct(value: number, goal?: number) {
@@ -140,6 +224,9 @@ export default function DietDashboard({ patientId }: Props) {
           })}
         </div>
       </div>
+
+      {/* Plan de comidas */}
+      <MealPlan meals={diet.meals ?? []} />
 
       {/* Micronutrientes */}
       <div style={{ marginBottom: '1.25rem' }}>

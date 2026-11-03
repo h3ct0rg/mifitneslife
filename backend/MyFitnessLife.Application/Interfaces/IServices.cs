@@ -27,7 +27,7 @@ public interface IUserManagementService
 {
     Task<InviteUserResponse> InviteUserAsync(Guid inviterId, Guid tenantId, InviteUserRequest request);
     Task AcceptInvitationAsync(Guid userId, AcceptInvitationRequest request);
-    Task UpdateUserRoleAsync(Guid actorId, UpdateUserRoleRequest request);
+    Task UpdateUserRoleAsync(Guid actorId, Guid tenantId, UpdateUserRoleRequest request);
     Task<IEnumerable<UserListItemDto>> GetTenantUsersAsync(Guid tenantId);
     Task<UserDto> GetUserByIdAsync(Guid id);
     Task<IEnumerable<InvitationDto>> GetInvitationsAsync(Guid tenantId);
@@ -40,8 +40,18 @@ public interface ISuperAdminService
 {
     Task<AdminDashboardDto> GetDashboardAsync();
     Task<IEnumerable<TenantDto>> GetTenantsAsync();
+    Task<TenantDto> GetTenantAsync(Guid id);
     Task<TenantDto> CreateTenantAsync(CreateTenantRequest request);
+    Task<TenantDto> UpdateTenantAsync(Guid id, UpdateTenantRequest request);
     Task<IEnumerable<TenantActivityDto>> GetTenantActivityAsync(Guid tenantId);
+    Task<PagedResult<AdminUserDto>> GetUsersAsync(string? search, Guid? tenantId, string? role, int page, int pageSize);
+    Task<AdminUserDto> CreateUserAsync(CreateAdminUserRequest request);
+    Task<AdminUserDto> UpdateUserAsync(Guid actorId, Guid id, UpdateAdminUserRequest request);
+    Task<AdminUserDto> AssignUserAsync(Guid actorId, Guid id, AssignUserRequest request);
+    Task<TenantDeleteImpactDto> GetTenantDeleteImpactAsync(Guid id);
+    Task DeleteTenantAsync(Guid actorId, Guid id);
+    Task<UserDeleteImpactDto> GetUserDeleteImpactAsync(Guid id);
+    Task DeleteUserAsync(Guid actorId, Guid id);
 }
 
 public interface ITenantActivityService
