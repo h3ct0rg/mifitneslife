@@ -50,6 +50,58 @@ public class LoginSelectionToken
     public DateTime ExpiresAt { get; set; }
     public DateTime? UsedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Método del login que originó la selección (para registrar el LoginEvent al completarla).</summary>
+    public LoginMethod? Method { get; set; }
+}
+
+/// <summary>Plan de suscripción de un tenant (cobro manual). No se borra: se desactiva.</summary>
+public class SubscriptionPlan : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public int DurationDays { get; set; }
+    public decimal PriceUsd { get; set; }
+    /// <summary>Plan de prueba del sistema: único, se asigna a todo tenant nuevo y no se puede desactivar.</summary>
+    public bool IsTrial { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+}
+
+/// <summary>
+/// Historial de suscripciones de un tenant. Nombre y precio son una copia (snapshot) del plan al asignarlo.
+/// La vigente es la de mayor StartsAt ≤ ahora.
+/// </summary>
+public class TenantSubscription
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid PlanId { get; set; }
+    public string PlanName { get; set; } = string.Empty;
+    public decimal PriceUsd { get; set; }
+    public DateTime StartsAt { get; set; }
+    public DateTime EndsAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Usuario (SuperAdmin) que la asignó; null = sistema (alta del tenant / migración).</summary>
+    public Guid? CreatedBy { get; set; }
+    public string? Note { get; set; }
+
+    public Tenant? Tenant { get; set; }
+    public SubscriptionPlan? Plan { get; set; }
+}
+
+/// <summary>Evento de conexión (login o sesión retomada). Sin datos de ubicación (U7).</summary>
+public class LoginEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserId { get; set; }
+    public Guid? TenantId { get; set; }
+    public Guid? MembershipId { get; set; }
+    public UserRole Role { get; set; }
+    public LoginMethod Method { get; set; }
+    public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
+    public string? UserAgent { get; set; }
+
+    public ApplicationUser? User { get; set; }
+    public Tenant? Tenant { get; set; }
 }
 
 public class ApplicationRole : IdentityRole<Guid>

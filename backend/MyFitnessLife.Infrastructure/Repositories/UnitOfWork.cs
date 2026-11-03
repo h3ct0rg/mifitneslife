@@ -29,7 +29,14 @@ public class UnitOfWork : IUnitOfWork
         Dashboard = new DashboardRepository(context);
         Memberships = new MembershipRepository(context);
         SelectionTokens = new LoginSelectionTokenRepository(context);
+        SubscriptionPlans = new SubscriptionPlanRepository(context);
+        TenantSubscriptions = new TenantSubscriptionRepository(context);
+        LoginEvents = new LoginEventRepository(context);
     }
+
+    public ISubscriptionPlanRepository SubscriptionPlans { get; }
+    public ITenantSubscriptionRepository TenantSubscriptions { get; }
+    public ILoginEventRepository LoginEvents { get; }
 
     public IMembershipRepository Memberships { get; }
     public ILoginSelectionTokenRepository SelectionTokens { get; }

@@ -61,6 +61,14 @@ internal static class MembershipHelper
                 ?? throw new UnauthorizedAccessException("El perfil de la sesión ya no está disponible.")
             : ResolveDefault(user, usable);
 
+        // AC-8: suscripción del tenant actual (null sin tenant, p. ej. SuperAdmin). Se lee de BD, sin caché.
+        UserSubscriptionDto? subscription = null;
+        if (current?.TenantId is { } tenantId)
+        {
+            var now = DateTime.UtcNow;
+            subscription = SubscriptionHelper.ToUserDto(await unitOfWork.TenantSubscriptions.GetCurrentAsync(tenantId, now), now);
+        }
+
         return new UserDto(
             user.Id,
             user.FirstName,
@@ -71,6 +79,9 @@ internal static class MembershipHelper
             user.Status.ToString(),
             user.FullName,
             current?.Id,
-            usable.Select(ToDto).ToList());
+            usable.Select(ToDto).ToList())
+        {
+            Subscription = subscription
+        };
     }
 }

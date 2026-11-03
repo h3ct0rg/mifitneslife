@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext'
 import { roleLabel, type UserDto } from '../api/types'
 import { patientsApi } from '../api'
 import { membershipTenant } from './membershipUtils'
+import { SubscriptionBanner, SubscriptionLockScreen } from './SubscriptionNotice'
 
 /** Contexto que Layout pasa a las rutas hijas. `undefined` = cargando, `null` = sin ficha. */
 export type ShellOutletContext = { myPatientId: string | null | undefined }
@@ -45,7 +46,12 @@ const SUPER_ADMIN_NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: 'monitoring', end: true },
   { to: '/admin/tenants', label: 'Tenants', icon: 'domain' },
   { to: '/admin/usuarios', label: 'Usuarios', icon: 'manage_accounts' },
+  { to: '/admin/planes', label: 'Planes', icon: 'workspace_premium' },
+  { to: '/admin/conexiones', label: 'Conexiones', icon: 'travel_explore' },
 ]
+
+// En la bottom-nav del SuperAdmin, Planes y Conexiones van en la hoja "Más" (máx. 4-5 ítems).
+const SUPER_ADMIN_MORE_NAV = SUPER_ADMIN_NAV.filter((i) => i.to === '/admin/planes' || i.to === '/admin/conexiones')
 
 // Claves `?tab=` de PatientProfile; en móvil el paciente navega su ficha con la bottom-nav.
 const PATIENT_TABS = [
@@ -72,6 +78,8 @@ const ROUTE_TITLES: [RegExp, string][] = [
   [/^\/configuracion\/whatsapp$/, 'WhatsApp'],
   [/^\/admin\/tenants$/, 'Tenants'],
   [/^\/admin\/usuarios$/, 'Usuarios'],
+  [/^\/admin\/planes$/, 'Planes'],
+  [/^\/admin\/conexiones$/, 'Conexiones'],
 ]
 
 function initialsOf(user: UserDto): string {
@@ -212,7 +220,7 @@ function SheetLinks({ title, items, onNavigate }: { title?: string; items: NavIt
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user, logout, subscriptionLocked } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
@@ -244,6 +252,9 @@ export default function Layout() {
   }, [isPatient, membershipId])
 
   if (!user) return null
+
+  // AC-9: staff con la suscripción del centro vencida → sin shell ni navegación clínica.
+  if (subscriptionLocked) return <SubscriptionLockScreen />
 
   const myPatientId: string | null | undefined = !isPatient
     ? null
@@ -298,11 +309,14 @@ export default function Layout() {
       {
         kind: 'sheet',
         key: 'account',
-        label: 'Cuenta',
-        icon: 'account_circle',
-        title: 'Cuenta',
-        render: () => (
+        label: 'Más',
+        icon: 'more_horiz',
+        title: 'Más',
+        active: SUPER_ADMIN_MORE_NAV.some((i) => pathname.startsWith(i.to)),
+        render: (close) => (
           <>
+            <SheetLinks items={SUPER_ADMIN_MORE_NAV} onNavigate={close} />
+            <hr className="menu-divider" />
             <AccountSummary user={user} />
             <AppearancePicker />
             <hr className="menu-divider" />
@@ -422,6 +436,7 @@ export default function Layout() {
         </header>
 
         <main className="app-content">
+          <SubscriptionBanner />
           {/* key: al cambiar de membresía se remonta la página para no mostrar datos de otro tenant/rol. */}
           <Fragment key={user.membershipId ?? 'default'}>
             <Outlet context={outletContext} />

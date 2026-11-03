@@ -427,6 +427,179 @@
 }
 
 /* ==========================================================================
+   Planes y suscripción del tenant (AC-5/AC-6)
+   ========================================================================== */
+.admin-plan-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: inherit;
+}
+
+.admin-subscription {
+  margin-top: var(--sp-6);
+}
+
+.admin-subscription-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.admin-subscription-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.admin-subscription-change {
+  display: flex;
+  flex: 1 1 280px;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.admin-subscription-change select {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.admin-subscription-history-title {
+  margin: var(--sp-5) 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-2);
+}
+
+@media (max-width: 640px) {
+  .admin-subscription-actions > *,
+  .admin-subscription-change {
+    flex: 1 1 100%;
+  }
+
+  .admin-subscription-change {
+    flex-direction: column;
+  }
+}
+
+/* ==========================================================================
+   Conexiones (AC-14)
+   ========================================================================== */
+@media (min-width: 641px) {
+  .admin-filters--connections {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+.admin-date-range {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.admin-date-range input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.admin-head .admin-count {
+  margin: 0;
+}
+
+.admin-chart-table {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+.admin-chart-table summary {
+  cursor: pointer;
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  color: var(--color-primary-text);
+  font-weight: var(--fw-semibold);
+}
+
+.admin-chart-table summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.admin-chart-bar:hover path {
+  opacity: 0.8;
+}
+
+/* Serie diaria: SVG en píxeles reales del contenedor (ancho completo, sin escalar el texto). */
+.admin-chart--daily svg {
+  max-height: none;
+}
+
+.admin-connections-list {
+  margin-top: var(--sp-5);
+}
+
+/* ==========================================================================
+   Avisos de suscripción en el shell y pantalla de bloqueo (AC-9)
+   ========================================================================== */
+.subscription-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+}
+
+.subscription-banner > span:not(.material-symbols-outlined) {
+  flex: 1;
+  min-width: 0;
+}
+
+.subscription-banner--warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+}
+
+.subscription-banner--info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.subscription-banner .subscription-banner-close {
+  color: inherit;
+  flex: none;
+}
+
+.subscription-lock-icon {
+  display: grid;
+  place-items: center;
+}
+
+.subscription-lock-retry {
+  margin-bottom: var(--sp-2);
+}
+
+.subscription-lock-text {
+  margin: 0 0 var(--sp-4);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+/* ==========================================================================
    Checkbox con etiqueta
    ========================================================================== */
 .admin-check {

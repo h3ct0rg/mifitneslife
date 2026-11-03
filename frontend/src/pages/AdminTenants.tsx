@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { adminApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { TenantActivityDto, TenantDto } from '../api/types'
+import type {
+  PlanDto,
+  SubscriptionSummaryDto,
+  TenantActivityDto,
+  TenantDto,
+  TenantSubscriptionDto,
+} from '../api/types'
+import {
+  SUBSCRIPTION_STATUS_BADGE,
+  SUBSCRIPTION_STATUS_LABELS,
+  fmtShortDate,
+  fmtUsd,
+} from '../utils/subscription'
 import Modal, { ConfirmModal, DeleteConfirmModal } from '../components/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import StateView from '../components/ui/StateView'
@@ -35,19 +48,250 @@ const fmtDate =(iso?: string | null, withTime = false) =>
       })
     : '—'
 
-/** Hoja de crear/editar tenant. En edición incluye activar/desactivar y eliminar. */
+/** Badge de estado de suscripción (AC-5). */
+function SubscriptionBadge({ sub }: { sub?: SubscriptionSummaryDto | null }) {
+  const status = sub?.status ?? 'None'
+  return <span className={`badge ${SUBSCRIPTION_STATUS_BADGE[status]}`}>{SUBSCRIPTION_STATUS_LABELS[status]}</span>
+}
+
+function daysLeftText(sub: SubscriptionSummaryDto): string {
+  if (sub.status === 'Expired') return `venció el ${fmtShortDate(sub.endsAt)}`
+  const d = sub.daysLeft
+  return `vence el ${fmtShortDate(sub.endsAt)}${d <= 0 ? ' (hoy)' : d === 1 ? ' (mañana)' : ` (en ${d} días)`}`
+}
+
+const addDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
+
+type PendingAction = { kind: 'renew' | 'change'; plan: PlanDto }
+
+/**
+ * AC-6: sección Suscripción del editor de tenant: plan vigente, historial y acciones
+ * Reiniciar (mismo plan desde ahora) y Cambiar plan (otro plan activo desde ahora), con confirmación.
+ */
+function TenantSubscriptionSection({ tenant, onChanged }: { tenant: TenantDto; onChanged: () => void }) {
+  const ids = useId()
+  const toast = useToast()
+  const [summary, setSummary] = useState<SubscriptionSummaryDto | null>(tenant.subscription ?? null)
+  const [history, setHistory] = useState<TenantSubscriptionDto[] | null>(null)
+  const [plans, setPlans] = useState<PlanDto[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [newPlanId, setNewPlanId] = useState('')
+  const [note, setNote] = useState('')
+  const [pending, setPending] = useState<PendingAction | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setHistory(await adminApi.tenantSubscriptions(tenant.id))
+    } catch (err) {
+      setError(getErrorMessage(err))
+      setHistory([])
+    }
+  }, [tenant.id])
+
+  useEffect(() => {
+    loadHistory()
+    adminApi
+      .plans()
+      .then((p) => setPlans([...p].sort((a, b) => a.sortOrder - b.sortOrder)))
+      .catch((err) => setError(getErrorMessage(err)))
+  }, [loadHistory])
+
+  const currentPlan = summary ? plans.find((p) => p.id === summary.planId) : undefined
+  const changeOptions = plans.filter((p) => p.isActive && p.id !== summary?.planId)
+  const canRenew = !!currentPlan && currentPlan.isActive
+
+  const apply = async () => {
+    if (!pending) return
+    setBusy(true)
+    try {
+      const res = await adminApi.assignSubscription(tenant.id, {
+        planId: pending.plan.id,
+        note: note.trim() || undefined,
+      })
+      setSummary(res)
+      toast.success(
+        pending.kind === 'renew'
+          ? `Plan "${res.planName}" reiniciado: vence el ${fmtShortDate(res.endsAt)}.`
+          : `Plan cambiado a "${res.planName}": vence el ${fmtShortDate(res.endsAt)}.`,
+      )
+      setPending(null)
+      setNewPlanId('')
+      setNote('')
+      loadHistory()
+      onChanged()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+      setPending(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const confirmMessage = pending
+    ? `${pending.kind === 'renew' ? `¿Reiniciar el plan "${pending.plan.name}"` : `¿Cambiar el plan a "${pending.plan.name}"`} para "${tenant.name}"? ` +
+      `Inicia ahora y vence el ${fmtShortDate(addDays(pending.plan.durationDays))} (${pending.plan.durationDays} días, ${fmtUsd(pending.plan.priceUsd)}). ` +
+      'Se agregará una fila al historial.'
+    : ''
+
+  return (
+    <div className="admin-subscription">
+      <h3 className="admin-section-title">Suscripción</h3>
+      {error && (
+        <div className="alert err" role="alert">
+          {error}
+        </div>
+      )}
+      <div className="admin-subscription-current">
+        <div className="admin-person-text">
+          <strong>{summary?.planName ?? 'Sin plan asignado'}</strong>
+          <span className="admin-sub">{summary ? daysLeftText(summary) : 'El centro no tiene una suscripción vigente.'}</span>
+        </div>
+        <SubscriptionBadge sub={summary} />
+      </div>
+
+      <div className="field">
+        <label htmlFor={`${ids}-note`}>Nota (opcional)</label>
+        <input
+          id={`${ids}-note`}
+          value={note}
+          maxLength={500}
+          onChange={(e) => setNote(e.target.value)}
+          // Enter no debe enviar el formulario del tenant que envuelve esta sección.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.preventDefault()
+          }}
+          placeholder="Ej.: pago recibido por transferencia"
+        />
+      </div>
+
+      <div className="admin-subscription-actions">
+        <button
+          type="button"
+          className="btn btn--secondary"
+          disabled={!canRenew || busy}
+          onClick={() => currentPlan && setPending({ kind: 'renew', plan: currentPlan })}
+          title={
+            canRenew
+              ? 'Inicia de nuevo el mismo plan desde ahora'
+              : summary
+                ? 'El plan actual está inactivo: usa Cambiar plan'
+                : 'No hay plan que reiniciar'
+          }
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">
+            restart_alt
+          </span>
+          Reiniciar
+        </button>
+        <div className="admin-subscription-change">
+          <select
+            value={newPlanId}
+            onChange={(e) => setNewPlanId(e.target.value)}
+            aria-label="Nuevo plan"
+            disabled={busy || changeOptions.length === 0}
+          >
+            <option value="">{changeOptions.length === 0 ? 'No hay otros planes activos' : 'Elegir otro plan…'}</option>
+            {changeOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.durationDays} días · {fmtUsd(p.priceUsd)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={!newPlanId || busy}
+            onClick={() => {
+              const plan = changeOptions.find((p) => p.id === newPlanId)
+              if (plan) setPending({ kind: 'change', plan })
+            }}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              swap_horiz
+            </span>
+            Cambiar plan
+          </button>
+        </div>
+      </div>
+
+      <h4 className="admin-subscription-history-title">Historial</h4>
+      {history === null ? (
+        <StateView state="loading" compact title="Cargando historial..." />
+      ) : history.length === 0 ? (
+        <StateView state="empty" compact icon="history" title="Sin suscripciones registradas" />
+      ) : (
+        <div className="table-scroll">
+          <table className="table table--stack admin-table">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Precio</th>
+                <th>Asignado por</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((h) => (
+                <tr key={h.id}>
+                  <td className="admin-cell-title">
+                    <span className="admin-person-text">
+                      <strong>{h.planName}</strong>
+                      {h.note && <span className="admin-sub">{h.note}</span>}
+                    </span>
+                  </td>
+                  <td data-label="Desde" className="admin-nowrap">
+                    {fmtShortDate(h.startsAt)}
+                  </td>
+                  <td data-label="Hasta" className="admin-nowrap">
+                    {fmtShortDate(h.endsAt)}
+                  </td>
+                  <td data-label="Precio" className="admin-nowrap">
+                    {fmtUsd(h.priceUsd)}
+                  </td>
+                  <td data-label="Asignado por" title={fmtDate(h.createdAt, true)}>
+                    {h.createdByName || 'Sistema'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Portal: la confirmación no queda anidada dentro del <form> ni del diálogo del editor. */}
+      {pending &&
+        createPortal(
+        <ConfirmModal
+          title={pending.kind === 'renew' ? 'Reiniciar plan' : 'Cambiar plan'}
+          message={confirmMessage}
+          confirmLabel={pending.kind === 'renew' ? 'Reiniciar' : 'Cambiar plan'}
+          busy={busy}
+          onConfirm={apply}
+          onCancel={() => setPending(null)}
+        />,
+          document.body,
+        )}
+    </div>
+  )
+}
+
+/** Hoja de crear/editar tenant. En edición incluye suscripción, activar/desactivar y eliminar. */
 function TenantForm({
   tenant,
   onSaved,
   onCancel,
   onToggle,
   onDelete,
+  onSubscriptionChanged,
 }: {
   tenant: TenantDto | null
   onSaved: (t: TenantDto) => void
   onCancel: () => void
   onToggle: (t: TenantDto) => void
   onDelete: (t: TenantDto) => void
+  onSubscriptionChanged: () => void
 }) {
   const ids = useId()
   const [values, setValues] = useState<TenantFormValues>({
@@ -84,7 +328,7 @@ function TenantForm({
   }
 
   return (
-    <Modal title={tenant ? 'Editar tenant' : 'Crear tenant'} onClose={onCancel}>
+    <Modal title={tenant ? 'Editar tenant' : 'Crear tenant'} onClose={onCancel} className={tenant ? 'modal-wide' : undefined}>
       {error && (
         <div className="alert err" role="alert">
           {error}
@@ -127,6 +371,8 @@ function TenantForm({
             onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
           />
         </div>
+
+        {tenant && <TenantSubscriptionSection tenant={tenant} onChanged={onSubscriptionChanged} />}
 
         {tenant && (
           <div className="admin-danger-zone">
@@ -345,6 +591,7 @@ export default function AdminTenants() {
                   <th>Nombre</th>
                   <th>Slug</th>
                   <th>Estado</th>
+                  <th>Plan</th>
                   <th>Usuarios</th>
                   <th>Pacientes</th>
                   <th>Creado</th>
@@ -371,6 +618,20 @@ export default function AdminTenants() {
                         {t.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+                    <td data-label="Plan">
+                      <span className="admin-plan-cell">
+                        <span className="admin-person-text">
+                          <strong>{t.subscription?.planName ?? 'Sin plan'}</strong>
+                          {t.subscription && (
+                            <span className="admin-sub admin-nowrap">
+                              {t.subscription.status === 'Expired' ? 'Venció' : 'Vence'}{' '}
+                              {fmtShortDate(t.subscription.endsAt)}
+                            </span>
+                          )}
+                        </span>
+                        <SubscriptionBadge sub={t.subscription} />
+                      </span>
+                    </td>
                     <td data-label="Usuarios">{t.userCount}</td>
                     <td data-label="Pacientes">{t.patientCount ?? 0}</td>
                     <td data-label="Creado" className="admin-nowrap">
@@ -394,7 +655,7 @@ export default function AdminTenants() {
                           className="btn btn--icon"
                           onClick={() => setEditing(t)}
                           aria-label={`Editar ${t.name}`}
-                          title="Editar, activar/desactivar o eliminar"
+                          title="Editar, suscripción, activar/desactivar o eliminar"
                         >
                           <span className="material-symbols-outlined" aria-hidden="true">
                             edit
@@ -417,6 +678,7 @@ export default function AdminTenants() {
           onCancel={() => setEditing(undefined)}
           onToggle={requestToggle}
           onDelete={requestDelete}
+          onSubscriptionChanged={load}
         />
       )}
 

@@ -18,19 +18,22 @@ public class AuthService : IAuthService
     private readonly IGoogleAuthService _googleAuthService;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITenantActivityService _activityService;
+    private readonly ILoginEventRecorder _loginEvents;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         ITokenService tokenService,
         IGoogleAuthService googleAuthService,
         IPasswordHasher passwordHasher,
-        ITenantActivityService activityService)
+        ITenantActivityService activityService,
+        ILoginEventRecorder loginEvents)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
         _googleAuthService = googleAuthService;
         _passwordHasher = passwordHasher;
         _activityService = activityService;
+        _loginEvents = loginEvents;
     }
 
     // ───────────────────────────── Login ─────────────────────────────
@@ -48,7 +51,7 @@ public class AuthService : IAuthService
         user.UpdatedAt = DateTime.UtcNow;
         await _unitOfWork.SaveChangesAsync();
 
-        return await CompleteLoginAsync(user);
+        return await CompleteLoginAsync(user, LoginMethod.Password);
     }
 
     public async Task<LoginResult> GoogleLoginAsync(GoogleLoginRequest request)
@@ -137,7 +140,7 @@ public class AuthService : IAuthService
             await _unitOfWork.SaveChangesAsync();
         }
 
-        return await CompleteLoginAsync(user);
+        return await CompleteLoginAsync(user, LoginMethod.Google);
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -202,7 +205,7 @@ public class AuthService : IAuthService
         await MembershipHelper.SyncIdentityRolesAsync(_unitOfWork, user.Id);
         await _unitOfWork.SaveChangesAsync();
 
-        return await IssueAsync(user, membership, recordLogin: true);
+        return await IssueAsync(user, membership, LoginMethod.Register);
     }
 
     // ───────────────────────────── Membresías ─────────────────────────────
@@ -214,15 +217,18 @@ public class AuthService : IAuthService
 
         // Un solo uso, atómico: se consume antes de validar la membresía (un intento fallido obliga
         // a reloguear) y dos peticiones simultáneas no pueden canjear el mismo token.
-        var userId = await _unitOfWork.SelectionTokens.TryConsumeAsync(Hash(request.SelectionToken), DateTime.UtcNow)
+        var tokenHash = Hash(request.SelectionToken);
+        var userId = await _unitOfWork.SelectionTokens.TryConsumeAsync(tokenHash, DateTime.UtcNow)
             ?? throw new UnauthorizedAccessException("Token de selección inválido o expirado.");
+        // Método del login original (password/Google) para el LoginEvent; tokens previos → Password.
+        var method = (await _unitOfWork.SelectionTokens.GetByHashAsync(tokenHash))?.Method ?? LoginMethod.Password;
 
         var user = await _unitOfWork.Users.GetByIdAsync(userId);
         if (user is null || user.Status is not UserStatus.Active)
             throw new UnauthorizedAccessException("Usuario no encontrado o desactivado.");
 
         var membership = await RequireUsableMembershipAsync(user.Id, request.MembershipId);
-        return await IssueAsync(user, membership, recordLogin: true);
+        return await IssueAsync(user, membership, method);
     }
 
     public async Task<AuthResponse> SwitchMembershipAsync(Guid userId, Guid? currentMembershipId, SwitchMembershipRequest request)
@@ -249,7 +255,7 @@ public class AuthService : IAuthService
         if (!revoked)
             await _unitOfWork.RefreshTokens.RevokeForMembershipAsync(user.Id, currentMembershipId, "switched_membership");
 
-        return await IssueAsync(user, membership, recordLogin: false);
+        return await IssueAsync(user, membership, loginMethod: null);
     }
 
     public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
@@ -276,6 +282,9 @@ public class AuthService : IAuthService
         var tokens = await _tokenService.CreateTokenPairAsync(user.Id, membership.Id);
         await _unitOfWork.SaveChangesAsync();
 
+        // AC-11: un evento Session por usuario y día UTC (usuarios que vuelven sin re-loguear).
+        await _loginEvents.RecordSessionIfFirstTodayAsync(user.Id, membership);
+
         return new AuthResponse(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresAt,
             await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, membership.Id));
     }
@@ -296,7 +305,7 @@ public class AuthService : IAuthService
     // ───────────────────────────── Helpers ─────────────────────────────
 
     /// <summary>D4: 1 membresía utilizable → tokens; >1 → selección; 0 → 403.</summary>
-    private async Task<LoginResult> CompleteLoginAsync(ApplicationUser user)
+    private async Task<LoginResult> CompleteLoginAsync(ApplicationUser user, LoginMethod method)
     {
         var usable = await _unitOfWork.Memberships.GetByUserAsync(user.Id, usableOnly: true);
 
@@ -304,14 +313,15 @@ public class AuthService : IAuthService
             throw new ForbiddenException("No tienes ningún perfil activo. Contacta al administrador.");
 
         if (usable.Count == 1)
-            return new LoginResult { Auth = await IssueAsync(user, usable[0], recordLogin: true) };
+            return new LoginResult { Auth = await IssueAsync(user, usable[0], method) };
 
         var rawToken = GenerateSelectionToken();
         await _unitOfWork.SelectionTokens.AddAsync(new LoginSelectionToken
         {
             UserId = user.Id,
             TokenHash = Hash(rawToken),
-            ExpiresAt = DateTime.UtcNow.Add(SelectionTokenLifetime)
+            ExpiresAt = DateTime.UtcNow.Add(SelectionTokenLifetime),
+            Method = method
         });
         await _unitOfWork.SaveChangesAsync();
 
@@ -326,17 +336,24 @@ public class AuthService : IAuthService
         };
     }
 
-    /// <summary>Emite tokens para la membresía, actualiza LastUsedAt y el espejo (D3).</summary>
-    private async Task<AuthResponse> IssueAsync(ApplicationUser user, UserMembership membership, bool recordLogin)
+    /// <summary>
+    /// Emite tokens para la membresía, actualiza LastUsedAt y el espejo (D3). Con loginMethod
+    /// (login completado) registra la actividad y el LoginEvent (AC-11); null = cambio de perfil.
+    /// </summary>
+    private async Task<AuthResponse> IssueAsync(ApplicationUser user, UserMembership membership, LoginMethod? loginMethod)
     {
         membership.LastUsedAt = DateTime.UtcNow;
         MembershipHelper.ApplyMirror(user, membership);
         await _unitOfWork.SaveChangesAsync();
 
         var tokens = await _tokenService.CreateTokenPairAsync(user.Id, membership.Id);
-        if (recordLogin)
+        if (loginMethod.HasValue)
             await _activityService.RecordLoginAsync(membership.TenantId, user.Email ?? string.Empty);
         await _unitOfWork.SaveChangesAsync();
+
+        // Después del último SaveChanges: guarda solo el evento y nunca lanza.
+        if (loginMethod.HasValue)
+            await _loginEvents.RecordAsync(user.Id, membership, loginMethod.Value);
 
         return new AuthResponse(tokens.AccessToken, tokens.RefreshToken, tokens.ExpiresAt,
             await MembershipHelper.BuildUserDtoAsync(_unitOfWork, user, membership.Id));
@@ -396,6 +413,8 @@ public class AuthService : IAuthService
             OwnedBy = ownerId
         };
         await _unitOfWork.Tenants.AddAsync(tenant);
+        // AC-3: todo tenant nuevo arranca con el plan de prueba.
+        await SubscriptionHelper.StartTrialAsync(_unitOfWork, tenant.Id);
         return tenant;
     }
 

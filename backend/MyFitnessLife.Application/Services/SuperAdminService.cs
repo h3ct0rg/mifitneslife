@@ -146,10 +146,12 @@ public class SuperAdminService : ISuperAdminService
         };
 
         await _unitOfWork.Tenants.AddAsync(tenant);
+        // AC-3: el tenant nuevo arranca con el plan de prueba.
+        var trial = await SubscriptionHelper.StartTrialAsync(_unitOfWork, tenant.Id);
         await _activityService.RecordCreateTenantAsync(tenant.Id, tenant.Name);
         await _unitOfWork.SaveChangesAsync();
 
-        return ToTenantDto(tenant, 0, 0, 0);
+        return ToTenantDto(tenant, 0, 0, 0, trial is null ? null : SubscriptionHelper.ToSummary(trial, DateTime.UtcNow));
     }
 
     public async Task<TenantDto> UpdateTenantAsync(Guid id, UpdateTenantRequest request)
@@ -484,19 +486,22 @@ public class SuperAdminService : ISuperAdminService
         var userCounts = await _unitOfWork.Users.CountGroupedByTenantAsync();
         var patientCounts = await _unitOfWork.Patients.CountGroupedByTenantAsync();
         var activeCounts = await _unitOfWork.Users.CountLoggedInSinceGroupedByTenantAsync(DateTime.UtcNow.AddDays(-30));
+        var now = DateTime.UtcNow;
+        var subscriptions = await _unitOfWork.TenantSubscriptions.GetCurrentByTenantAsync(now);
 
         return tenants.Select(t => ToTenantDto(
                 t,
                 userCounts.GetValueOrDefault(t.Id),
                 patientCounts.GetValueOrDefault(t.Id),
-                activeCounts.GetValueOrDefault(t.Id)))
+                activeCounts.GetValueOrDefault(t.Id),
+                subscriptions.TryGetValue(t.Id, out var sub) ? SubscriptionHelper.ToSummary(sub, now) : null))
             .ToList();
     }
 
     private async Task<TenantDto> BuildTenantDtoAsync(Tenant tenant)
         => (await BuildTenantDtosAsync([tenant]))[0];
 
-    private static TenantDto ToTenantDto(Tenant t, int userCount, int patientCount, int activeLast30)
+    private static TenantDto ToTenantDto(Tenant t, int userCount, int patientCount, int activeLast30, SubscriptionSummaryDto? subscription)
         => new()
         {
             Id = t.Id,
@@ -509,7 +514,8 @@ public class SuperAdminService : ISuperAdminService
             PatientCount = patientCount,
             ActiveUsersLast30Days = activeLast30,
             LastActivityAt = t.UpdatedAt,
-            CreatedAt = t.CreatedAt
+            CreatedAt = t.CreatedAt,
+            Subscription = subscription
         };
 
     /// <summary>role/tenant = membresía por defecto (espejo D3) para compatibilidad; memberships = todas.</summary>

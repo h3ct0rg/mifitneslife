@@ -23,6 +23,13 @@ public static class DependencyInjection
         services.AddScoped<IWorkoutPlanService, WorkoutPlanService>();
         services.AddScoped<IPatientPhotoService, PatientPhotoService>();
 
+        // Suscripciones de tenants y conexiones (SuperAdmin).
+        services.AddSingleton<SubscriptionCache>();
+        services.AddScoped<ISubscriptionGate, SubscriptionGate>();
+        services.AddScoped<ISubscriptionService, SubscriptionService>();
+        services.AddScoped<IConnectionService, ConnectionService>();
+        services.AddScoped<ILoginEventRecorder, LoginEventRecorder>();
+
         return services;
     }
 }

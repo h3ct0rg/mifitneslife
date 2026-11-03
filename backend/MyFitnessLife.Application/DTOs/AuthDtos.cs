@@ -44,7 +44,21 @@ public record UserDto(
     string Status,
     string FullName,
     Guid? MembershipId,
-    IReadOnlyList<MembershipDto> Memberships);
+    IReadOnlyList<MembershipDto> Memberships)
+{
+    /// <summary>Suscripción del tenant de la membresía actual; null si la membresía no tiene tenant (SuperAdmin).</summary>
+    public UserSubscriptionDto? Subscription { get; init; }
+}
+
+/// <summary>Estado de la suscripción del tenant actual. Status: Active | ExpiringSoon | Expired | None.</summary>
+public class UserSubscriptionDto
+{
+    /// <summary>null si el tenant no tiene ninguna suscripción (Status = None).</summary>
+    public string? PlanName { get; set; }
+    public DateTime? EndsAt { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int DaysLeft { get; set; }
+}
 
 public class MembershipDto
 {

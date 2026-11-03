@@ -16,10 +16,17 @@ namespace MyFitnessLife.API.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly ISuperAdminService _superAdminService;
+    private readonly ISubscriptionService _subscriptionService;
+    private readonly IConnectionService _connectionService;
 
-    public AdminController(ISuperAdminService superAdminService)
+    public AdminController(
+        ISuperAdminService superAdminService,
+        ISubscriptionService subscriptionService,
+        IConnectionService connectionService)
     {
         _superAdminService = superAdminService;
+        _subscriptionService = subscriptionService;
+        _connectionService = connectionService;
     }
 
     [HttpGet("dashboard")]
@@ -62,6 +69,73 @@ public class AdminController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<TenantActivityDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTenantActivity(Guid tenantId)
         => Ok(await _superAdminService.GetTenantActivityAsync(tenantId));
+
+    // ───────────── Planes y suscripciones ─────────────
+
+    [HttpGet("plans")]
+    [ProducesResponseType(typeof(IEnumerable<PlanDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPlans()
+        => Ok(await _subscriptionService.GetPlansAsync());
+
+    [HttpPost("plans")]
+    [ProducesResponseType(typeof(PlanDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public Task<IActionResult> CreatePlan([FromBody] SavePlanRequest request)
+        => Execute(async () => StatusCode(StatusCodes.Status201Created, await _subscriptionService.CreatePlanAsync(request)));
+
+    [HttpPut("plans/{id:guid}")]
+    [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status409Conflict)]
+    public Task<IActionResult> UpdatePlan(Guid id, [FromBody] SavePlanRequest request)
+        => Execute(async () => Ok(await _subscriptionService.UpdatePlanAsync(id, request)));
+
+    [HttpGet("tenants/{id:guid}/subscriptions")]
+    [ProducesResponseType(typeof(IEnumerable<TenantSubscriptionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> GetTenantSubscriptions(Guid id)
+        => Execute(async () => Ok(await _subscriptionService.GetTenantSubscriptionsAsync(id)));
+
+    [HttpPost("tenants/{id:guid}/subscriptions")]
+    [ProducesResponseType(typeof(SubscriptionSummaryDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> AssignSubscription(Guid id, [FromBody] AssignSubscriptionRequest request)
+        => Execute(async () =>
+        {
+            if (!TryGetUserId(out var actorId))
+                return Unauthorized();
+            return StatusCode(StatusCodes.Status201Created, await _subscriptionService.AssignAsync(actorId, id, request));
+        });
+
+    // ───────────── Conexiones ─────────────
+
+    /// <summary>from inclusivo y to exclusivo (ISO UTC); daily agrupa por día local del cliente (X-Time-Zone).</summary>
+    [HttpGet("connections/summary")]
+    [ProducesResponseType(typeof(ConnectionsSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public Task<IActionResult> GetConnectionsSummary(
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] Guid? tenantId = null,
+        [FromQuery] string? role = null)
+        => Execute(async () => Ok(await _connectionService.GetSummaryAsync(from?.UtcDateTime, to?.UtcDateTime, tenantId, role)));
+
+    [HttpGet("connections")]
+    [ProducesResponseType(typeof(PagedResult<ConnectionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public Task<IActionResult> GetConnections(
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] Guid? tenantId = null,
+        [FromQuery] string? role = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+        => Execute(async () => Ok(await _connectionService.GetConnectionsAsync(
+            from?.UtcDateTime, to?.UtcDateTime, tenantId, role, search, page, pageSize)));
 
     // ───────────── Usuarios ─────────────
 

@@ -20,6 +20,8 @@ import WhatsApp from './pages/WhatsApp'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminTenants from './pages/AdminTenants'
 import AdminUsers from './pages/AdminUsers'
+import AdminPlans from './pages/AdminPlans'
+import AdminConnections from './pages/AdminConnections'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -122,6 +124,8 @@ export default function App() {
           <Route path="admin" element={<Navigate to="/" replace />} />
           <Route path="admin/tenants" element={<SuperAdminOnly><AdminTenants /></SuperAdminOnly>} />
           <Route path="admin/usuarios" element={<SuperAdminOnly><AdminUsers /></SuperAdminOnly>} />
+          <Route path="admin/planes" element={<SuperAdminOnly><AdminPlans /></SuperAdminOnly>} />
+          <Route path="admin/conexiones" element={<SuperAdminOnly><AdminConnections /></SuperAdminOnly>} />
           <Route path="admin/*" element={<Navigate to="/" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

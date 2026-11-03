@@ -22,6 +22,8 @@ namespace MyFitnessLife.Infrastructure.Repositories;
 ///   Invitation.TenantId → Tenant CASCADE; Invitation.InvitedByUserId (sombra) → User NO ACTION
 ///   RefreshToken / AspNetUser{Roles,Claims,Logins,Tokens} .UserId → User CASCADE
 ///   User.TenantId → Tenant SET NULL
+///   TenantSubscription.TenantId → Tenant CASCADE; TenantSubscription.PlanId → Plan RESTRICT (los planes no se borran)
+///   LoginEvent.UserId → User CASCADE; LoginEvent.TenantId → Tenant NO ACTION (se borran antes que el tenant)
 ///   Sin FK (columna lógica): *.TenantId de entidades tenant-scoped, AuditLog.TenantId/UserId,
 ///   OutboxMessage.TenantId, Invitation.InvitedBy, Tenant.OwnedBy.
 /// No se depende de las cascadas: cada tabla se limpia explícitamente de hojas a raíz.
@@ -55,6 +57,8 @@ public class DataPurgeRepository : IDataPurgeRepository
         public required IQueryable<Invitation> Invitations { get; init; }
         public required IQueryable<OutboxMessage> Outbox { get; init; }
         public required IQueryable<AuditLog> AuditLogs { get; init; }
+        public required IQueryable<TenantSubscription> Subscriptions { get; init; }
+        public required IQueryable<LoginEvent> LoginEvents { get; init; }
     }
 
     /// <summary>
@@ -100,7 +104,10 @@ public class DataPurgeRepository : IDataPurgeRepository
                     && userIds.Contains(EF.Property<Guid?>(i, InvitedByUserIdShadow)!.Value))
                 || userEmails.Contains(i.Email)),
             Outbox = _context.OutboxMessages.Where(o => o.TenantId == t),
-            AuditLogs = _context.AuditLogs.Where(a => a.TenantId == t)
+            AuditLogs = _context.AuditLogs.Where(a => a.TenantId == t),
+            Subscriptions = _context.TenantSubscriptions.Where(x => x.TenantId == t),
+            // Conexiones registradas en el tenant (las de usuarios que se borran caen con DeleteAuthArtifacts).
+            LoginEvents = _context.LoginEvents.Where(e => e.TenantId == t)
         };
     }
 
@@ -126,6 +133,8 @@ public class DataPurgeRepository : IDataPurgeRepository
         other += await s.Invitations.CountAsync();
         other += await s.Outbox.CountAsync();
         other += await s.AuditLogs.CountAsync();
+        other += await s.Subscriptions.CountAsync();
+        other += await s.LoginEvents.CountAsync();
 
         return new TenantDeleteImpact(users, patients, appointments, other);
     }
@@ -172,6 +181,9 @@ public class DataPurgeRepository : IDataPurgeRepository
             await s.Invitations.ExecuteDeleteAsync();
             await s.Outbox.ExecuteDeleteAsync();
             await s.AuditLogs.ExecuteDeleteAsync();
+            //    Suscripciones y conexiones del tenant.
+            await s.Subscriptions.ExecuteDeleteAsync();
+            await s.LoginEvents.ExecuteDeleteAsync();
             // 9. Usuarios del tenant: referencias lógicas → artefactos de auth → cuenta.
             await _context.AuditLogs.Where(a => a.UserId != null && s.UserIds.Contains(a.UserId.Value))
                 .ExecuteUpdateAsync(u => u.SetProperty(a => a.UserId, (Guid?)null));
@@ -329,6 +341,7 @@ public class DataPurgeRepository : IDataPurgeRepository
     private async Task DeleteAuthArtifactsAsync(IQueryable<Guid> userIds)
     {
         await _context.LoginSelectionTokens.Where(x => userIds.Contains(x.UserId)).ExecuteDeleteAsync();
+        await _context.LoginEvents.Where(e => userIds.Contains(e.UserId)).ExecuteDeleteAsync();
         await _context.UserMemberships.Where(m => userIds.Contains(m.UserId)).ExecuteDeleteAsync();
         await _context.RefreshTokens.Where(r => userIds.Contains(r.UserId)).ExecuteDeleteAsync();
         await _context.UserRoles.Where(r => userIds.Contains(r.UserId)).ExecuteDeleteAsync();

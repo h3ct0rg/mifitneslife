@@ -32,6 +32,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<WorkoutExercise> WorkoutExercises => Set<WorkoutExercise>();
     public DbSet<PatientPhoto> PatientPhotos => Set<PatientPhoto>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+    public DbSet<LoginEvent> LoginEvents => Set<LoginEvent>();
 
     /// <summary>
     /// Columnas que guardan INSTANTES UTC (se llenan con DateTime.UtcNow). Al leer se marcan
@@ -42,7 +45,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     private static readonly HashSet<string> UtcDateTimeProperties = new(StringComparer.Ordinal)
     {
         "CreatedAt", "UpdatedAt", "LastLoginAt", "LastUsedAt", "Timestamp", "AssignedAt",
-        "ExpiresAt", "AcceptedAt", "SentAt", "UsedAt", "NextAttemptAt", "RefreshTokenExpiryTime"
+        "ExpiresAt", "AcceptedAt", "SentAt", "UsedAt", "NextAttemptAt", "RefreshTokenExpiryTime",
+        "StartsAt", "EndsAt", "OccurredAt"
     };
 
     private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
@@ -333,6 +337,56 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
                 .WithMany()
                 .HasForeignKey(p => p.PatientId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SubscriptionPlan>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(100).IsRequired();
+            e.Property(p => p.PriceUsd).HasPrecision(10, 2);
+            e.HasIndex(p => p.Name).IsUnique();
+            // Un único plan de prueba del sistema.
+            e.HasIndex(p => p.IsTrial).IsUnique().HasFilter("[IsTrial] = 1");
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_SubscriptionPlans_DurationDays", "[DurationDays] > 0");
+                t.HasCheckConstraint("CK_SubscriptionPlans_PriceUsd", "[PriceUsd] >= 0");
+            });
+        });
+
+        builder.Entity<TenantSubscription>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.PlanName).HasMaxLength(100).IsRequired();
+            e.Property(s => s.PriceUsd).HasPrecision(10, 2);
+            e.Property(s => s.Note).HasMaxLength(500);
+            e.HasIndex(s => new { s.TenantId, s.StartsAt });
+            e.HasOne(s => s.Tenant)
+                .WithMany()
+                .HasForeignKey(s => s.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // Un plan con historial no se puede borrar (los planes solo se desactivan).
+            e.HasOne(s => s.Plan)
+                .WithMany()
+                .HasForeignKey(s => s.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<LoginEvent>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserAgent).HasMaxLength(256);
+            e.HasIndex(x => x.OccurredAt);
+            e.HasIndex(x => new { x.UserId, x.OccurredAt });
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // NO ACTION (rutas de cascada múltiples vía Users); la purga borra los eventos del tenant.
+            e.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Al final, cuando ya existen todas las entidades (incluidas las de Identity).

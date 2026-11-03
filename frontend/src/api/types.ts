@@ -10,7 +10,22 @@ export interface UserDto {
   /** Membresía actual (la del token). role/tenantId son los de esta membresía. */
   membershipId: string
   memberships: MembershipDto[]
+  /** Suscripción del tenant de la membresía actual; null para SuperAdmin. */
+  subscription?: UserSubscriptionDto | null
 }
+
+export type SubscriptionStatus = 'Active' | 'ExpiringSoon' | 'Expired' | 'None'
+
+export interface UserSubscriptionDto {
+  /** null con status `None` (tenant sin suscripción). */
+  planName: string | null
+  endsAt: string | null
+  status: SubscriptionStatus
+  daysLeft: number | null
+}
+
+/** Código del 403 que devuelve el backend cuando la suscripción del tenant venció. */
+export const SUBSCRIPTION_EXPIRED_CODE = 'subscription_expired'
 
 export interface MembershipDto {
   id: string
@@ -110,6 +125,88 @@ export interface TenantDto {
   patientCount: number
   activeUsersLast30Days: number
   lastActivityAt?: string | null
+  subscription?: SubscriptionSummaryDto | null
+}
+
+// ===== Planes y suscripciones (SuperAdmin) =====
+export interface SubscriptionSummaryDto {
+  planId: string
+  planName: string
+  startsAt: string
+  endsAt: string
+  status: SubscriptionStatus
+  daysLeft: number
+}
+
+export interface PlanDto {
+  id: string
+  name: string
+  durationDays: number
+  priceUsd: number
+  isTrial: boolean
+  isActive: boolean
+  sortOrder: number
+  tenantsCount: number
+}
+
+export interface SavePlanRequest {
+  name: string
+  durationDays: number
+  priceUsd: number
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface TenantSubscriptionDto {
+  id: string
+  planId: string
+  planName: string
+  priceUsd: number
+  startsAt: string
+  endsAt: string
+  createdAt: string
+  createdByName: string | null
+  note: string | null
+}
+
+export interface AssignSubscriptionRequest {
+  planId: string
+  note?: string
+}
+
+// ===== Conexiones (SuperAdmin) =====
+export type ConnectionRole = 'admin' | 'doctor' | 'patient'
+
+export interface ConnectionQuery {
+  from: string
+  to: string
+  tenantId?: string
+  role?: ConnectionRole
+}
+
+export interface ConnectionDailyDto {
+  date: string
+  uniqueUsers: number
+  logins: number
+}
+
+export interface ConnectionSummaryDto {
+  totalLogins: number
+  uniqueUsers: number
+  uniqueByRole: { admin: number; doctor: number; patient: number }
+  daily: ConnectionDailyDto[]
+}
+
+export interface ConnectionDto {
+  id: string
+  occurredAt: string
+  userId: string
+  userName: string | null
+  email: string | null
+  tenantId: string | null
+  tenantName: string | null
+  role: string
+  method: string
 }
 
 export interface CreateTenantRequest {

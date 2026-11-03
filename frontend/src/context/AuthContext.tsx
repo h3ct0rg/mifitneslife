@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { authApi } from '../api'
-import { AUTH_REFRESHED_EVENT } from '../api/client'
+import { AUTH_REFRESHED_EVENT, SUBSCRIPTION_EXPIRED_EVENT } from '../api/client'
 import type { AuthResponse, LoginResult, MembershipSelectionResponse, UserDto } from '../api/types'
 import { isMembershipSelection } from '../api/types'
+import { isSubscriptionInactive } from '../utils/subscription'
 
 interface AuthContextType {
   user: UserDto | null
@@ -17,15 +18,36 @@ interface AuthContextType {
   refreshUser: () => Promise<void>
   logout: () => Promise<void>
   setAuth: (accessToken: string, refreshToken: string, user: UserDto) => void
+  /** AC-9: staff del tenant con suscripción vencida (o sin suscripción) → pantalla de bloqueo. */
+  subscriptionLocked: boolean
+  /** Vuelve a pedir `me`; si la suscripción ya está vigente se levanta el bloqueo. */
+  recheckSubscription: () => Promise<UserDto>
 }
+
+/** Intervalo de re-consulta de `me` mientras hay bloqueo o solo lectura (Q1). */
+const SUBSCRIPTION_RECHECK_MS = 60_000
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
 const sameUser = (a: UserDto | null, b: UserDto) => !!a && JSON.stringify(a) === JSON.stringify(b)
 
+/** Staff del tenant (Admin/Nutritionist/Trainer): se bloquea por completo al vencer la suscripción. */
+const isTenantStaff = (role?: string) => !!role && role !== 'SuperAdmin' && role !== 'Patient'
+
+/** Suscripción vigente según `me` (Active / ExpiringSoon). */
+const hasCurrentSubscription = (user: UserDto | null) =>
+  user?.subscription?.status === 'Active' || user?.subscription?.status === 'ExpiringSoon'
+
+function isSubscriptionLocked(user: UserDto | null, blockedMembershipId: string | null): boolean {
+  if (!user || !isTenantStaff(user.role)) return false
+  return isSubscriptionInactive(user) || (!!blockedMembershipId && blockedMembershipId === user.membershipId)
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(null)
   const [loading, setLoading] = useState(true)
+  // Membresía para la que el backend respondió 403 subscription_expired (solo staff).
+  const [blockedMembershipId, setBlockedMembershipId] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -52,6 +74,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(AUTH_REFRESHED_EVENT, onRefreshed)
     return () => window.removeEventListener(AUTH_REFRESHED_EVENT, onRefreshed)
   }, [])
+
+  // AC-9: 403 `subscription_expired` inesperado → se refresca `me`; si es staff se fuerza el bloqueo
+  // de esa membresía aunque `me` aún no lo refleje. Varias peticiones fallidas a la vez → un solo `me`.
+  useEffect(() => {
+    let inFlight = false
+    const onExpired = () => {
+      if (inFlight) return
+      inFlight = true
+      authApi
+        .me()
+        .then((me) => {
+          setUser((prev) => (sameUser(prev, me) ? prev : me))
+          if (isTenantStaff(me.role) && !hasCurrentSubscription(me)) setBlockedMembershipId(me.membershipId)
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false
+        })
+    }
+    window.addEventListener(SUBSCRIPTION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SUBSCRIPTION_EXPIRED_EVENT, onExpired)
+  }, [])
+
+  // R2: el bloqueo forzado se limpia al cambiar de membresía, al salir o cuando `me`/refresh
+  // devuelven la suscripción vigente (p. ej. tras una renovación).
+  if (
+    blockedMembershipId &&
+    (!user || user.membershipId !== blockedMembershipId || hasCurrentSubscription(user))
+  ) {
+    setBlockedMembershipId(null)
+  }
+
+  const subscriptionLocked = isSubscriptionLocked(user, blockedMembershipId)
+  // Q1: mientras el staff está bloqueado (o el paciente en solo lectura) se vuelve a pedir `me`
+  // para recuperar el acceso tras una renovación sin recargar.
+  const awaitingRenewal =
+    subscriptionLocked || (user?.role === 'Patient' && isSubscriptionInactive(user))
+
+  const recheckSubscription = useCallback(async () => {
+    const me = await authApi.me()
+    setUser((prev) => (sameUser(prev, me) ? prev : me))
+    return me
+  }, [])
+
+  useEffect(() => {
+    if (!awaitingRenewal) return
+    const recheck = () => {
+      recheckSubscription().catch(() => undefined)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') recheck()
+    }
+    const timer = window.setInterval(recheck, SUBSCRIPTION_RECHECK_MS)
+    window.addEventListener('focus', recheck)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', recheck)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [awaitingRenewal, recheckSubscription])
 
   const setAuth = useCallback((accessToken: string, refreshToken: string, u: UserDto) => {
     localStorage.setItem('access_token', accessToken)
@@ -113,6 +196,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshUser,
         logout,
         setAuth,
+        subscriptionLocked,
+        recheckSubscription,
       }}
     >
       {children}

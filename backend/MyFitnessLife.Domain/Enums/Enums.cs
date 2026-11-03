@@ -40,3 +40,13 @@ public enum NotificationStatus
     Sent = 1,
     Failed = 2
 }
+
+/// <summary>Cómo se originó un evento de conexión (LoginEvent).</summary>
+public enum LoginMethod
+{
+    Password = 0,
+    Google = 1,
+    Register = 2,
+    /// <summary>Sesión retomada al refrescar el token (máximo uno por usuario y día UTC).</summary>
+    Session = 3
+}

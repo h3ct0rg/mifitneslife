@@ -59,6 +59,47 @@ public interface ISuperAdminService
     Task DeleteUserAsync(Guid actorId, Guid id);
 }
 
+/// <summary>Planes de suscripción y suscripciones de tenants (solo SuperAdmin).</summary>
+public interface ISubscriptionService
+{
+    Task<IReadOnlyList<PlanDto>> GetPlansAsync();
+    Task<PlanDto> CreatePlanAsync(SavePlanRequest request);
+    Task<PlanDto> UpdatePlanAsync(Guid id, SavePlanRequest request);
+    Task<IReadOnlyList<TenantSubscriptionDto>> GetTenantSubscriptionsAsync(Guid tenantId);
+    /// <summary>Nueva suscripción desde ahora (reiniciar = mismo plan). Crea una fila de historial.</summary>
+    Task<SubscriptionSummaryDto> AssignAsync(Guid actorId, Guid tenantId, AssignSubscriptionRequest request);
+}
+
+/// <summary>Bloqueo por suscripción (U1): ¿el tenant tiene una suscripción vigente?</summary>
+public interface ISubscriptionGate
+{
+    Task<bool> IsTenantActiveAsync(Guid tenantId);
+}
+
+/// <summary>Conexiones registradas (solo SuperAdmin). from inclusivo, to exclusivo (UTC).</summary>
+public interface IConnectionService
+{
+    Task<ConnectionsSummaryDto> GetSummaryAsync(DateTime? fromUtc, DateTime? toUtc, Guid? tenantId, string? role);
+    Task<PagedResult<ConnectionDto>> GetConnectionsAsync(DateTime? fromUtc, DateTime? toUtc, Guid? tenantId, string? role, string? search, int page, int pageSize);
+}
+
+/// <summary>
+/// Registro de LoginEvent (AC-11). Nunca lanza: los errores se loguean y se ignoran para no
+/// romper el login.
+/// </summary>
+public interface ILoginEventRecorder
+{
+    Task RecordAsync(Guid userId, UserMembership membership, Domain.Enums.LoginMethod method);
+    /// <summary>Evento Session solo si el usuario no tiene ningún evento en el día UTC actual.</summary>
+    Task RecordSessionIfFirstTodayAsync(Guid userId, UserMembership membership);
+}
+
+/// <summary>Datos de la petición HTTP actual que necesita la capa de aplicación.</summary>
+public interface IRequestInfo
+{
+    string? UserAgent { get; }
+}
+
 public interface IDashboardService
 {
     Task<DashboardKpisDto> GetKpisAsync(Guid tenantId, Guid userId, Domain.Enums.UserRole role);

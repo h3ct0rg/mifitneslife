@@ -97,6 +97,7 @@ builder.Services
 builder.Services.AddAuthorization(MyFitnessLife.API.Authorization.AuthPolicies.AddStaffOnly);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<MyFitnessLife.API.Authorization.ICurrentUser, MyFitnessLife.API.Authorization.CurrentUser>();
+builder.Services.AddScoped<MyFitnessLife.Application.Interfaces.IRequestInfo, MyFitnessLife.API.Services.HttpRequestInfo>();
 
 // Reloj del cliente (header X-Time-Zone). TimeProvider sustituible: en Development se puede fijar la
 // hora con Clock:FixedUtcNow (p. ej. Clock__FixedUtcNow=2026-12-01T03:30:00Z) para pruebas.
@@ -144,6 +145,9 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Bloqueo por suscripción vencida del tenant (U1/AC-7); requiere el usuario ya autenticado.
+app.UseMiddleware<MyFitnessLife.API.Middleware.SubscriptionGuardMiddleware>();
 
 app.MapControllers();
 

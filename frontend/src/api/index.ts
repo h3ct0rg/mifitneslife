@@ -4,6 +4,14 @@ import type {
   AdminUserDto,
   AdminUserListDto,
   AdminUserQuery,
+  AssignSubscriptionRequest,
+  ConnectionDto,
+  ConnectionQuery,
+  ConnectionSummaryDto,
+  PlanDto,
+  SavePlanRequest,
+  SubscriptionSummaryDto,
+  TenantSubscriptionDto,
   CreateMembershipRequest,
   LoginResult,
   MembershipDto,
@@ -128,6 +136,22 @@ export const adminApi = {
   userDeleteImpact: (id: string) =>
     api.get<UserDeleteImpactDto>(`/admin/users/${id}/delete-impact`).then((r) => r.data),
   deleteUser: (id: string) => api.delete(`/admin/users/${id}`).then(() => undefined),
+  plans: () => api.get<PlanDto[]>('/admin/plans').then((r) => r.data),
+  createPlan: (payload: SavePlanRequest) =>
+    api.post<PlanDto>('/admin/plans', payload).then((r) => r.data),
+  updatePlan: (id: string, payload: SavePlanRequest) =>
+    api.put<PlanDto>(`/admin/plans/${id}`, payload).then((r) => r.data),
+  tenantSubscriptions: (tenantId: string) =>
+    api.get<TenantSubscriptionDto[]>(`/admin/tenants/${tenantId}/subscriptions`).then((r) => r.data),
+  /** Inicia ahora una suscripción al plan indicado ("reiniciar" = mismo planId). */
+  assignSubscription: (tenantId: string, payload: AssignSubscriptionRequest) =>
+    api
+      .post<SubscriptionSummaryDto>(`/admin/tenants/${tenantId}/subscriptions`, payload)
+      .then((r) => r.data),
+  connectionsSummary: (params: ConnectionQuery) =>
+    api.get<ConnectionSummaryDto>('/admin/connections/summary', { params }).then((r) => r.data),
+  connections: (params: ConnectionQuery & { search?: string; page?: number; pageSize?: number }) =>
+    api.get<PagedResult<ConnectionDto>>('/admin/connections', { params }).then((r) => r.data),
 }
 
 export const patientsApi = {

@@ -39,6 +39,24 @@ public static class DbSeeder
             };
             await context.Tenants.AddAsync(demoTenant);
             await context.SaveChangesAsync();
+
+            // AC-3: tenant nuevo (BD vacía) → plan de prueba sembrado por la migración.
+            var trial = await context.SubscriptionPlans.FirstOrDefaultAsync(p => p.IsTrial);
+            if (trial is not null)
+            {
+                var now = DateTime.UtcNow;
+                await context.TenantSubscriptions.AddAsync(new TenantSubscription
+                {
+                    TenantId = demoTenant.Id,
+                    PlanId = trial.Id,
+                    PlanName = trial.Name,
+                    PriceUsd = trial.PriceUsd,
+                    StartsAt = now,
+                    EndsAt = now.AddDays(trial.DurationDays),
+                    CreatedAt = now
+                });
+                await context.SaveChangesAsync();
+            }
         }
 
         var superAdmin = await userManager.FindByEmailAsync("superadmin@admin.com");

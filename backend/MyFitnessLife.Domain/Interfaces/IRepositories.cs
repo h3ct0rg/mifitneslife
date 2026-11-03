@@ -230,6 +230,46 @@ public interface IAuditLogRepository
     Task<IEnumerable<AuditLog>> GetRecentAsync(int take);
 }
 
+public interface ISubscriptionPlanRepository
+{
+    /// <summary>Todos los planes (activos e inactivos), ordenados por SortOrder y nombre.</summary>
+    Task<IReadOnlyList<SubscriptionPlan>> GetAllAsync();
+    Task<SubscriptionPlan?> GetByIdAsync(Guid id);
+    Task<SubscriptionPlan?> GetTrialAsync();
+    Task<bool> NameExistsAsync(string name, Guid? excludeId = null);
+    Task AddAsync(SubscriptionPlan plan);
+}
+
+public interface ITenantSubscriptionRepository
+{
+    /// <summary>Suscripción vigente del tenant: mayor StartsAt ≤ now; si no hay, la última creada.</summary>
+    Task<TenantSubscription?> GetCurrentAsync(Guid tenantId, DateTime now);
+    /// <summary>Vigente de cada tenant que tenga alguna suscripción (misma regla que GetCurrentAsync).</summary>
+    Task<Dictionary<Guid, TenantSubscription>> GetCurrentByTenantAsync(DateTime now);
+    /// <summary>Historial del tenant, más reciente primero.</summary>
+    Task<IReadOnlyList<TenantSubscription>> GetHistoryAsync(Guid tenantId);
+    Task AddAsync(TenantSubscription subscription);
+}
+
+/// <summary>Filtro de eventos de conexión: [FromUtc, ToUtc), tenant y roles (null/vacío = todos).</summary>
+public record LoginEventFilter(DateTime FromUtc, DateTime ToUtc, Guid? TenantId, IReadOnlyCollection<UserRole>? Roles);
+
+/// <summary>Proyección mínima de un evento para agregaciones en memoria.</summary>
+public record LoginEventPoint(Guid UserId, UserRole Role, DateTime OccurredAt);
+
+public record LoginEventRow(
+    Guid Id, DateTime OccurredAt, Guid UserId, string UserName, string? Email, Guid? TenantId, string? TenantName,
+    UserRole Role, LoginMethod Method);
+
+public interface ILoginEventRepository
+{
+    /// <summary>Inserta y guarda solo este evento; si falla lo saca del ChangeTracker y relanza.</summary>
+    Task AddAndSaveAsync(LoginEvent loginEvent);
+    Task<bool> ExistsForUserSinceAsync(Guid userId, DateTime sinceUtc);
+    Task<IReadOnlyList<LoginEventPoint>> GetPointsAsync(LoginEventFilter filter);
+    Task<(IReadOnlyList<LoginEventRow> Items, int Total)> SearchAsync(LoginEventFilter filter, string? search, int page, int pageSize);
+}
+
 public record TenantDeleteImpact(int Users, int Patients, int Appointments, int OtherRecords);
 
 public record UserDeleteImpact(bool PatientProfile, int Appointments, int OtherRecords);
@@ -295,5 +335,8 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     IWorkoutPlanRepository WorkoutPlans { get; }
     IPatientPhotoRepository PatientPhotos { get; }
     IOutboxRepository Outbox { get; }
+    ISubscriptionPlanRepository SubscriptionPlans { get; }
+    ITenantSubscriptionRepository TenantSubscriptions { get; }
+    ILoginEventRepository LoginEvents { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
