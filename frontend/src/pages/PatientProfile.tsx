@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { dietsApi, patientPhotosApi, patientsApi, workoutPlansApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import { useAuth } from '../context/AuthContext'
@@ -15,15 +16,22 @@ import PhotoHistory from '../components/PhotoHistory'
 import WorkoutDashboard from '../components/WorkoutDashboard'
 import AssignPicker from '../components/AssignPicker'
 import Tabs, { type TabItem } from '../components/Tabs'
+import { DeleteConfirmModal } from '../components/Modal'
+import ProfileSwitcher from '../components/ProfileSwitcher'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { avatarClass, initialsOf } from '../components/avatarIndex'
+import { toLocalIso } from '../utils/localDate'
 
 type ProfileTab = 'evolucion' | 'dieta' | 'entrenamiento' | 'fotos' | 'info'
 
+// Mismas claves que la bottom-nav del paciente (K4). "Información" pasa a "Perfil" (E1).
 const PROFILE_TABS: TabItem<ProfileTab>[] = [
-  { key: 'evolucion', label: 'Evolución', icon: 'monitoring' },
+  { key: 'evolucion', label: 'Progreso', icon: 'monitoring' },
   { key: 'dieta', label: 'Dieta', icon: 'restaurant_menu' },
   { key: 'entrenamiento', label: 'Entrenamiento', icon: 'fitness_center' },
   { key: 'fotos', label: 'Fotos', icon: 'photo_library' },
-  { key: 'info', label: 'Información', icon: 'badge' },
+  { key: 'info', label: 'Perfil', icon: 'person' },
 ]
 
 const DEFAULT_TAB: ProfileTab = 'evolucion'
@@ -32,10 +40,102 @@ function parseTab(value: string | null): ProfileTab {
   return PROFILE_TABS.some((t) => t.key === value) ? (value as ProfileTab) : DEFAULT_TAB
 }
 
+const STATUS: Record<string, { text: string; tone: string }> = {
+  Active: { text: 'Activo', tone: 'badge--success' },
+  Inactive: { text: 'Inactivo', tone: 'badge--neutral' },
+}
+
+type PickerPage = { search?: string; page: number; pageSize: number }
+
+/** Menú "⋯" de acciones secundarias (Invitar/Reenviar, Eliminar). */
+function ActionsMenu({ items }: { items: { key: string; label: string; icon: string; danger?: boolean; disabled?: boolean; onSelect: () => void }[] }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    itemRefs.current.find((el) => el && !el.disabled)?.focus()
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const close = (refocus = true) => {
+    setOpen(false)
+    if (refocus) buttonRef.current?.focus()
+  }
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const els = itemRefs.current.filter((el): el is HTMLButtonElement => !!el && !el.disabled)
+    const i = els.indexOf(document.activeElement as HTMLButtonElement)
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      els[(i + 1) % els.length]?.focus()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      els[(i - 1 + els.length) % els.length]?.focus()
+    } else if (e.key === 'Tab') {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="profile-menu" ref={rootRef}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="btn btn--ghost btn--icon profile-menu-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Más acciones"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="material-symbols-outlined" aria-hidden="true">
+          more_horiz
+        </span>
+      </button>
+      {open && (
+        <div className="profile-menu-list" role="menu" aria-label="Más acciones" onKeyDown={onKeyDown}>
+          {items.map((it, idx) => (
+            <button
+              key={it.key}
+              ref={(el) => {
+                itemRefs.current[idx] = el
+              }}
+              type="button"
+              role="menuitem"
+              className={`profile-menu-item${it.danger ? ' danger' : ''}`}
+              disabled={it.disabled}
+              onClick={() => {
+                close(false)
+                it.onSelect()
+              }}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                {it.icon}
+              </span>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PatientProfile() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = parseTab(searchParams.get('tab'))
 
@@ -54,9 +154,9 @@ export default function PatientProfile() {
 
   const [patient, setPatient] = useState<PatientDto | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [showDiet, setShowDiet] = useState(false)
   const [dietSaving, setDietSaving] = useState(false)
   const [dietVersion, setDietVersion] = useState(0)
@@ -65,9 +165,24 @@ export default function PatientProfile() {
   const [showRoutine, setShowRoutine] = useState(false)
   const [routineSaving, setRoutineSaving] = useState(false)
   const [routineVersion, setRoutineVersion] = useState(0)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [inviting, setInviting] = useState(false)
-  const toast = useToast()
+
+  const load = useCallback(async () => {
+    if (!id) return
+    setLoading(true)
+    setLoadError(null)
+    try {
+      setPatient(await patientsApi.getById(id))
+    } catch (err) {
+      setLoadError(getErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   const handleInvite = async () => {
     if (!id || !patient) return
@@ -102,23 +217,6 @@ export default function PatientProfile() {
     }
   }
 
-  const load = useCallback(async () => {
-    if (!id) return
-    setLoading(true)
-    setMessage(null)
-    try {
-      setPatient(await patientsApi.getById(id))
-    } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-    } finally {
-      setLoading(false)
-    }
-  }, [id])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
   const handleUpdate = async (values: PatientFormValues) => {
     if (!id || !patient) return
     try {
@@ -134,52 +232,46 @@ export default function PatientProfile() {
       })
       setPatient(updated)
       setEditing(false)
-      setMessage({ type: 'ok', text: 'Paciente actualizado correctamente.' })
+      toast.success('Paciente actualizado.')
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
       throw err
     }
   }
 
   const handleDelete = async () => {
     if (!id) return
-    setDeleting(true)
     try {
       await patientsApi.remove(id)
+      toast.success('Paciente eliminado')
       navigate('/pacientes')
     } catch (err) {
-      setDeleting(false)
+      toast.error(getErrorMessage(err))
       setShowDelete(false)
-      setMessage({ type: 'err', text: getErrorMessage(err) })
     }
   }
 
-  const loadDiets = async (params: { search?: string; page: number; pageSize: number }) => {
+  const loadDiets = async (params: PickerPage) => {
     const data = await dietsApi.getPaged({ ...params })
     return {
       page: data.page,
       pageSize: data.pageSize,
       total: data.total,
       totalPages: data.totalPages,
-      items: data.items.map((d) => ({
-        id: d.id,
-        name: d.name,
-        meta: d.objective ?? 'Sin objetivo',
-      })),
+      items: data.items.map((d) => ({ id: d.id, name: d.name, meta: d.objective ?? 'Sin objetivo' })),
     }
   }
 
   const handleAssignDiet = async (dietId: string) => {
     if (!id) return
     setDietSaving(true)
-    setMessage(null)
     try {
       await dietsApi.assign(id, dietId || undefined)
       setShowDiet(false)
       setDietVersion((v) => v + 1)
-      setMessage({ type: 'ok', text: dietId ? 'Dieta asignada al paciente.' : 'Se quitó la dieta asignada.' })
+      toast.success(dietId ? 'Dieta asignada al paciente.' : 'Se quitó la dieta asignada.')
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
     } finally {
       setDietSaving(false)
     }
@@ -188,19 +280,19 @@ export default function PatientProfile() {
   const handleCapturePhoto = async (file: File) => {
     if (!id) return
     try {
-      const now = new Date()
-      const takenAt = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString()
+      // TakenAt = hora de reloj (sin zona): `YYYY-MM-DDTHH:mm:ss` local, sin `Z` (tarea zona horaria D1/D5).
+      const takenAt = toLocalIso(new Date())
       await patientPhotosApi.upload(id, file, takenAt)
       setShowPhoto(false)
       setPhotoVersion((v) => v + 1)
-      setMessage({ type: 'ok', text: 'Foto guardada correctamente.' })
+      toast.success('Foto guardada.')
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-      throw err
+      // PhotoCapture muestra el error inline en la hoja.
+      throw new Error(getErrorMessage(err))
     }
   }
 
-  const loadRoutines = async (params: { search?: string; page: number; pageSize: number }) => {
+  const loadRoutines = async (params: PickerPage) => {
     const data = await workoutPlansApi.getPaged({ ...params })
     return {
       page: data.page,
@@ -218,26 +310,51 @@ export default function PatientProfile() {
   const handleAssignRoutine = async (planId: string) => {
     if (!id) return
     setRoutineSaving(true)
-    setMessage(null)
     try {
       await workoutPlansApi.assign(id, planId || undefined)
       setShowRoutine(false)
       setRoutineVersion((v) => v + 1)
-      setMessage({ type: 'ok', text: planId ? 'Rutina asignada al paciente.' : 'Se quitó la rutina asignada.' })
+      toast.success(planId ? 'Rutina asignada al paciente.' : 'Se quitó la rutina asignada.')
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
     } finally {
       setRoutineSaving(false)
     }
   }
 
-  if (loading) return <div className="page"><p>Cargando...</p></div>
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
+  }
+
+  if (loading) {
+    return (
+      <div className="page patient-page">
+        <StateView state="loading" title="Cargando perfil..." />
+      </div>
+    )
+  }
 
   if (!patient) {
     return (
-      <div className="page">
-        {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-        <p className="empty-state">Paciente no encontrado.</p>
+      <div className="page patient-page">
+        <StateView
+          state={loadError ? 'error' : 'empty'}
+          icon={loadError ? undefined : 'person_off'}
+          title={loadError ? 'No se pudo cargar el paciente' : 'Paciente no encontrado'}
+          message={loadError ?? undefined}
+          action={
+            loadError ? (
+              <button type="button" className="btn btn--ghost" onClick={load}>
+                Reintentar
+              </button>
+            ) : !isPatient ? (
+              <Link to="/pacientes" className="btn btn--ghost">
+                Ir a pacientes
+              </Link>
+            ) : undefined
+          }
+        />
       </div>
     )
   }
@@ -249,159 +366,193 @@ export default function PatientProfile() {
         day: 'numeric',
       })
     : null
+  const status = STATUS[patient.status] ?? { text: patient.status, tone: 'badge--neutral' }
+  // Mismas iniciales y mismo gradiente que en la lista/agenda/dashboard (semilla = id del paciente).
+  const initials = initialsOf(patient.fullName)
+  const avatarCls = avatarClass(patient.id)
+
+  const menuItems = [
+    ...(patient.hasAccount === false
+      ? [
+          {
+            key: 'invite',
+            label: inviting ? 'Enviando...' : patient.pendingInvitation ? 'Reenviar invitación' : 'Enviar invitación',
+            icon: 'forward_to_inbox',
+            disabled: inviting,
+            onSelect: handleInvite,
+          },
+        ]
+      : []),
+    { key: 'delete', label: 'Eliminar paciente', icon: 'delete', danger: true, onSelect: () => setShowDelete(true) },
+  ]
+
+  /** Botón primario de un panel (solo staff). */
+  const panelAction = (label: string, icon: string, onClick: () => void) =>
+    !isPatient && (
+      <div className="panel-actions">
+        <button type="button" className="btn btn--primary" onClick={onClick}>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {icon}
+          </span>
+          {label}
+        </button>
+      </div>
+    )
 
   return (
-    <div className="page">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-
-      <div className="profile-head card">
-        <div className="profile-head-top">
-          {patient.profilePhotoUrl ? (
-            <AuthImage fileName={patient.profilePhotoUrl} alt="" className="profile-avatar" fallbackText={patient.fullName[0]} />
-          ) : (
-            <span className="profile-avatar empty">{patient.fullName[0]}</span>
-          )}
-          <div>
-            <h2>{patient.fullName}</h2>
-            <p className="profile-meta">{patient.email}</p>
-            {patient.phone && <p className="profile-meta">📞 {patient.phone}</p>}
-            <p className="profile-meta">
-              Estado: <span className="badge">{patient.status}</span>
-            </p>
-          </div>
-        </div>
-        <div className="profile-actions">
-          {!isPatient && (
-            <>
-              <button type="button" className="btn-ghost" onClick={() => navigate('/pacientes')}>
-                ← Volver
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}/historial`)}>
-                Historial
-              </button>
-              {patient.hasAccount === false && (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={handleInvite}
-                  disabled={inviting}
-                  title={patient.pendingInvitation ? 'Ya hay una invitación pendiente' : undefined}
-                >
-                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1.1rem', verticalAlign: 'middle' }}>
-                    forward_to_inbox
-                  </span>{' '}
-                  {inviting
-                    ? 'Enviando...'
-                    : patient.pendingInvitation
-                      ? 'Reenviar invitación'
-                      : 'Enviar invitación'}
-                </button>
+    <div className={`page patient-page${isPatient ? ' patient-page--self' : ''}`}>
+      {/* Hero del paciente (MV-4): gradiente de marca, texto blanco, avatar con gradiente por índice. */}
+      <section className="profile-hero page-header-hero">
+        {patient.profilePhotoUrl ? (
+          <AuthImage
+            fileName={patient.profilePhotoUrl}
+            alt=""
+            className={`profile-avatar ${avatarCls}`}
+            fallbackText={initials}
+          />
+        ) : (
+          <span className={`profile-avatar empty ${avatarCls}`} aria-hidden="true">
+            {initials}
+          </span>
+        )}
+        <PageHeader
+          title={patient.fullName}
+          back={isPatient ? undefined : { to: '/pacientes', label: 'Pacientes' }}
+          subtitle={
+            <span className="profile-hero-meta">
+              <span className="profile-hero-contact">
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  mail
+                </span>
+                {patient.email}
+              </span>
+              {patient.phone && (
+                <span className="profile-hero-contact">
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    call
+                  </span>
+                  {patient.phone}
+                </span>
               )}
-              <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
-                Editar
-              </button>
-              <button type="button" className="btn-danger-soft" onClick={() => setShowDelete(true)}>
-                Eliminar
-              </button>
+              <span className={`badge ${status.tone}`}>{status.text}</span>
+            </span>
+          }
+          actions={
+            isPatient ? undefined : (
+              <>
+                <button type="button" className="btn btn--light" onClick={() => setEditing(true)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    edit
+                  </span>
+                  Editar
+                </button>
+                <ActionsMenu items={menuItems} />
+              </>
+            )
+          }
+        />
+      </section>
+
+      {/* En móvil el paciente navega con la bottom-nav (K4): las Tabs superiores se ocultan solo para él. */}
+      <div className={`profile-tabs${isPatient ? ' profile-tabs--patient' : ''}`}>
+        <Tabs
+          tabs={PROFILE_TABS}
+          active={activeTab}
+          onChange={setActiveTab}
+          idPrefix="patient-profile"
+          ariaLabel="Secciones del perfil del paciente"
+        >
+          {activeTab === 'evolucion' && (
+            <section className="card" aria-labelledby="evolution-title">
+              <div className="panel-head">
+                <h2 id="evolution-title">Evolución antropométrica</h2>
+                {!isPatient && (
+                  <Link to={`/pacientes/${patient.id}/historial`} className="panel-link">
+                    Ver todas las visitas
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      chevron_right
+                    </span>
+                  </Link>
+                )}
+              </div>
+              <MeasurementDashboard patientId={patient.id} />
+            </section>
+          )}
+
+          {activeTab === 'dieta' && (
+            <>
+              {panelAction('Asignar dieta', 'restaurant_menu', () => setShowDiet(true))}
+              {/* Si ambos hijos no renderizan nada, el CSS :empty muestra el texto vacío. */}
+              <div className="tab-empty-aware" data-empty-text="No hay una dieta asignada ni historial de dietas.">
+                <DietDashboard key={dietVersion} patientId={patient.id} />
+                <DietHistory patientId={patient.id} version={dietVersion} />
+              </div>
             </>
           )}
-        </div>
+
+          {activeTab === 'entrenamiento' && (
+            <>
+              {panelAction('Asignar rutina', 'fitness_center', () => setShowRoutine(true))}
+              <div className="tab-empty-aware" data-empty-text="No hay una rutina asignada.">
+                <WorkoutDashboard patientId={patient.id} version={routineVersion} />
+              </div>
+            </>
+          )}
+
+          {activeTab === 'fotos' && (
+            <>
+              {panelAction('Tomar foto', 'photo_camera', () => setShowPhoto(true))}
+              <PhotoHistory patientId={patient.id} version={photoVersion} />
+            </>
+          )}
+
+          {activeTab === 'info' && (
+            <>
+              <section className="card" aria-labelledby="profile-data-title">
+                <h2 id="profile-data-title">Datos personales</h2>
+                <dl className="detail-list">
+                  <div className="detail-item">
+                    <dt>Teléfono</dt>
+                    <dd>{patient.phone ?? '—'}</dd>
+                  </div>
+                  <div className="detail-item">
+                    <dt>Fecha de nacimiento</dt>
+                    <dd>{dob ?? '—'}</dd>
+                  </div>
+                  <div className="detail-item">
+                    <dt>Registrado el</dt>
+                    <dd>{new Date(patient.createdAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</dd>
+                  </div>
+                  <div className="detail-item detail-item--full">
+                    <dt>Notas</dt>
+                    <dd>{patient.notes ?? 'Sin notas'}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              {isPatient && (
+                <section className="card" aria-labelledby="profile-account-title">
+                  <h2 id="profile-account-title">Cuenta</h2>
+                  <div className="account-actions">
+                    {(user?.memberships?.length ?? 0) > 1 && (
+                      <div className="account-switch">
+                        <span className="text-muted">Cambiar de perfil</span>
+                        <ProfileSwitcher />
+                      </div>
+                    )}
+                    <button type="button" className="btn btn--ghost" onClick={handleLogout}>
+                      <span className="material-symbols-outlined" aria-hidden="true">
+                        logout
+                      </span>
+                      Cerrar sesión
+                    </button>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </Tabs>
       </div>
-
-      <Tabs
-        tabs={PROFILE_TABS}
-        active={activeTab}
-        onChange={setActiveTab}
-        idPrefix="patient-profile"
-        ariaLabel="Secciones del perfil del paciente"
-      >
-        {activeTab === 'evolucion' && (
-          <div className="card">
-            <h2>Evolución antropométrica</h2>
-            <MeasurementDashboard patientId={patient.id} />
-          </div>
-        )}
-
-        {activeTab === 'dieta' && (
-          <>
-            {!isPatient && (
-              <div className="tab-toolbar">
-                <button type="button" className="btn-ghost" onClick={() => setShowDiet(true)}>
-                  <span className="material-symbols-outlined" aria-hidden="true">restaurant_menu</span>
-                  Asignar dieta
-                </button>
-              </div>
-            )}
-            {/* Si ambos hijos no renderizan nada, el CSS :empty muestra el texto vacío. */}
-            <div className="tab-empty-aware" data-empty-text="No hay una dieta asignada ni historial de dietas.">
-              <DietDashboard key={dietVersion} patientId={patient.id} />
-              <DietHistory patientId={patient.id} version={dietVersion} />
-            </div>
-          </>
-        )}
-
-        {activeTab === 'entrenamiento' && (
-          <>
-            {!isPatient && (
-              <div className="tab-toolbar">
-                <button type="button" className="btn-ghost" onClick={() => setShowRoutine(true)}>
-                  <span className="material-symbols-outlined" aria-hidden="true">fitness_center</span>
-                  Asignar rutina
-                </button>
-              </div>
-            )}
-            <div className="tab-empty-aware" data-empty-text="No hay una rutina asignada.">
-              <WorkoutDashboard patientId={patient.id} version={routineVersion} />
-            </div>
-          </>
-        )}
-
-        {activeTab === 'fotos' && (
-          <>
-            {!isPatient && (
-              <div className="tab-toolbar">
-                <button type="button" className="btn-ghost" onClick={() => setShowPhoto(true)}>
-                  <span className="material-symbols-outlined" aria-hidden="true">photo_camera</span>
-                  Tomar foto
-                </button>
-              </div>
-            )}
-            <PhotoHistory patientId={patient.id} version={photoVersion} />
-          </>
-        )}
-
-        {activeTab === 'info' && (
-          <div className="card">
-            <h2>Información</h2>
-            <div className="detail-list">
-              <div className="detail-item">
-                <span>Nombre completo</span>
-                <strong>{patient.fullName}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Email</span>
-                <strong>{patient.email}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Teléfono</span>
-                <strong>{patient.phone ?? '—'}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Fecha de nacimiento</span>
-                <strong>{dob ?? '—'}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Registrado el</span>
-                <strong>{new Date(patient.createdAt).toLocaleString('es-ES')}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Notas</span>
-                <strong>{patient.notes ?? 'Sin notas'}</strong>
-              </div>
-            </div>
-          </div>
-        )}
-      </Tabs>
 
       {editing && (
         <PatientForm
@@ -434,12 +585,7 @@ export default function PatientProfile() {
         />
       )}
 
-      {showPhoto && (
-        <PhotoCapture
-          onCapture={handleCapturePhoto}
-          onCancel={() => setShowPhoto(false)}
-        />
-      )}
+      {showPhoto && <PhotoCapture onCapture={handleCapturePhoto} onCancel={() => setShowPhoto(false)} />}
 
       {showRoutine && (
         <AssignPicker
@@ -455,34 +601,14 @@ export default function PatientProfile() {
       )}
 
       {showDelete && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDelete(false)}>
-          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-icon">🗑</div>
-            <h2>Eliminar paciente</h2>
-            <p>
-              ¿Estás seguro que deseas eliminar a <strong>{patient.fullName}</strong>? Esta acción
-              no se puede deshacer.
-            </p>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setShowDelete(false)}
-                disabled={deleting}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmModal
+          title="Eliminar paciente"
+          question="¿Estás seguro de que deseas eliminar este paciente?"
+          subject={`${patient.fullName} (${patient.email})`}
+          loadImpact={async () => []}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDelete(false)}
+        />
       )}
     </div>
   )

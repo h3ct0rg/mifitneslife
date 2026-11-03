@@ -24,7 +24,7 @@ export default function MembershipPicker({ memberships, busyId, error, onSelect,
   return (
     <div className="membership-picker">
       <h2 id="membership-picker-title">¿Con qué perfil quieres entrar?</h2>
-      <p className="hint">Tu cuenta tiene acceso a varios perfiles. Podrás cambiarlo luego desde el menú.</p>
+      <p className="membership-picker-hint">Tu cuenta tiene acceso a varios perfiles. Podrás cambiarlo luego desde el menú.</p>
       <ul className="membership-cards" aria-labelledby="membership-picker-title">
         {sorted.map((m, i) => {
           const isLast = m.id === last
@@ -38,8 +38,8 @@ export default function MembershipPicker({ memberships, busyId, error, onSelect,
                 disabled={busyId !== null}
                 aria-label={`Entrar como ${roleLabel(m.role)} en ${membershipTenant(m)}${isLast ? ' (último usado)' : ''}`}
               >
-                <span className="material-symbols-outlined membership-card-icon" aria-hidden="true">
-                  {roleIcon(m.role)}
+                <span className={`icon-chip membership-card-icon${isLast ? '' : ' icon-chip--soft'}`} aria-hidden="true">
+                  <span className="material-symbols-outlined">{roleIcon(m.role)}</span>
                 </span>
                 <span className="membership-card-body">
                   <strong>{membershipTenant(m)}</strong>
@@ -52,9 +52,19 @@ export default function MembershipPicker({ memberships, busyId, error, onSelect,
           )
         })}
       </ul>
-      {error && <div className="error-box">{error}</div>}
-      <button type="button" className="btn-ghost membership-back" onClick={onBack} disabled={busyId !== null}>
-        ← Usar otra cuenta
+      {error && (
+        <div className="error-box" role="alert">
+          <span className="material-symbols-outlined" aria-hidden="true">
+            error
+          </span>
+          {error}
+        </div>
+      )}
+      <button type="button" className="btn btn--ghost membership-back" onClick={onBack} disabled={busyId !== null}>
+        <span className="material-symbols-outlined" aria-hidden="true">
+          arrow_back
+        </span>
+        Usar otra cuenta
       </button>
     </div>
   )

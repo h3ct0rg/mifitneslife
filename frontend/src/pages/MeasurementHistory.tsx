@@ -1,44 +1,60 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { dietsApi, measurementsApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { CreateMeasurementRequest, DietDto, MeasurementDto } from '../api/types'
 import MeasurementForm from '../components/MeasurementForm'
+import { ConfirmModal } from '../components/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { useToast } from '../context/toastContext'
 
 const PAGE_SIZE = 10
 
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+
+const rounded = (v?: number) => (v == null ? null : Number(v.toFixed(1)))
+
+const hasText = (html?: string) => !!html && html.trim().replace(/<[^>]*>/g, '').trim() !== ''
+
 export default function MeasurementHistory() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+  const toast = useToast()
 
   const [items, setItems] = useState<MeasurementDto[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; measurement: MeasurementDto } | null>(null)
+  const [toDelete, setToDelete] = useState<MeasurementDto | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [diets, setDiets] = useState<DietDto[]>([])
   const [assignedDietId, setAssignedDietId] = useState('')
 
-  const load = useCallback(async (p = 1) => {
+  const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    setMessage(null)
+    setError(null)
     try {
-      const [data, dietRes] = await Promise.all([
-        measurementsApi.list(id, { page: p, pageSize: PAGE_SIZE }),
+      const [data, dietRes, dietList] = await Promise.all([
+        measurementsApi.list(id, { page, pageSize: PAGE_SIZE }),
         dietsApi.getByPatient(id),
+        dietsApi.list(),
       ])
       setItems(data.items)
       setTotal(data.total)
-      setDiets(await dietsApi.list())
+      setDiets(dietList)
       setAssignedDietId(dietRes.assigned && dietRes.diet ? dietRes.diet.id : '')
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, page])
 
   useEffect(() => {
     load()
@@ -61,10 +77,11 @@ export default function MeasurementHistory() {
     try {
       await measurementsApi.create(id, payload)
       setModal(null)
-      setMessage({ type: 'ok', text: 'Visita registrada correctamente.' })
-      load(1)
+      toast.success('Visita registrada correctamente.')
+      if (page === 1) load()
+      else setPage(1)
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
     }
   }
 
@@ -73,54 +90,71 @@ export default function MeasurementHistory() {
     try {
       await measurementsApi.update(id, modal.measurement.id, payload)
       setModal(null)
-      setMessage({ type: 'ok', text: 'Visita actualizada correctamente.' })
-      load(page)
+      toast.success('Visita actualizada correctamente.')
+      load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
     }
   }
 
-  const handleDelete = async (measurement: MeasurementDto) => {
-    if (!id) return
-    if (!window.confirm('¿Eliminar esta medición?')) return
+  const handleDelete = async () => {
+    if (!id || !toDelete) return
+    setDeleting(true)
     try {
-      await measurementsApi.remove(id, measurement.id)
-      setMessage({ type: 'ok', text: 'Medición eliminada.' })
-      load(page)
+      await measurementsApi.remove(id, toDelete.id)
+      setToDelete(null)
+      toast.success('Visita eliminada.')
+      load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
-
-  const fmtTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-
-  const rounded = (v?: number) => (v == null ? null : Number(v.toFixed(1)))
+  const openCreate = () => setModal({ mode: 'create' })
 
   return (
     <div className="page">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Historial de visitas ({total})</h2>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button type="button" className="btn-ghost" onClick={() => navigate(`/pacientes/${id}`)}>
-            ← Perfil
+      <PageHeader
+        title="Historial de visitas"
+        subtitle={loading && total === 0 ? undefined : `${total} visita${total === 1 ? '' : 's'}`}
+        back={{ to: `/pacientes/${id}`, label: 'Ficha del paciente' }}
+        actions={
+          <button type="button" className="btn btn--primary clin-desktop-action" onClick={openCreate}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              add
+            </span>
+            Nueva visita
           </button>
-          <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={() => setModal({ mode: 'create' })}>
-            + Nueva visita
-          </button>
-        </div>
-      </div>
+        }
+      />
 
-      <section className="visit-cards">
-        {loading ? (
-          <p>Cargando...</p>
+      <section className="visit-cards" aria-busy={loading || undefined}>
+        {loading && items.length === 0 ? (
+          <StateView state="loading" title="Cargando visitas..." />
+        ) : error ? (
+          <StateView
+            state="error"
+            message={error}
+            action={
+              <button type="button" className="btn btn--ghost" onClick={load}>
+                Reintentar
+              </button>
+            }
+          />
         ) : items.length === 0 ? (
-          <div className="empty-state">Aún no hay visitas registradas.</div>
+          <StateView
+            state="empty"
+            icon="event_note"
+            title="Aún no hay visitas"
+            message="Registra la primera visita con sus mediciones."
+            action={
+              <button type="button" className="btn btn--primary" onClick={openCreate}>
+                Nueva visita
+              </button>
+            }
+          />
         ) : (
           items.map((m) => (
             <article key={m.id} className="visit-card">
@@ -130,71 +164,90 @@ export default function MeasurementHistory() {
                   <span>{fmtTime(m.visitDate)} h</span>
                 </div>
                 <div className="visit-card-actions">
-                  <button type="button" className="btn-ghost" onClick={() => setModal({ mode: 'edit', measurement: m })}>
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => setModal({ mode: 'edit', measurement: m })}
+                  >
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      edit
+                    </span>
                     Editar
                   </button>
-                  <button type="button" className="btn-danger-soft" onClick={() => handleDelete(m)}>
-                    Eliminar
+                  <button
+                    type="button"
+                    className="btn btn--icon"
+                    onClick={() => setToDelete(m)}
+                    aria-label={`Eliminar visita del ${fmtDate(m.visitDate)}`}
+                    title="Eliminar"
+                  >
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      delete
+                    </span>
                   </button>
                 </div>
               </header>
 
               <div className="visit-card-body">
-                {m.notes && m.notes.trim().replace(/<[^>]*>/g, '') ? (
-                  <div className="visit-notes" /* eslint-disable-next-line react/no-danger */ dangerouslySetInnerHTML={{ __html: m.notes }} />
+                {hasText(m.notes) ? (
+                  <div className="visit-notes" dangerouslySetInnerHTML={{ __html: m.notes ?? '' }} />
                 ) : (
                   <p className="visit-notes-empty">Sin observaciones.</p>
                 )}
               </div>
 
-              <footer className="visit-card-footer">
-                <div className="visit-metric">
-                  <span>Peso</span>
-                  <strong>{rounded(m.weightKg) ?? '—'}</strong>
-                  <em>kg</em>
-                </div>
-                <div className="visit-metric">
-                  <span>IMC</span>
-                  <strong>{rounded(m.imc) ?? '—'}</strong>
-                  <em>{m.imc ? m.imcRange : ''}</em>
-                </div>
-                <div className="visit-metric">
-                  <span>Grasa</span>
-                  <strong>{rounded(m.bodyFatPct) ?? '—'}</strong>
-                  <em>%</em>
-                </div>
-                <div className="visit-metric">
-                  <span>Cintura</span>
-                  <strong>{rounded(m.waistCm) ?? '—'}</strong>
-                  <em>cm</em>
-                </div>
-                <div className="visit-metric">
-                  <span>Cadera</span>
-                  <strong>{rounded(m.hipCm) ?? '—'}</strong>
-                  <em>cm</em>
-                </div>
-                <div className="visit-metric">
-                  <span>Pecho</span>
-                  <strong>{rounded(m.chestCm) ?? '—'}</strong>
-                  <em>cm</em>
-                </div>
-              </footer>
+              <dl className="visit-card-footer">
+                {[
+                  { label: 'Peso', value: rounded(m.weightKg), unit: 'kg' },
+                  { label: 'IMC', value: rounded(m.imc), unit: m.imc ? m.imcRange : '' },
+                  { label: 'Grasa', value: rounded(m.bodyFatPct), unit: '%' },
+                  { label: 'Cintura', value: rounded(m.waistCm), unit: 'cm' },
+                  { label: 'Cadera', value: rounded(m.hipCm), unit: 'cm' },
+                  { label: 'Pecho', value: rounded(m.chestCm), unit: 'cm' },
+                ].map((metric) => (
+                  <div key={metric.label} className="visit-metric">
+                    <dt>{metric.label}</dt>
+                    <dd>
+                      <strong>{metric.value ?? '—'}</strong>
+                      {metric.unit && <em>{metric.unit}</em>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </article>
           ))
         )}
 
-        {totalPages > 1 && (
-          <div className="pagination">
-            <button type="button" className="btn-ghost" disabled={page <= 1} onClick={() => { setPage(page - 1); load(page - 1) }}>
+        {totalPages > 1 && !error && (
+          <nav className="pagination" aria-label="Paginación">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
               Anterior
             </button>
-            <span>Página {page} de {totalPages}</span>
-            <button type="button" className="btn-ghost" disabled={page >= totalPages} onClick={() => { setPage(page + 1); load(page + 1) }}>
+            <span>
+              Página {page} de {totalPages}
+            </span>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
               Siguiente
             </button>
-          </div>
+          </nav>
         )}
       </section>
+
+      <button type="button" className="clin-fab" onClick={openCreate} aria-label="Nueva visita">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          add
+        </span>
+      </button>
 
       {modal && (
         <MeasurementForm
@@ -205,6 +258,18 @@ export default function MeasurementHistory() {
           onDietChange={handleDietChange}
           onSubmit={modal.mode === 'create' ? handleCreate : handleUpdate}
           onCancel={() => setModal(null)}
+        />
+      )}
+
+      {toDelete && (
+        <ConfirmModal
+          title="Eliminar visita"
+          message={`¿Eliminar la visita del ${fmtDate(toDelete.visitDate)}? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          danger
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => !deleting && setToDelete(null)}
         />
       )}
     </div>

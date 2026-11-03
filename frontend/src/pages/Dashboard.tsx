@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +7,10 @@ import { getErrorMessage } from '../api/client'
 import type { AppointmentStatus, DashboardKpisDto } from '../api/types'
 import { roleLabel } from '../api/types'
 import ManagementChart from '../components/ManagementChart'
+import { avatarClass, initialsOf } from '../components/avatarIndex'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { useToast } from '../context/toastContext'
 
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
   Scheduled: 'Programada',
@@ -15,12 +19,12 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
   NoShow: 'No asistió',
 }
 
-const QUICK_LINKS = [
-  { to: '/pacientes', icon: 'group', label: 'Pacientes' },
-  { to: '/agenda', icon: 'calendar_month', label: 'Agenda' },
-  { to: '/dieta/catalogo', icon: 'menu_book', label: 'Catálogo alimenticio' },
-  { to: '/configuracion', icon: 'palette', label: 'Apariencia' },
-]
+const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  Scheduled: 'badge--info',
+  Completed: 'badge--success',
+  Cancelled: 'badge--neutral',
+  NoShow: 'badge--warning',
+}
 
 /** Tasa 0..1 → "83%"; null/no finito → "—". */
 function fmtRate(rate: number | null | undefined): string {
@@ -42,45 +46,56 @@ function delta(current: number, prev: number): Delta {
   return { text: `${pct > 0 ? '+' : ''}${pct}%`, dir: pct > 0 ? 'up' : 'down' }
 }
 
+/** Variación en píldora (.delta--up/--down/--same, MV-4). */
 function DeltaBadge({ d }: { d: Delta }) {
-  const icon = d.dir === 'up' ? 'arrow_upward' : d.dir === 'down' ? 'arrow_downward' : d.dir === 'flat' ? 'remove' : null
-  const sr = d.dir === 'up' ? 'subió' : d.dir === 'down' ? 'bajó' : ''
+  const cls = d.dir === 'up' ? 'delta--up' : d.dir === 'down' ? 'delta--down' : 'delta--same'
+  const icon = d.dir === 'up' ? 'trending_up' : d.dir === 'down' ? 'trending_down' : d.dir === 'flat' ? 'remove' : null
+  const sr = d.dir === 'up' ? 'subió ' : d.dir === 'down' ? 'bajó ' : ''
   return (
-    <span className={`mgmt-delta ${d.dir}`} title="Variación respecto al mes anterior">
+    <span className={`delta ${cls}`} title="Variación respecto al mes anterior">
       {icon && (
         <span className="material-symbols-outlined" aria-hidden="true">
           {icon}
         </span>
       )}
-      <span className="sr-only">{sr} </span>
-      {d.text} <span className="mgmt-delta-sub">vs mes ant.</span>
+      <span className="sr-only">{sr}</span>
+      {d.text}
+      <span className="sr-only"> respecto al mes anterior</span>
     </span>
   )
 }
 
+type Chip = 'solid' | 'soft' | 'accent' | 'success'
+
+/** KPI con chip de icono (MV-4: .card.kpi + .icon-chip). */
 function Kpi({
   icon,
+  chip = 'soft',
   label,
   value,
+  delta: d,
   sub,
   loading,
 }: {
   icon: string
+  chip?: Chip
   label: string
   value: ReactNode
+  delta?: Delta
   sub?: ReactNode
   loading: boolean
 }) {
   return (
-    <div className="mgmt-kpi">
-      <div className="mgmt-kpi-head">
-        <span className="material-symbols-outlined" aria-hidden="true">
-          {icon}
+    <div className="card kpi">
+      <div className="kpi-top">
+        <span className={`icon-chip${chip === 'solid' ? '' : ` icon-chip--${chip}`}`} aria-hidden="true">
+          <span className="material-symbols-outlined">{icon}</span>
         </span>
-        <span>{label}</span>
+        {!loading && d && <DeltaBadge d={d} />}
       </div>
-      <strong className="mgmt-kpi-value">{loading ? '…' : value}</strong>
-      {!loading && sub && <div className="mgmt-kpi-sub">{sub}</div>}
+      <div className="kpi-value num">{loading ? '…' : value}</div>
+      <div className="kpi-label">{label}</div>
+      {!loading && sub && <div className="kpi-sub">{sub}</div>}
     </div>
   )
 }
@@ -112,16 +127,20 @@ function Block({
         {action}
       </div>
       {loading ? (
-        <p className="text-muted">Cargando...</p>
+        <StateView state="loading" compact />
       ) : error ? (
-        <div className="mgmt-block-error">
-          <span>No se pudo cargar: {error}</span>
-          <button type="button" className="btn-ghost" onClick={onRetry}>
-            Reintentar
-          </button>
-        </div>
+        <StateView
+          state="error"
+          compact
+          message={error}
+          action={
+            <button type="button" className="btn btn--ghost" onClick={onRetry}>
+              Reintentar
+            </button>
+          }
+        />
       ) : empty ? (
-        <p className="empty-state">{emptyText}</p>
+        <StateView state="empty" compact title={emptyText} />
       ) : (
         children
       )}
@@ -129,26 +148,41 @@ function Block({
   )
 }
 
+/** Saludo según la hora local. */
+function greeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buenos días'
+  if (h < 20) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const toast = useToast()
   const [data, setData] = useState<DashboardKpisDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Si ya hay datos, un fallo al actualizar se avisa con toast y se conservan los anteriores.
+  const hasData = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       setData(await dashboardApi.kpis())
+      hasData.current = true
     } catch (err) {
-      setError(getErrorMessage(err))
+      const msg = getErrorMessage(err)
+      setError(msg)
+      if (hasData.current) toast.error(`No se pudo actualizar: ${msg}`)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     load()
@@ -165,42 +199,57 @@ export default function Dashboard() {
 
   return (
     <div className="page mgmt-page">
-      <section className="card mgmt-hero">
-        <div>
-          <h2>Hola, {user.fullName}</h2>
-          <p className="text-muted">
-            {isProfessionalScope
-              ? 'Mostrando tus citas · los indicadores de pacientes son del centro completo.'
-              : 'Indicadores de gestión del centro.'}
+      {/* Hero (MV-1): PageHeader variant="hero". Único h1. */}
+      <PageHeader
+        variant="hero"
+        title={`${greeting()}, ${user.firstName || user.fullName}`}
+        subtitle={
+          <>
+            {a && p
+              ? `Tienes ${a.today} cita${a.today === 1 ? '' : 's'} hoy y ${p.withoutFollowUp30d} paciente${
+                  p.withoutFollowUp30d === 1 ? '' : 's'
+                } sin seguimiento.`
+              : isProfessionalScope
+                ? 'Mostrando tus citas · los indicadores de pacientes son del centro completo.'
+                : 'Indicadores de gestión del centro.'}
             {data && (
               <>
                 {' '}
                 Actualizado {new Date(data.generatedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}.
               </>
             )}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn-ghost mgmt-icon-btn"
-          onClick={load}
-          disabled={loading}
-          aria-label="Actualizar indicadores"
-          title="Actualizar"
-        >
-          <span className="material-symbols-outlined" aria-hidden="true">
-            refresh
-          </span>
-        </button>
-      </section>
-
-      {error && data && <div className="alert err">No se pudo actualizar: {error}</div>}
-      {error && !data && <div className="alert err">No se pudieron cargar los indicadores: {error}</div>}
+          </>
+        }
+        actions={
+          <>
+          <Link to="/agenda?cita=nueva" className="btn btn--light">
+            <span className="material-symbols-outlined" aria-hidden="true">
+              add
+            </span>
+            Nueva cita
+          </Link>
+          <button
+            type="button"
+            className="btn btn--light"
+            onClick={load}
+            disabled={loading}
+            aria-busy={loading || undefined}
+            aria-label={loading ? 'Actualizando indicadores' : 'Actualizar indicadores'}
+            title="Actualizar"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              refresh
+            </span>
+          </button>
+          </>
+        }
+      />
 
       {(busy || p) && (
         <section className="mgmt-kpis" aria-label="Indicadores clave" aria-busy={busy}>
           <Kpi
             icon="group"
+            chip="solid"
             label="Pacientes activos"
             loading={busy}
             value={p?.active ?? 0}
@@ -208,20 +257,22 @@ export default function Dashboard() {
           />
           <Kpi
             icon="person_add"
+            chip="accent"
             label="Nuevos este mes"
             loading={busy}
             value={p?.newThisMonth ?? 0}
-            sub={p && <DeltaBadge d={delta(p.newThisMonth, p.newPrevMonth)} />}
+            delta={p && delta(p.newThisMonth, p.newPrevMonth)}
           />
           <Kpi
             icon="event_available"
             label="Citas completadas (mes)"
             loading={busy}
             value={a?.thisMonth.completed ?? 0}
-            sub={a && <DeltaBadge d={delta(a.thisMonth.completed, a.prevMonth.completed)} />}
+            delta={a && delta(a.thisMonth.completed, a.prevMonth.completed)}
           />
           <Kpi
             icon="how_to_reg"
+            chip="success"
             label="Tasa de asistencia"
             loading={busy}
             value={fmtRate(a?.attendanceRate)}
@@ -236,6 +287,7 @@ export default function Dashboard() {
           />
           <Kpi
             icon="restaurant_menu"
+            chip="accent"
             label="Cobertura de dieta"
             loading={busy}
             value={fmtRate(p ? ratio(p.withDiet, p.active) : null)}
@@ -286,14 +338,17 @@ export default function Dashboard() {
               <ul className="mgmt-list">
                 {data.todayAppointments.map((ap) => (
                   <li key={ap.id}>
-                    <span className="mgmt-time">{fmtTime(ap.startAt)}</span>
+                    <span className="mgmt-time num">{fmtTime(ap.startAt)}</span>
+                    <span className={`avatar mgmt-avatar ${avatarClass(ap.patientId)}`} aria-hidden="true">
+                      {initialsOf(ap.patientName)}
+                    </span>
                     <span className="mgmt-list-main">
                       <Link to={`/pacientes/${ap.patientId}`} className="row-link">
                         {ap.patientName}
                       </Link>
                       <span className="text-muted">{ap.professionalName}</span>
                     </span>
-                    <span className={`mgmt-status ${ap.status.toLowerCase()}`}>
+                    <span className={`badge ${STATUS_BADGE[ap.status] ?? 'badge--neutral'}`}>
                       {STATUS_LABEL[ap.status] ?? ap.status}
                     </span>
                   </li>
@@ -305,7 +360,7 @@ export default function Dashboard() {
 
         <Block
           title="Pacientes sin seguimiento"
-          action={p ? <span className="badge">{p.withoutFollowUp30d}</span> : undefined}
+          action={p ? <span className="badge badge--warning">{p.withoutFollowUp30d}</span> : undefined}
           loading={busy}
           error={blockError}
           empty={!data || data.atRiskPatients.length === 0}
@@ -318,6 +373,9 @@ export default function Dashboard() {
               <ul className="mgmt-list">
                 {data.atRiskPatients.map((r) => (
                   <li key={r.id}>
+                    <span className={`avatar mgmt-avatar ${avatarClass(r.id)}`} aria-hidden="true">
+                      {initialsOf(r.fullName)}
+                    </span>
                     <span className="mgmt-list-main">
                       <Link to={`/pacientes/${r.id}`} className="row-link">
                         {r.fullName}
@@ -349,7 +407,7 @@ export default function Dashboard() {
           onRetry={load}
         >
           {data && (
-            <div className="table-scroll">
+            <div className="table-scroll table-scroll--sticky-first">
               <table className="table">
                 <thead>
                   <tr>
@@ -379,19 +437,6 @@ export default function Dashboard() {
         </Block>
       )}
 
-      <section className="card">
-        <h2>Accesos rápidos</h2>
-        <nav className="mgmt-quick" aria-label="Accesos rápidos">
-          {QUICK_LINKS.map((q) => (
-            <Link key={q.to} to={q.to} className="mgmt-quick-link">
-              <span className="material-symbols-outlined" aria-hidden="true">
-                {q.icon}
-              </span>
-              {q.label}
-            </Link>
-          ))}
-        </nav>
-      </section>
     </div>
   )
 }

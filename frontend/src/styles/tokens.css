@@ -1,0 +1,273 @@
+/* tokens.css — Design tokens del sistema visual. Único archivo con colores literales.
+   F2 (K1) + G2a "look moderno" (01-ux-2-direccion.md MV-2/MV-4; valores del prototipo aprobado A1).
+   Temas: Océano (vs-blue, por defecto), Esmeralda (blue-white), Aurora (blue-rose).
+   Los alias legados (--primary, --text, --muted, --surface*, --shadow-*, --radius-*, --glass-*, --card…)
+   se conservan apuntando a los tokens nuevos. */
+
+:root,
+[data-theme="vs-blue"] {
+  /* ---- Tipografía ---- */
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fs-xs: 0.75rem;   /* 12 */
+  --fs-sm: 0.875rem;  /* 14 */
+  --fs-md: 1rem;      /* 16: cuerpo e inputs */
+  --fs-lg: 1.125rem;  /* 18 */
+  --fs-xl: 1.25rem;   /* 20 */
+  --fs-2xl: 1.5rem;   /* 24 */
+  --fs-3xl: 1.875rem; /* 30 */
+  --fs-display: 2.25rem; /* 36 */
+  --fs-icon: 1.375rem;    /* 22: icono por defecto (Material Symbols) */
+  --fs-icon-xl: 2.75rem;  /* 44: icono de empty state */
+  --lh-body: 1.5;
+  --lh-title: 1.2;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+  --tracking-title: -0.02em;
+  --tracking-eyebrow: 0.06em;
+
+  /* ---- Espaciado (base 4) ---- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+
+  /* ---- Radios (MV-1.5) ---- */
+  --radius-sm: 10px;
+  --radius-md: 14px;  /* controles */
+  --radius-lg: 20px;  /* cards */
+  --radius-xl: 28px;  /* hojas y frames */
+  --radius-full: 999px;
+
+  /* ---- z-index ---- */
+  --z-header: 20;
+  --z-sidebar: 30;
+  --z-bottom-nav: 40;
+  --z-overlay: 50;
+  --z-popover: 55;
+  --z-toast: 60;
+
+  /* ---- Movimiento ---- */
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* ---- Tamaños ---- */
+  --control-h: 44px;
+  --touch-min: 44px;
+  --header-h: 64px;
+  --bottom-nav-h: 64px;
+
+  /* ---- Color: neutros comunes (no cambian por tema) ---- */
+  --color-surface: #FFFFFF;
+
+  --color-text: #0F172A;
+  --color-text-2: #334155;
+  --color-muted: #475569;
+  --color-subtle: #64748B;          /* placeholder; solo sobre blanco */
+  --color-border-strong: #CBD5E1;   /* decorativo, hover */
+  --color-border-input: #7A889C;    /* ≥3:1 sobre blanco y sobre los 3 fondos */
+  --color-on-primary: #FFFFFF;      /* texto sobre primario y sobre el gradiente: siempre blanco puro */
+  --color-overlay: rgba(15, 23, 42, 0.55);
+  --color-glass: rgba(255, 255, 255, 0.85); /* solo shell y overlays */
+  --color-glass-header: rgba(255, 255, 255, 0.72);
+  --color-glass-nav: rgba(255, 255, 255, 0.86);
+  --glass-blur: 16px;
+  --ring-light: rgba(255, 255, 255, 0.6);   /* anillo interior del icono de empty state */
+  --hero-deco-1: rgba(255, 255, 255, 0.08); /* decoración del hero, lejos del texto (≤8%) */
+  --hero-deco-2: rgba(255, 255, 255, 0.06);
+  --on-brand-hover: rgba(255, 255, 255, 0.14); /* hover de botones icono sobre el gradiente */
+
+  /* ---- Color: estados (texto / fondo) — no cambian por tema ---- */
+  --color-success: #15803D;
+  --color-success-bg: #F0FDF4;
+  --color-warning: #B45309;
+  --color-warning-bg: #FFFBEB;
+  --color-danger: #B91C1C;
+  --color-danger-hover: #991B1B;
+  --color-danger-bg: #FEF2F2;
+
+  /* ---- Color: macros (texto / fondo) ---- */
+  --color-kcal: #B45309;
+  --color-kcal-bg: #FEF3C7;
+  --color-protein: #1D4ED8;
+  --color-protein-bg: #EEF4FF;
+  --color-carbs: #047857;
+  --color-carbs-bg: #ECFDF5;
+  --color-fat: #BE123C;
+  --color-fat-bg: #FFF1F2;
+  --color-fiber: #6D28D9;
+  --color-fiber-bg: #F5F3FF;
+
+  /* ---- Avatares: 6 gradientes (iniciales en blanco ≥5:1) ---- */
+  --avatar-1: linear-gradient(135deg, #2563EB, #7C3AED);
+  --avatar-2: linear-gradient(135deg, #0F766E, #1D4ED8);
+  --avatar-3: linear-gradient(135deg, #C2410C, #BE123C);
+  --avatar-4: linear-gradient(135deg, #6D28D9, #BE185D);
+  --avatar-5: linear-gradient(135deg, #B45309, #C2410C);
+  --avatar-6: linear-gradient(135deg, #047857, #0E7490);
+
+  /* ---- Gráfico de gestión (paleta categórica validada para daltonismo; usada por clinical.css) ---- */
+  --mgmt-completed: #2a78d6;
+  --mgmt-cancelled: #eb6834;
+  --mgmt-noshow: #1baf7a;
+  --mgmt-new: #6250d6;
+  --mgmt-up: #006300;
+  --mgmt-down: #b42318;
+
+  /* ==== TEMA OCÉANO (por defecto) ==== */
+  --shadow-rgb: 0, 72, 140;
+  --color-bg: #EEF4FB;
+  --bg-blob-1: rgba(0, 120, 212, 0.14);
+  --bg-blob-2: rgba(8, 145, 178, 0.12);
+  --color-surface-tint: #F6FAFE;
+  --color-border: #DCE7F3;
+  --color-primary: #0078D4;
+  --color-primary-hover: #005A9E;
+  --color-primary-text: #005A9E;
+  --color-primary-subtle: #E3F0FB;
+  --color-accent: #0891B2;
+  --color-accent-text: #0E7490;
+  --color-accent-subtle: #E0F5F9;
+  --gradient-brand: linear-gradient(135deg, #0067B8 0%, #0E7490 100%);
+  --gradient-soft: linear-gradient(135deg, #E3F0FB 0%, #E0F5F9 100%);
+  --sidebar-bg: rgba(255, 255, 255, 0.82);
+  --sidebar-text: #0F172A;
+  --sidebar-muted: #475569;
+  --sidebar-border: #DCE7F3;
+  --sidebar-active-bg: #E3F0FB;
+  --sidebar-active-text: #005A9E;
+  --sidebar-indicator: #0078D4;
+  --sidebar-focus: #0078D4;
+  --chart-1: #0078D4;
+  --chart-2: #0E7490;
+  --chart-3: #7C3AED;
+  --chart-4: #EA580C;
+  --color-info: #005A9E;
+  --color-info-bg: #E3F0FB;
+  --secondary: #0098FF;
+}
+
+/* ==== TEMA ESMERALDA (blue-white): verde bienestar, sidebar oscuro, acento ámbar ==== */
+[data-theme="blue-white"] {
+  --shadow-rgb: 4, 70, 50;
+  --color-bg: #EEF6F2;
+  --bg-blob-1: rgba(4, 120, 87, 0.14);
+  --bg-blob-2: rgba(245, 158, 11, 0.10);
+  --color-surface-tint: #F6FBF8;
+  --color-border: #D7EAE1;
+  --color-primary: #047857;
+  --color-primary-hover: #065F46;
+  --color-primary-text: #065F46;
+  --color-primary-subtle: #E3F4EC;
+  --color-accent: #F59E0B;
+  --color-accent-text: #B45309;
+  --color-accent-subtle: #FEF3C7;
+  --gradient-brand: linear-gradient(135deg, #047857 0%, #0F766E 100%);
+  --gradient-soft: linear-gradient(135deg, #E3F4EC 0%, #FEF3C7 100%);
+  --sidebar-bg: #053B2F;
+  --sidebar-text: #FFFFFF;
+  --sidebar-muted: #A7D7C5;
+  --sidebar-border: #0B4D3E;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.14);
+  --sidebar-active-text: #FFFFFF;
+  --sidebar-indicator: #F59E0B;
+  --sidebar-focus: #FFFFFF;
+  --chart-1: #047857;
+  --chart-2: #0E7490;
+  --chart-3: #B45309;
+  --chart-4: #7C3AED;
+  --color-info: #065F46;
+  --color-info-bg: #E3F4EC;
+  --secondary: #0E7490;
+}
+
+/* ==== TEMA AURORA (blue-rose): violeta y magenta, sidebar índigo ==== */
+[data-theme="blue-rose"] {
+  --shadow-rgb: 49, 22, 110;
+  --color-bg: #F5F2FC;
+  --bg-blob-1: rgba(109, 40, 217, 0.14);
+  --bg-blob-2: rgba(219, 39, 119, 0.10);
+  --color-surface-tint: #FAF8FE;
+  --color-border: #E6E0F5;
+  --color-primary: #6D28D9;
+  --color-primary-hover: #5B21B6;
+  --color-primary-text: #5B21B6;
+  --color-primary-subtle: #EFE9FC;
+  --color-accent: #DB2777;
+  --color-accent-text: #BE185D;
+  --color-accent-subtle: #FCE7F3;
+  --gradient-brand: linear-gradient(135deg, #6D28D9 0%, #BE185D 100%);
+  --gradient-soft: linear-gradient(135deg, #EFE9FC 0%, #FCE7F3 100%);
+  --sidebar-bg: #1E1B4B;
+  --sidebar-text: #FFFFFF;
+  --sidebar-muted: #C7C3F0;
+  --sidebar-border: #2E2A66;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.14);
+  --sidebar-active-text: #FFFFFF;
+  --sidebar-indicator: #F472B6;
+  --sidebar-focus: #FFFFFF;
+  --chart-1: #6D28D9;
+  --chart-2: #DB2777;
+  --chart-3: #0E7490;
+  --chart-4: #EA580C;
+  --color-info: #5B21B6;
+  --color-info-bg: #EFE9FC;
+  --secondary: #DB2777;
+}
+
+/* Derivados: se declaran para :root y cada tema, así se resuelven con el --shadow-rgb / primario del tema.
+   Sombras en capas teñidas (fórmulas del prototipo). */
+:root,
+[data-theme] {
+  --shadow-1: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 1px 3px rgba(var(--shadow-rgb), 0.08);
+  --shadow-2: 0 2px 4px rgba(var(--shadow-rgb), 0.05), 0 8px 20px -4px rgba(var(--shadow-rgb), 0.12);
+  --shadow-3: 0 4px 8px rgba(var(--shadow-rgb), 0.06), 0 16px 36px -8px rgba(var(--shadow-rgb), 0.2);
+  --shadow-brand: 0 6px 16px -4px rgba(var(--shadow-rgb), 0.45);
+  --shadow-brand-hover: 0 10px 22px -6px rgba(var(--shadow-rgb), 0.5);
+  --shadow-light-btn: 0 6px 16px -6px rgba(0, 0, 0, 0.3);
+  --shadow-nav-top: 0 -8px 24px -12px rgba(var(--shadow-rgb), 0.25);
+  --color-focus: var(--color-primary);
+  --color-surface-2: var(--color-surface-tint); /* zonas internas con matiz del tema */
+
+  /* ==== Alias legados (no usar en código nuevo) ==== */
+  --shadow-xs: var(--shadow-1);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+  --primary: var(--color-primary);
+  --primary-dark: var(--color-primary-hover);
+  --primary-light: var(--color-primary-subtle);
+  --accent: var(--color-accent-text);       /* como texto: AA en los 3 temas */
+  --accent-dark: var(--color-accent-text);
+  --accent-light: var(--color-accent-subtle);
+  --bg: var(--color-bg);
+  --bg-gradient: var(--color-bg);
+  --glass-level-1: var(--color-surface);
+  --glass-level-2: var(--color-surface);
+  --glass-level-3: var(--color-surface);
+  --card: var(--color-surface);
+  --card-strong: var(--color-surface);
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --text: var(--color-text);
+  --muted: var(--color-muted);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --glass-shadow: var(--shadow-1);
+  --glass-shadow-hover: var(--shadow-2);
+  --glass-shadow-modal: var(--shadow-3);
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-2);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-2);
+}

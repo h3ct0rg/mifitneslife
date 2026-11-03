@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
 import { authApi } from '../api'
@@ -9,6 +9,11 @@ import MembershipPicker from '../components/MembershipPicker'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
+// Aviso solo para desarrollo: nunca se muestra en la interfaz.
+if (import.meta.env.DEV && !GOOGLE_CLIENT_ID) {
+  console.info('[auth] Google login no configurado: define VITE_GOOGLE_CLIENT_ID para mostrar el botón de Google.')
+}
+
 /** Solo rutas internas ("/x"), nunca "//host" ni URLs absolutas. */
 function safeNext(next: string | null): string {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
@@ -17,6 +22,7 @@ function safeNext(next: string | null): string {
 export default function Login() {
   const { login, handleLoginResult, selectMembership } = useAuth()
   const navigate = useNavigate()
+  const ids = useId()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
   const [email, setEmail] = useState('')
@@ -74,10 +80,15 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page">
+    <main className="auth-page">
       <div className="auth-card">
-        <h1>MyFitnessLife</h1>
-        <p className="auth-subtitle">Plataforma de Fitness & Nutrición</p>
+        <header className="auth-brand">
+          <span className="brand-mark auth-logo" aria-hidden="true">
+            <span className="material-symbols-outlined is-filled">favorite</span>
+          </span>
+          <h1>MyFitnessLife</h1>
+          {!selection && <p className="auth-subtitle">Inicia sesión en tu cuenta</p>}
+        </header>
 
         {selection ? (
           <MembershipPicker
@@ -91,49 +102,68 @@ export default function Login() {
           />
         ) : (
           <>
-            <form onSubmit={handleSubmit}>
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <input
-                type="password"
-                placeholder="Contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              {error && <div className="error-box">{error}</div>}
-              <button type="submit" className="btn-primary" disabled={loading}>
+            <form onSubmit={handleSubmit} className="auth-form">
+              <div className="field">
+                <label htmlFor={`${ids}-email`}>Email</label>
+                <input
+                  id={`${ids}-email`}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  placeholder="nombre@correo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`${ids}-password`}>Contraseña</label>
+                <input
+                  id={`${ids}-password`}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              {error && (
+                <div className="error-box" role="alert">
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    error
+                  </span>
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                className="btn btn--primary btn--block"
+                disabled={loading}
+                aria-busy={loading || undefined}
+              >
                 {loading ? 'Ingresando...' : 'Iniciar sesión'}
               </button>
             </form>
 
-            <div className="divider">
-              <span>o</span>
-            </div>
-
-            {GOOGLE_CLIENT_ID ? (
-              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                <GoogleLogin
-                  onSuccess={(res) => handleGoogle(res.credential)}
-                  onError={() => setError('Error con Google')}
-                />
-              </GoogleOAuthProvider>
-            ) : (
-              <p className="hint">
-                Google login no configurado. Agrega VITE_GOOGLE_CLIENT_ID.
-              </p>
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <div className="divider">
+                  <span>o</span>
+                </div>
+                <div className="auth-google">
+                  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                    <GoogleLogin
+                      onSuccess={(res) => handleGoogle(res.credential)}
+                      onError={() => setError('No se pudo iniciar sesión con Google.')}
+                    />
+                  </GoogleOAuthProvider>
+                </div>
+              </>
             )}
           </>
         )}
-
-        <div className="demo-creds">
-        </div>
       </div>
-    </div>
+    </main>
   )
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
 import { authApi, usersApi } from '../api'
@@ -8,13 +9,44 @@ import { useToast } from '../context/toastContext'
 import { roleLabel } from '../api/types'
 import type { InvitationInfoDto, MembershipSelectionResponse } from '../api/types'
 import MembershipPicker from '../components/MembershipPicker'
+import StateView from '../components/ui/StateView'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
+/** Contenedor común de las pantallas de registro: tarjeta centrada + marca. */
+function AuthShell({ subtitle, children }: { subtitle?: ReactNode; children: ReactNode }) {
+  return (
+    <main className="auth-page">
+      <div className="auth-card">
+        <header className="auth-brand">
+          <span className="brand-mark auth-logo" aria-hidden="true">
+            <span className="material-symbols-outlined is-filled">favorite</span>
+          </span>
+          <h1>MyFitnessLife</h1>
+          {subtitle && <p className="auth-subtitle">{subtitle}</p>}
+        </header>
+        {children}
+      </div>
+    </main>
+  )
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div className="error-box" role="alert">
+      <span className="material-symbols-outlined" aria-hidden="true">
+        error
+      </span>
+      {message}
+    </div>
+  )
+}
 
 export default function Register() {
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
   const navigate = useNavigate()
+  const ids = useId()
   const { user, loading: authLoading, setAuth, handleLoginResult, selectMembership, switchMembership, logout } = useAuth()
   const toast = useToast()
 
@@ -123,43 +155,36 @@ export default function Register() {
 
   if (loading || authLoading) {
     return (
-      <div className="auth-page">
-        <div className="auth-card"><p className="hint">Cargando invitación...</p></div>
-      </div>
+      <AuthShell>
+        <StateView state="loading" compact title="Cargando invitación..." />
+      </AuthShell>
     )
   }
 
   if (!info?.valid) {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>MyFitnessLife</h1>
-          <p className="auth-subtitle">Invitación no válida o expirada</p>
-          <p className="hint">
-            El enlace de invitación no es válido, ya fue utilizado o expiró (las invitaciones duran 24 horas).
-            Solicita un nuevo enlace al administrador.
-          </p>
-          <button type="button" className="btn-primary" onClick={() => navigate('/login')}>
-            Ir a iniciar sesión
-          </button>
-        </div>
-      </div>
+      <AuthShell subtitle="Invitación no válida o expirada">
+        <p className="hint">
+          El enlace de invitación no es válido, ya fue utilizado o expiró (las invitaciones duran 24 horas).
+          Solicita un nuevo enlace al administrador.
+        </p>
+        <button type="button" className="btn btn--primary btn--block" onClick={() => navigate('/login')}>
+          Ir a iniciar sesión
+        </button>
+      </AuthShell>
     )
   }
 
   if (selection) {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>MyFitnessLife</h1>
-          <MembershipPicker
-            memberships={selection.memberships}
-            busyId={selectingId}
-            onSelect={handleSelect}
-            onBack={() => setSelection(null)}
-          />
-        </div>
-      </div>
+      <AuthShell>
+        <MembershipPicker
+          memberships={selection.memberships}
+          busyId={selectingId}
+          onSelect={handleSelect}
+          onBack={() => setSelection(null)}
+        />
+      </AuthShell>
     )
   }
 
@@ -167,85 +192,126 @@ export default function Register() {
     const invitedEmail = info.email ?? ''
     const sameAccount = !!user && user.email.toLowerCase() === invitedEmail.toLowerCase()
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>MyFitnessLife</h1>
-          <p className="auth-subtitle">
+      <AuthShell
+        subtitle={
+          <>
             Invitación a <strong>{info.tenantName}</strong> como <strong>{roleLabel(info.role)}</strong>
-          </p>
-          <p className="hint">
-            Ya existe una cuenta con <strong>{invitedEmail}</strong>. Al aceptar se agregará este perfil a tu cuenta;
-            tus perfiles actuales se mantienen.
-          </p>
-          {error && <div className="error-box">{error}</div>}
-          {!user ? (
-            <button type="button" className="btn-primary" onClick={loginForInvite}>
-              Iniciar sesión para aceptar
+          </>
+        }
+      >
+        <p className="hint">
+          Ya existe una cuenta con <strong>{invitedEmail}</strong>. Al aceptar se agregará este perfil a tu cuenta;
+          tus perfiles actuales se mantienen.
+        </p>
+        {error && <ErrorBox message={error} />}
+        {!user ? (
+          <button type="button" className="btn btn--primary btn--block" onClick={loginForInvite}>
+            Iniciar sesión para aceptar
+          </button>
+        ) : sameAccount ? (
+          <button
+            type="button"
+            className="btn btn--primary btn--block"
+            onClick={handleAccept}
+            disabled={accepting}
+            aria-busy={accepting || undefined}
+          >
+            {accepting ? 'Aceptando...' : 'Aceptar invitación'}
+          </button>
+        ) : (
+          <>
+            <p className="hint">
+              Has iniciado sesión como <strong>{user.email}</strong>. Cierra sesión e inicia con{' '}
+              <strong>{invitedEmail}</strong> para aceptar.
+            </p>
+            <button type="button" className="btn btn--primary btn--block" onClick={() => logout()}>
+              Cerrar sesión
             </button>
-          ) : sameAccount ? (
-            <button type="button" className="btn-primary" onClick={handleAccept} disabled={accepting}>
-              {accepting ? 'Aceptando...' : 'Aceptar invitación'}
-            </button>
-          ) : (
-            <>
-              <p className="hint">
-                Has iniciado sesión como <strong>{user.email}</strong>. Cierra sesión e inicia con{' '}
-                <strong>{invitedEmail}</strong> para aceptar.
-              </p>
-              <button type="button" className="btn-primary" onClick={() => logout()}>
-                Cerrar sesión
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+          </>
+        )}
+      </AuthShell>
     )
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1>MyFitnessLife</h1>
-        <p className="auth-subtitle">
-          Te has unido a <strong>{info.tenantName}</strong> como{' '}
-          <strong>{roleLabel(info.role)}</strong>
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-grid">
-            <input type="text" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-            <input type="text" placeholder="Apellido" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+    <AuthShell
+      subtitle={
+        <>
+          Te has unido a <strong>{info.tenantName}</strong> como <strong>{roleLabel(info.role)}</strong>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="auth-name-grid">
+          <div className="field">
+            <label htmlFor={`${ids}-first`}>Nombre</label>
+            <input
+              id={`${ids}-first`}
+              type="text"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+            />
           </div>
-          <input type="email" placeholder="Email" value={email} readOnly required />
+          <div className="field">
+            <label htmlFor={`${ids}-last`}>Apellido</label>
+            <input
+              id={`${ids}-last`}
+              type="text"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}-email`}>Email</label>
+          <input id={`${ids}-email`} type="email" autoComplete="email" value={email} readOnly required />
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}-password`}>Contraseña</label>
           <input
+            id={`${ids}-password`}
             type="password"
-            placeholder="Contraseña"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             minLength={6}
             required
+            aria-describedby={`${ids}-password-hint`}
           />
-          {error && <div className="error-box">{error}</div>}
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Registrando...' : 'Crear cuenta'}
-          </button>
-        </form>
-
-        <div className="divider">
-          <span>o</span>
+          <p className="field-hint" id={`${ids}-password-hint`}>
+            Mínimo 6 caracteres.
+          </p>
         </div>
+        {error && <ErrorBox message={error} />}
+        <button
+          type="submit"
+          className="btn btn--primary btn--block"
+          disabled={submitting}
+          aria-busy={submitting || undefined}
+        >
+          {submitting ? 'Registrando...' : 'Crear cuenta'}
+        </button>
+      </form>
 
-        {GOOGLE_CLIENT_ID ? (
-          <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-            <GoogleLogin
-              onSuccess={(res) => handleGoogle(res.credential)}
-              onError={() => setError('Error con Google')}
-            />
-          </GoogleOAuthProvider>
-        ) : (
-          <p className="hint">Google login no configurado.</p>
-        )}
-      </div>
-    </div>
+      {GOOGLE_CLIENT_ID && (
+        <>
+          <div className="divider">
+            <span>o</span>
+          </div>
+          <div className="auth-google">
+            <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+              <GoogleLogin
+                onSuccess={(res) => handleGoogle(res.credential)}
+                onError={() => setError('No se pudo continuar con Google.')}
+              />
+            </GoogleOAuthProvider>
+          </div>
+        </>
+      )}
+    </AuthShell>
   )
 }

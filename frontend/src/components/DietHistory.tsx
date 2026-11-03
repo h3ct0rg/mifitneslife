@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { dietsApi } from '../api'
 import type { PatientDietDto } from '../api/types'
+import StateView from './ui/StateView'
 
 interface Props {
   patientId: string
@@ -27,15 +28,15 @@ export default function DietHistory({ patientId, version }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId, version])
 
-  if (loading) return <p className="loading">Cargando historial de dietas...</p>
+  if (loading) return <StateView state="loading" compact title="Cargando historial de dietas..." />
   if (history.length === 0) return null
 
   return (
-    <div className="card">
-      <h2>Historial de dietas</h2>
-      <div className="diet-history-list">
+    <section className="card" aria-labelledby="diet-history-title">
+      <h2 id="diet-history-title">Historial de dietas</h2>
+      <ul className="diet-history-list">
         {history.map((entry) => (
-          <div key={entry.id} className={`diet-history-item ${entry.isActive ? 'active' : ''}`}>
+          <li key={entry.id} className={`diet-history-item ${entry.isActive ? 'active' : ''}`}>
             <div className="diet-history-info">
               <strong>{entry.dietName}</strong>
               {entry.objective && <span className="diet-history-objective">{entry.objective}</span>}
@@ -47,12 +48,12 @@ export default function DietHistory({ patientId, version }: Props) {
                 })}
               </span>
             </div>
-            <span className={`badge ${entry.isActive ? '' : 'badge-outline'}`}>
+            <span className={`badge ${entry.isActive ? 'badge--success' : 'badge--neutral'}`}>
               {entry.isActive ? 'Activa' : 'Anterior'}
             </span>
-          </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </section>
   )
 }

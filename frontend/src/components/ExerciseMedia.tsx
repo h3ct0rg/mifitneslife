@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { getExerciseImageUrlCached, getExerciseVideoUrlCached } from '../api/mediaCache'
 
 interface Props {
@@ -7,9 +8,11 @@ interface Props {
   alt?: string
   className?: string
   prefer?: 'gif' | 'image'
+  /** Se muestra si no hay medio o no se pudo cargar (p. ej. un icono). */
+  fallback?: ReactNode
 }
 
-export default function ExerciseMedia({ gifUrl, imageUrl, alt = '', className, prefer = 'gif' }: Props) {
+export default function ExerciseMedia({ gifUrl, imageUrl, alt = '', className, prefer = 'gif', fallback = null }: Props) {
   const [src, setSrc] = useState<string | null>(null)
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function ExerciseMedia({ gifUrl, imageUrl, alt = '', className, p
     }
   }, [gifUrl, imageUrl, prefer])
 
-  if (!src) return null
+  if (!src) return <>{fallback}</>
 
   return <img src={src} alt={alt} className={className} loading="lazy" />
 }

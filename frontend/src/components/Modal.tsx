@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { getErrorMessage } from '../api/client'
 
 interface ModalProps {
@@ -7,29 +7,140 @@ interface ModalProps {
   onClose: () => void
   children: ReactNode
   className?: string
+  /** Acciones fijas al pie (en móvil quedan pegadas abajo de la hoja). Opcional: también sirve `.modal-actions` dentro de children. */
+  footer?: ReactNode
+  /** Oculta el botón de cerrar de la cabecera (Esc sigue cerrando). */
+  hideCloseButton?: boolean
+  /**
+   * Opt-in: el clic en el fondo cierra. Solo para modales informativos o de selección sin datos que perder.
+   * Por defecto NO cierra, para no perder formularios a medio llenar.
+   */
+  closeOnBackdrop?: boolean
 }
 
-/** Modal genérico: cierra con Esc o clic en el fondo. */
-export default function Modal({ title, onClose, children, className }: ModalProps) {
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** Pila de modales abiertos: Esc y el foco atrapado solo actúan sobre el de arriba. */
+const modalStack: symbol[] = []
+
+/**
+ * Modal accesible: en ≤640px se muestra como hoja inferior (CSS).
+ * Esc y el botón X cierran; el clic en el fondo solo con `closeOnBackdrop`.
+ * El foco queda atrapado dentro y vuelve al disparador al cerrar.
+ */
+export default function Modal({
+  title,
+  onClose,
+  children,
+  className,
+  footer,
+  hideCloseButton,
+  closeOnBackdrop = false,
+}: ModalProps) {
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  const pressStartedOnOverlay = useRef(false)
+  // Se captura en el primer render, antes de que un hijo con autoFocus mueva el foco.
+  const [trigger] = useState(() => document.activeElement as HTMLElement | null)
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    onCloseRef.current = onClose
   }, [onClose])
 
+  // Sin barra de acciones (.modal-actions/.modal-footer) la hoja móvil quedaría con padding inferior 0:
+  // se añade espacio + safe-area. Un MutationObserver lo recalcula si el contenido cambia (p. ej. carga → formulario).
+  const [hasActionBar, setHasActionBar] = useState(true)
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const check = () => setHasActionBar(!!dialog.querySelector('.modal-actions, .modal-footer'))
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(dialog, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const token = Symbol('modal')
+    modalStack.push(token)
+    const dialog = dialogRef.current
+    // Si ningún hijo tomó el foco (autoFocus), se enfoca el primer control o el propio diálogo.
+    if (dialog && !dialog.contains(document.activeElement)) {
+      const first = dialog.querySelector<HTMLElement>(`.modal-body ${FOCUSABLE}, .modal-footer ${FOCUSABLE}`)
+      ;(first ?? dialog).focus()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === token) {
+        e.stopPropagation()
+        onCloseRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      const i = modalStack.indexOf(token)
+      if (i >= 0) modalStack.splice(i, 1)
+      if (trigger && document.contains(trigger)) trigger.focus()
+    }
+  }, [trigger])
+
+  const trapTab = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return
+    const nodes = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+      (el) => el.offsetParent !== null || el === document.activeElement,
+    )
+    if (nodes.length === 0) {
+      e.preventDefault()
+      return
+    }
+    const first = nodes[0]
+    const last = nodes[nodes.length - 1]
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  // Cierra solo si el clic empezó y terminó en el fondo (evita cerrar al arrastrar una selección).
+  const onOverlayDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    pressStartedOnOverlay.current = e.target === e.currentTarget
+  }
+  const onOverlayClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (closeOnBackdrop && pressStartedOnOverlay.current && e.target === e.currentTarget) onCloseRef.current()
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={onOverlayDown} onClick={onOverlayClick}>
       <div
-        className={`modal ${className ?? ''}`}
+        ref={dialogRef}
+        className={`modal${hasActionBar ? '' : ' modal--no-actions'} ${className ?? ''}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2>{title}</h2>
-        {children}
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={trapTab}      >
+        <div className="modal-head">
+          <h2 id={titleId}>{title}</h2>
+          {!hideCloseButton && (
+            <button
+              type="button"
+              className="btn btn--icon modal-close"
+              onClick={() => onCloseRef.current()}
+              aria-label="Cerrar"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                close
+              </span>
+            </button>
+          )}
+        </div>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>
   )
@@ -93,7 +204,8 @@ export function DeleteConfirmModal({
   }
 
   return (
-    <Modal title={title} onClose={close} className="modal-confirm modal-delete">
+    // Confirmación sin datos que perder: cerrar por fondo = cancelar (bloqueado mientras borra).
+    <Modal title={title} onClose={close} className="modal-confirm modal-delete" closeOnBackdrop>
       <div className="confirm-icon" aria-hidden="true">
         <span className="material-symbols-outlined">delete</span>
       </div>
@@ -117,7 +229,8 @@ export function DeleteConfirmModal({
       )}
       <p className="delete-warning">Esta acción no se puede deshacer.</p>
       <div className="modal-actions">
-        <button type="button" className="btn-ghost" onClick={close} disabled={deleting}>
+        {/* Foco inicial en Cancelar: Enter no debe borrar por accidente. */}
+        <button type="button" className="btn-ghost" onClick={close} disabled={deleting} autoFocus>
           Cancelar
         </button>
         <button
@@ -152,11 +265,17 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  // Mientras se procesa no se puede cancelar (ni con Esc, X o fondo).
+  const cancel = () => {
+    if (!busy) onCancel()
+  }
+
   return (
-    <Modal title={title} onClose={onCancel} className="modal-confirm">
+    <Modal title={title} onClose={cancel} className="modal-confirm" closeOnBackdrop>
       <p>{message}</p>
       <div className="modal-actions">
-        <button type="button" className="btn-ghost" onClick={onCancel} disabled={busy}>
+        {/* En acciones peligrosas el foco inicial va a Cancelar. */}
+        <button type="button" className="btn-ghost" onClick={cancel} disabled={busy} autoFocus={danger}>
           Cancelar
         </button>
         <button
@@ -164,7 +283,7 @@ export function ConfirmModal({
           className={danger ? 'btn-danger' : 'btn-primary'}
           onClick={onConfirm}
           disabled={busy}
-          autoFocus
+          autoFocus={!danger}
         >
           {busy ? 'Procesando...' : confirmLabel}
         </button>

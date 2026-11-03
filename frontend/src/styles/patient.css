@@ -1,0 +1,1343 @@
+/* patient.css — Perfil de paciente y sus paneles (F3-1). Solo tokens: sin colores ni font-size literales. */
+
+.patient-page {
+  max-width: 960px;
+}
+
+/* ==========================================================================
+   Cabecera de la ficha (avatar + PageHeader con 2 controles: Editar + ⋯)
+   ========================================================================== */
+/* Hero (MV-4 F3-1): el propio <section> lleva el gradiente de marca. Usa `.page-header-hero` de components.css
+   para el texto blanco, el foco blanco y los botones claros. La decoración (≤8% blanco, lejos del texto) va como
+   capas de fondo y no como ::after, para que no haga falta overflow:hidden (el menú ⋯ debe poder salir). */
+.profile-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-5);
+  border-radius: var(--radius-lg);
+  color: var(--color-on-primary);
+  background:
+    radial-gradient(circle at 100% 0%, var(--hero-deco-1) 0 140px, transparent 141px),
+    radial-gradient(circle at 78% 130%, var(--hero-deco-2) 0 90px, transparent 91px),
+    var(--gradient-brand);
+  box-shadow: var(--shadow-3);
+}
+
+/* El PageHeader interno es transparente: el fondo lo da la sección. */
+.profile-hero.page-header-hero > .page-header {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.profile-hero.page-header-hero > .page-header::after {
+  content: none;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 3px var(--ring-light);
+}
+
+.profile-avatar.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-primary);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-heavy);
+}
+
+.profile-hero .badge {
+  box-shadow: var(--shadow-1);
+}
+
+.profile-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+}
+
+.profile-hero-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-hero-contact .material-symbols-outlined {
+  font-size: var(--fs-md);
+  color: var(--color-on-primary);
+}
+
+/* Menú ⋯ */
+.profile-menu {
+  position: relative;
+}
+
+/* Dentro del menú (fondo blanco) el foco vuelve al color del tema. */
+.profile-hero .profile-menu-list :focus-visible {
+  outline-color: var(--color-focus);
+}
+
+.profile-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--sp-1));
+  z-index: var(--z-popover);
+  min-width: 220px;
+  padding: var(--sp-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
+  color: var(--color-text);
+}
+
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-menu-item:hover:not(:disabled),
+.profile-menu-item:focus-visible {
+  background: var(--color-surface-2);
+}
+
+.profile-menu-item.danger {
+  color: var(--color-danger);
+}
+
+.profile-menu-item:disabled {
+  opacity: 0.6;
+}
+
+.profile-menu-item .material-symbols-outlined {
+  font-size: var(--fs-lg);
+}
+
+@media (max-width: 640px) {
+  .profile-avatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .profile-hero {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+  }
+
+  .profile-hero .page-header h1 {
+    font-size: var(--fs-2xl);
+  }
+
+  /* El paciente navega con la bottom-nav (K4): sin Tabs arriba. */
+  .profile-tabs--patient .tabs-bar {
+    display: none;
+  }
+
+  /* Paciente en móvil: las tarjetas del panel suben sobre el hero (como en el prototipo). */
+  .patient-page--self .profile-hero {
+    padding-bottom: calc(var(--sp-12) + var(--sp-6));
+    margin-bottom: 0;
+  }
+
+  .patient-page--self .profile-tabs--patient {
+    position: relative;
+    margin-top: calc((var(--sp-12) + var(--sp-2)) * -1);
+  }
+
+  .patient-page--self .profile-tabs--patient .tab-panel > .card:first-child,
+  .patient-page--self .profile-tabs--patient .tab-panel > :first-child .card:first-child {
+    box-shadow: var(--shadow-3);
+  }
+
+  /* Estados de carga/vacío sobre el hero: van en tarjeta para no quedar sobre el gradiente. */
+  .patient-page--self .profile-tabs--patient .state-view,
+  .patient-page--self .profile-tabs--patient .tab-empty-aware:empty::after {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+  }
+}
+
+/* ==========================================================================
+   Paneles de las pestañas
+   ========================================================================== */
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.panel-head--top {
+  align-items: flex-start;
+}
+
+.panel-head h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel-eyebrow {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.panel-subtitle {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.panel-head-meta {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.panel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-min);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-primary-text);
+  text-decoration: none;
+}
+
+.panel-link:hover {
+  text-decoration: underline;
+}
+
+.panel-link .material-symbols-outlined {
+  font-size: var(--fs-lg);
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--sp-3);
+}
+
+.panel-empty {
+  margin: var(--sp-1) 0;
+  font-size: var(--fs-sm);
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+@media (max-width: 640px) {
+  .panel-actions .btn {
+    width: 100%;
+  }
+}
+
+/* Texto vacío cuando los hijos no renderizan nada. */
+.tab-empty-aware:empty::after {
+  content: attr(data-empty-text);
+  display: block;
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+/* Datos personales (Perfil) */
+.detail-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.detail-item--full {
+  grid-column: 1 / -1;
+}
+
+.detail-item dt {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.detail-item dd {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.account-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+/* ==========================================================================
+   Evolución (MeasurementDashboard + TrendChart)
+   ========================================================================== */
+.measure-indexes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-5);
+}
+
+.measure-index {
+  padding: var(--sp-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  min-width: 0;
+}
+
+.measure-index dt {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.measure-index dd {
+  margin: var(--sp-1) 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.measure-index strong {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary-text);
+}
+
+.measure-index span {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.measure-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.dash-panel {
+  min-width: 0;
+  padding: var(--sp-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.dash-panel h3 {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-2);
+}
+
+.measure-delta-metric {
+  font-weight: var(--fw-semibold);
+}
+
+.trend {
+  position: relative;
+  width: 100%;
+}
+
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.trend-grid {
+  stroke: var(--color-border);
+  stroke-dasharray: 4 6;
+}
+
+/* Trazo que se dibuja al cargar (pathLength=1) y área que aparece (reduced-motion: estático). */
+.trend-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: trend-draw 1.1s var(--ease-out) both;
+}
+
+@keyframes trend-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+.trend-area {
+  animation: mf-fade-in 0.9s var(--ease-out) 0.3s both;
+}
+
+.trend-point {
+  fill: var(--color-surface);
+  cursor: pointer;
+  transition: r var(--dur-fast) var(--ease-out);
+}
+
+/* Punto final destacado. */
+.trend-point--last {
+  fill: currentColor;
+  stroke: var(--color-surface);
+}
+
+.trend-point:focus-visible {
+  stroke-width: 4;
+}
+
+.trend-tooltip {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.trend-tooltip strong {
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.trend-empty {
+  margin: 0;
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+@media (max-width: 640px) {
+  .measure-indexes {
+    gap: var(--sp-2);
+  }
+
+  .measure-index {
+    padding: var(--sp-2);
+  }
+
+  .measure-index strong {
+    font-size: var(--fs-xl);
+  }
+}
+
+/* ==========================================================================
+   Dieta (DietDashboard)
+   ========================================================================== */
+/* Resumen de kcal: anillo SVG con degradado --chart-1 → --chart-2 que se llena al cargar (MV-4). */
+.diet-kcal-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  background: var(--color-surface-tint);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.kcal-ring {
+  position: relative;
+  flex: none;
+  width: 112px;
+  height: 112px;
+}
+
+.kcal-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.kcal-ring-track {
+  stroke: var(--color-primary-subtle);
+}
+
+.kcal-ring-stop-1 {
+  stop-color: var(--chart-1);
+}
+
+.kcal-ring-stop-2 {
+  stop-color: var(--chart-2);
+}
+
+/* El valor final viene en style (stroke-dashoffset); la animación parte del anillo vacío (2πr ≈ 289). */
+.kcal-ring-prog {
+  animation: kcal-ring-fill 1.2s var(--ease-out) 0.2s both;
+}
+
+@keyframes kcal-ring-fill {
+  from {
+    stroke-dashoffset: 289.03;
+  }
+}
+
+.kcal-ring-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.kcal-ring-label b {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-heavy);
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.kcal-ring-label span {
+  max-width: 72px;
+  margin: var(--sp-1) auto 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-title);
+  color: var(--color-muted);
+}
+
+.kcal-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.kcal-info div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  font-size: var(--fs-sm);
+}
+
+.kcal-info dt {
+  color: var(--color-muted);
+}
+
+.kcal-info dd {
+  margin: 0;
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+}
+
+.diet-section {
+  margin-bottom: var(--sp-5);
+}
+
+.diet-section-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.macro-goals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-3);
+}
+
+/* Tarjetas de macro con el fondo suave de su color (como el prototipo) y barra animada. */
+.macro-goal {
+  --macro: var(--color-primary-text);
+  --macro-bg: var(--color-primary-subtle);
+  min-width: 0;
+  padding: var(--sp-3);
+  background: var(--macro-bg);
+  border-radius: var(--radius-md);
+}
+
+.macro-goal .macro-goal-label {
+  color: var(--macro);
+}
+
+.macro-goal--kcal { --macro: var(--color-kcal); --macro-bg: var(--color-kcal-bg); }
+.macro-goal--protein { --macro: var(--color-protein); --macro-bg: var(--color-protein-bg); }
+.macro-goal--carbs { --macro: var(--color-carbs); --macro-bg: var(--color-carbs-bg); }
+.macro-goal--fat { --macro: var(--color-fat); --macro-bg: var(--color-fat-bg); }
+.macro-goal--fiber { --macro: var(--color-fiber); --macro-bg: var(--color-fiber-bg); }
+
+.macro-goal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.macro-goal-icon {
+  display: inline-flex;
+  padding: var(--sp-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--macro);
+  font-size: var(--fs-lg);
+}
+
+.macro-goal-label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  min-width: 0;
+  /* Sin cortes a mitad de palabra (Q3): la etiqueta pasa entera; guionado solo como último recurso (lang="es"). */
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: auto;
+}
+
+.macro-goal-pct {
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--macro);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+
+.macro-goal-value {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-heavy);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.macro-goal-value span {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-muted);
+}
+
+.macro-goal-bar {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+/* Barra que crece desde la izquierda al cargar (reduced-motion: estática). */
+.macro-goal-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--macro);
+  transform-origin: left center;
+  animation: macro-grow 0.9s var(--ease-out) both;
+}
+
+.macro-goal:nth-child(2) .macro-goal-fill { animation-delay: 60ms; }
+.macro-goal:nth-child(3) .macro-goal-fill { animation-delay: 120ms; }
+.macro-goal:nth-child(4) .macro-goal-fill { animation-delay: 180ms; }
+.macro-goal:nth-child(5) .macro-goal-fill { animation-delay: 240ms; }
+
+@keyframes macro-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.micro-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.micro-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.micro-list-item dt {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.micro-list-item dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text);
+}
+
+.diet-observations {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-info-bg);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.diet-observations strong {
+  display: block;
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--color-info);
+}
+
+.diet-observations p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+  /* 2 columnas de macros en móvil en lugar de 1 (P03). */
+  .macro-goals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2);
+  }
+
+  .macro-goal {
+    padding: var(--sp-2);
+  }
+
+  /* Icono y % en la primera fila; la etiqueta ocupa la fila completa debajo (Q3). */
+  .macro-goal-head {
+    flex-wrap: wrap;
+    row-gap: var(--sp-1);
+  }
+
+  .macro-goal-label {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .micro-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Plan de comidas */
+.diet-meals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Comida = tarjeta con icon-chip, nombre/hora y kcal a la derecha (MV-4). */
+.diet-meal {
+  min-width: 0;
+  padding: var(--sp-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+/* Gana a la regla compartida .diet-meal-head (components.css), que en ≤600 apila en columna. */
+.diet-meal .diet-meal-head {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+}
+
+.diet-meal-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.diet-meal-title strong {
+  font-size: var(--fs-md);
+}
+
+.diet-meal-time {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--color-muted);
+}
+
+.diet-meal-kcal {
+  flex: none;
+  text-align: right;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+}
+
+.diet-meal-kcal small {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--color-muted);
+}
+
+.diet-meal > .diet-meal-macros {
+  margin-top: var(--sp-2);
+  padding-left: calc(44px + var(--sp-3));
+}
+
+.diet-meal-macros {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.diet-meal-macros strong {
+  color: var(--color-text);
+}
+
+.diet-meal-instructions {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.diet-meal-items {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.diet-meal-items li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.diet-meal-food {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+
+.diet-meal-qty {
+  color: var(--color-muted);
+}
+
+.diet-meal-empty {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+/* Historial de dietas */
+.diet-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.diet-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.diet-history-item.active {
+  background: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.diet-history-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.diet-history-info strong {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.diet-history-objective {
+  font-size: var(--fs-sm);
+  color: var(--color-text-2);
+}
+
+.diet-history-date {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.diet-history-item .badge {
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Rutina (WorkoutDashboard)
+   ========================================================================== */
+.workout-dash-stats {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.workout-dash-stats div {
+  display: flex;
+  flex-direction: column;
+  min-width: 64px;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: center;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.workout-dash-stats span {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.workout-dash-stats strong {
+  font-size: var(--fs-lg);
+  color: var(--color-text);
+}
+
+.workout-dash-days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.workout-dash-day {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.workout-dash-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.workout-dash-day-head h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--color-primary-text);
+}
+
+.workout-dash-day-notes {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.workout-dash-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.workout-dash-exercise {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.workout-dash-ex-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-text);
+}
+
+.workout-dash-ex-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workout-dash-ex-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.workout-dash-ex-info strong {
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workout-dash-ex-meta {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.workout-dash-ex-params {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+}
+
+.workout-dash-chip {
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--color-primary-subtle);
+  color: var(--color-text);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.workout-dash-chip b {
+  color: var(--color-primary-text);
+}
+
+@media (max-width: 640px) {
+  .workout-dash-exercise {
+    flex-wrap: wrap;
+  }
+
+  .workout-dash-ex-params {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-left: calc(56px + var(--sp-3));
+  }
+}
+
+/* ==========================================================================
+   Fotos (PhotoHistory + PhotoCapture)
+   ========================================================================== */
+.modal-photo {
+  max-width: 440px;
+}
+
+.photo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 260px;
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: 200px;
+  margin-bottom: var(--sp-4);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.photo-placeholder .material-symbols-outlined {
+  font-size: var(--fs-3xl);
+  color: var(--color-subtle);
+}
+
+.photo-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.photo-actions .btn {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.photo-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.photo-compare-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-3);
+  min-width: 0;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.photo-compare-label {
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.photo-compare-label.before {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.photo-compare-label.after {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.photo-compare-img {
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.photo-compare-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 180px;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.photo-compare-date {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.modal-photo-gallery {
+  max-width: 560px;
+}
+
+.photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--sp-2);
+}
+
+.photo-gallery-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.photo-gallery-item:hover {
+  border-color: var(--color-border-strong);
+}
+
+.photo-gallery-item.selected {
+  border-color: var(--color-primary);
+}
+
+.photo-gallery-img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.photo-gallery-date {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+/* ==========================================================================
+   Selector de asignación (AssignPicker)
+   ========================================================================== */
+.modal-picker {
+  max-width: 520px;
+}
+
+.modal-subtitle {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.assign-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-height: min(440px, 45dvh);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.assign-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.assign-option:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.assign-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.assign-option--clear {
+  border-style: dashed;
+}
+
+.assign-option-name {
+  font-weight: var(--fw-semibold);
+}
+
+.assign-option-meta {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.modal-picker .pagination {
+  margin-top: var(--sp-3);
+}

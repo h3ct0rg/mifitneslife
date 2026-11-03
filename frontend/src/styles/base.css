@@ -1,0 +1,174 @@
+/* base.css — Estilos de elementos HTML (F2a + G2a). Solo tokens: sin hex/rgba ni font-size literales. */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Fondo con 2 manchas radiales del tema (scroll normal, sin background-attachment:fixed). */
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  color: var(--color-text);
+  background:
+    radial-gradient(900px 600px at 0% 0%, var(--bg-blob-1), transparent 60%),
+    radial-gradient(800px 600px at 100% 30%, var(--bg-blob-2), transparent 60%),
+    var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-title);
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary-text);
+}
+
+button {
+  font-family: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Iconos: Material Symbols Rounded vía alias de la clase existente (sin tocar TSX). */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: var(--fs-icon);
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  -webkit-font-smoothing: antialiased;
+}
+
+.is-filled,
+.material-symbols-outlined.is-filled {
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Utilidades tipográficas */
+.eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Foco visible en todo control (UX-05): 2px, offset 2px. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Inputs: 16px para evitar zoom en iOS (UX-07); borde ≥3:1 (UX-04).
+   margin-bottom se mantiene por compatibilidad con formularios legados; dentro de .field es 0. */
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: var(--control-h);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  min-height: 0;
+  box-shadow: none;
+  accent-color: var(--color-primary);
+}
+
+input[type='file'] {
+  box-shadow: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-subtle);
+}
+
+/* Foco: anillo suave de 4px del tema + outline de foco visible. */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-subtle), var(--shadow-1);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+/* Movimiento reducido (MV-D): sin animaciones ni transiciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

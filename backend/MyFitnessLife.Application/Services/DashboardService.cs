@@ -13,10 +13,12 @@ public class DashboardService : IDashboardService
     private const int MaxListItems = 10;
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IClientClock _clock;
 
-    public DashboardService(IUnitOfWork unitOfWork)
+    public DashboardService(IUnitOfWork unitOfWork, IClientClock clock)
     {
         _unitOfWork = unitOfWork;
+        _clock = clock;
     }
 
     public async Task<DashboardKpisDto> GetKpisAsync(Guid tenantId, Guid userId, UserRole role)
@@ -28,20 +30,26 @@ public class DashboardService : IDashboardService
         var isAdmin = role == UserRole.Admin;
         Guid? professionalId = isAdmin ? null : userId;
 
-        // D3: todo en UTC; mes calendario UTC.
-        var now = DateTime.UtcNow;
-        var today = now.Date;
+        // Zona horaria (D3/D4 de la tarea zona-horaria): "hoy", "ahora" y meses en la zona del
+        // cliente (X-Time-Zone; sin header = UTC). Variables locales = hora de reloj (comparan
+        // Appointment.StartAt y Measurement.VisitDate); *Utc = límites locales convertidos a UTC
+        // (comparan CreatedAt).
+        var now = _clock.LocalNow;
+        var today = _clock.LocalToday;
         var tomorrow = today.AddDays(1);
-        var thisMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var thisMonthStart = new DateTime(today.Year, today.Month, 1);
         var nextMonthStart = thisMonthStart.AddMonths(1);
         var prevMonthStart = thisMonthStart.AddMonths(-1);
         var seriesStart = thisMonthStart.AddMonths(-(MonthsInSeries - 1));
         var followUpCutoff = now.AddDays(-FollowUpDays);
+        var seriesMonths = Enumerable.Range(0, MonthsInSeries).Select(i => seriesStart.AddMonths(i)).ToList();
 
         var repo = _unitOfWork.Dashboard;
 
         // Pacientes: siempre a nivel tenant (D2).
-        var patients = await repo.GetPatientKpisAsync(tenantId, thisMonthStart, prevMonthStart, followUpCutoff, now);
+        var patients = await repo.GetPatientKpisAsync(tenantId,
+            _clock.ToUtc(prevMonthStart), _clock.ToUtc(thisMonthStart), _clock.ToUtc(nextMonthStart),
+            followUpCutoff, now);
 
         // Citas: filtradas por profesional si aplica.
         var byMonthStatus = await repo.GetAppointmentsByMonthAndStatusAsync(tenantId, professionalId, seriesStart, nextMonthStart);
@@ -50,7 +58,8 @@ public class DashboardService : IDashboardService
         var next7Days = await repo.CountAppointmentsAsync(tenantId, professionalId, now, now.AddDays(7),
             [AppointmentStatus.Scheduled]);
 
-        var newPatientsByMonth = await repo.GetNewPatientsByMonthAsync(tenantId, seriesStart, nextMonthStart);
+        var newPatientsByMonth = await repo.GetNewPatientsByRangesAsync(tenantId,
+            seriesMonths.Select(m => (_clock.ToUtc(m), _clock.ToUtc(m.AddMonths(1)))).ToList());
         var measurementsByMonth = await repo.GetMeasurementsByMonthAsync(tenantId, seriesStart, nextMonthStart);
 
         var professionals = isAdmin
@@ -64,15 +73,14 @@ public class DashboardService : IDashboardService
         var prevMonth = CountsFor(byMonthStatus, prevMonthStart);
         var thisMonthTotal = thisMonth.Scheduled + thisMonth.Completed + thisMonth.Cancelled + thisMonth.NoShow;
 
-        var monthly = Enumerable.Range(0, MonthsInSeries)
-            .Select(i => seriesStart.AddMonths(i))
-            .Select(m =>
+        var monthly = seriesMonths
+            .Select((m, i) =>
             {
                 var counts = CountsFor(byMonthStatus, m);
                 return new MonthlyKpiDto
                 {
                     Month = m.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                    NewPatients = newPatientsByMonth.GetValueOrDefault((m.Year, m.Month)),
+                    NewPatients = newPatientsByMonth[i],
                     Completed = counts.Completed,
                     Cancelled = counts.Cancelled,
                     NoShow = counts.NoShow,
@@ -84,7 +92,7 @@ public class DashboardService : IDashboardService
         return new DashboardKpisDto
         {
             Scope = isAdmin ? "tenant" : "professional",
-            GeneratedAt = now,
+            GeneratedAt = _clock.UtcNow, // instante real (UTC, con Z); el contrato no cambia.
             Patients = new PatientKpisDto
             {
                 Total = patients.Total,

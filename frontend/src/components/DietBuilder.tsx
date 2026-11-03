@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent, MouseEvent } from 'react'
+import { useLocation } from 'react-router-dom'
 import type { CreateDietRequest, DietDto, FoodDto, MealRequest } from '../api/types'
 import { getErrorMessage } from '../api/client'
+import Modal, { ConfirmModal } from './Modal'
+import PageHeader from './ui/PageHeader'
 
 interface Props {
   title: string
@@ -41,21 +45,37 @@ const OBJECTIVES = [
 ]
 
 const MEAL_PRESETS = [
-  { name: 'Desayuno', time: '08:00', icon: '🌅' },
-  { name: 'Media Mañana', time: '11:00', icon: '🍏' },
-  { name: 'Almuerzo', time: '14:00', icon: '☀️' },
-  { name: 'Merienda', time: '17:00', icon: '☕' },
-  { name: 'Cena', time: '21:00', icon: '🌙' },
+  { name: 'Desayuno', time: '08:00', icon: 'wb_twilight' },
+  { name: 'Media Mañana', time: '11:00', icon: 'nutrition' },
+  { name: 'Almuerzo', time: '14:00', icon: 'light_mode' },
+  { name: 'Merienda', time: '17:00', icon: 'coffee' },
+  { name: 'Cena', time: '21:00', icon: 'dark_mode' },
 ]
 
+const GOALS = [
+  { key: 'calories', label: 'Calorías', unit: 'kcal', placeholder: '2000', tone: 'kcal' },
+  { key: 'protein', label: 'Proteína', unit: 'g', placeholder: '150', tone: 'protein' },
+  { key: 'carbs', label: 'Carbohidratos', unit: 'g', placeholder: '200', tone: 'carbs' },
+  { key: 'fat', label: 'Grasas', unit: 'g', placeholder: '65', tone: 'fat' },
+] as const
+
+type GoalKey = (typeof GOALS)[number]['key']
+
+/**
+ * Editor de plan de dieta a pantalla completa (`.editor-page`): comidas + resumen
+ * (desktop en 2 columnas, móvil en 1) y barra de acciones fija abajo.
+ */
 export default function DietBuilder({ title, initial, foods, onSubmit, onCancel }: Props) {
+  const { pathname } = useLocation()
   const [name, setName] = useState(initial?.name ?? '')
   const [objective, setObjective] = useState(initial?.objective ?? '')
   const [observations, setObservations] = useState(initial?.observations ?? '')
-  const [goalCalories, setGoalCalories] = useState<string>(initial?.goalCalories ? String(initial.goalCalories) : '')
-  const [goalProtein, setGoalProtein] = useState<string>(initial?.goalProtein ? String(initial.goalProtein) : '')
-  const [goalCarbs, setGoalCarbs] = useState<string>(initial?.goalCarbs ? String(initial.goalCarbs) : '')
-  const [goalFat, setGoalFat] = useState<string>(initial?.goalFat ? String(initial.goalFat) : '')
+  const [goals, setGoals] = useState<Record<GoalKey, string>>({
+    calories: initial?.goalCalories ? String(initial.goalCalories) : '',
+    protein: initial?.goalProtein ? String(initial.goalProtein) : '',
+    carbs: initial?.goalCarbs ? String(initial.goalCarbs) : '',
+    fat: initial?.goalFat ? String(initial.goalFat) : '',
+  })
 
   const [meals, setMeals] = useState<DraftMeal[]>(() =>
     initial && initial.meals.length > 0
@@ -83,12 +103,18 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
   const [foodSearch, setFoodSearch] = useState('')
   const [addingFood, setAddingFood] = useState<FoodDto | null>(null)
   const [draftQty, setDraftQty] = useState('')
+  const [qtyError, setQtyError] = useState<string | null>(null)
+  const [lastAdded, setLastAdded] = useState<string | null>(null)
+  const [mealToRemove, setMealToRemove] = useState<DraftMeal | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nameError, setNameError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!activeMealKey && meals.length > 0) setActiveMealKey(meals[0].key)
   }, [meals, activeMealKey])
+
+  const foodMap = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods])
 
   const filteredFoods = useMemo(() => {
     const s = foodSearch.trim().toLowerCase()
@@ -96,32 +122,31 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     return foods.filter((f) => f.name.toLowerCase().includes(s) || f.category.toLowerCase().includes(s)).slice(0, 16)
   }, [foods, foodSearch])
 
-  const mealFoods = (mealKey: string) => {
-    const foodMap = new Map(foods.map((f) => [f.id, f]))
-    return meals.find((m) => m.key === mealKey)?.items.map((item) => {
+  const mealFoods = (meal: DraftMeal) =>
+    meal.items.map((item) => {
       const food = foodMap.get(item.foodId)
       const base = food?.defaultQuantity && food.defaultQuantity > 0 ? food.defaultQuantity : 100
       const factor = item.quantity / base
+      const r = (v?: number) => Math.round((v ?? 0) * factor * 10) / 10
       return {
         ...item,
-        calories: Math.round(((food?.calories ?? 0) * factor) * 10) / 10,
-        protein: Math.round(((food?.protein ?? 0) * factor) * 10) / 10,
-        carbohydrates: Math.round(((food?.carbohydrates ?? 0) * factor) * 10) / 10,
-        fat: Math.round(((food?.fat ?? 0) * factor) * 10) / 10,
-        fiber: Math.round(((food?.fiber ?? 0) * factor) * 10) / 10,
+        calories: r(food?.calories),
+        protein: r(food?.protein),
+        carbohydrates: r(food?.carbohydrates),
+        fat: r(food?.fat),
+        fiber: r(food?.fiber),
       }
-    }) ?? []
-  }
+    })
 
   const totals = useMemo(() => {
     const t = { calories: 0, protein: 0, carbohydrates: 0, fat: 0, fiber: 0 }
     for (const meal of meals) {
-      for (const item of mealFoods(meal.key)) {
-        t.calories += item.calories ?? 0
-        t.protein += item.protein ?? 0
-        t.carbohydrates += item.carbohydrates ?? 0
-        t.fat += item.fat ?? 0
-        t.fiber += item.fiber ?? 0
+      for (const item of mealFoods(meal)) {
+        t.calories += item.calories
+        t.protein += item.protein
+        t.carbohydrates += item.carbohydrates
+        t.fat += item.fat
+        t.fiber += item.fiber
       }
     }
     return {
@@ -132,7 +157,7 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
       fiber: Math.round(t.fiber * 10) / 10,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meals, foods])
+  }, [meals, foodMap])
 
   const updateMeal = (key: string, patch: Partial<DraftMeal>) => {
     setMeals((ms) => ms.map((m) => (m.key === key ? { ...m, ...patch } : m)))
@@ -147,6 +172,11 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
   const removeMeal = (key: string) => {
     setMeals((ms) => ms.filter((m) => m.key !== key))
     if (activeMealKey === key) setActiveMealKey(null)
+  }
+
+  const requestRemoveMeal = (meal: DraftMeal) => {
+    if (meal.items.length > 0) setMealToRemove(meal)
+    else removeMeal(meal.key)
   }
 
   const moveMeal = (key: string, dir: -1 | 1) => {
@@ -164,6 +194,7 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     setActiveMealKey(key)
     setPicking(true)
     setFoodSearch('')
+    setLastAdded(null)
   }
 
   const closePicker = () => {
@@ -171,15 +202,20 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     setAddingFood(null)
   }
 
-  const addFoodToMeal = (food: FoodDto) => {
+  const chooseFood = (food: FoodDto) => {
     setAddingFood(food)
     setDraftQty(String(food.defaultQuantity ?? 100))
+    setQtyError(null)
   }
 
-  const confirmAddFood = () => {
+  const confirmAddFood = (e: FormEvent) => {
+    e.preventDefault()
     if (!addingFood || !activeMealKey) return
     const qty = Number(draftQty)
-    if (!qty || qty <= 0) return
+    if (!qty || qty <= 0) {
+      setQtyError('Indica una cantidad mayor que 0.')
+      return
+    }
     setMeals((ms) =>
       ms.map((m) =>
         m.key === activeMealKey
@@ -187,17 +223,13 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
               ...m,
               items: [
                 ...m.items,
-                {
-                  foodId: addingFood.id,
-                  foodName: addingFood.name,
-                  quantity: qty,
-                  unit: addingFood.unit ?? 'g',
-                },
+                { foodId: addingFood.id, foodName: addingFood.name, quantity: qty, unit: addingFood.unit ?? 'g' },
               ],
             }
           : m,
       ),
     )
+    setLastAdded(`${addingFood.name} (${qty} ${addingFood.unit ?? 'g'})`)
     setAddingFood(null)
     setDraftQty('')
   }
@@ -208,20 +240,31 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     )
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // El enlace "volver" de PageHeader cierra el editor (history.back) en vez de apilar otra entrada.
+  const interceptBack = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if ((e.target as Element).closest('.page-header-back')) {
+      e.preventDefault()
+      onCancel()
+    }
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      setError('El nombre del plan de dieta es obligatorio.')
+      setNameError('Escribe el nombre del plan de dieta.')
+      document.getElementById('db-name')?.focus()
       return
     }
+    const toNum = (v: string) => (v === '' ? undefined : Number(v))
     const payload: CreateDietRequest = {
       name: name.trim(),
       objective: objective.trim() || undefined,
       observations: observations.trim() || undefined,
-      goalCalories: goalCalories === '' ? undefined : Number(goalCalories),
-      goalProtein: goalProtein === '' ? undefined : Number(goalProtein),
-      goalCarbs: goalCarbs === '' ? undefined : Number(goalCarbs),
-      goalFat: goalFat === '' ? undefined : Number(goalFat),
+      goalCalories: toNum(goals.calories),
+      goalProtein: toNum(goals.protein),
+      goalCarbs: toNum(goals.carbs),
+      goalFat: toNum(goals.fat),
       meals: meals
         .filter((m) => m.name.trim())
         .map((m): MealRequest => ({
@@ -236,510 +279,431 @@ export default function DietBuilder({ title, initial, foods, onSubmit, onCancel 
     try {
       await onSubmit(payload)
     } catch (err) {
-      setError(err instanceof Error ? err.message : getErrorMessage(err))
+      setError(getErrorMessage(err))
       setSubmitting(false)
     }
   }
 
   const activeMeal = meals.find((m) => m.key === activeMealKey)
 
-  // Calculate goal percentage
-  const calGoalNum = Number(goalCalories) || 0
+  const calGoalNum = Number(goals.calories) || 0
   const calPct = calGoalNum > 0 ? Math.min(100, Math.round((totals.calories / calGoalNum) * 100)) : 0
 
   return (
-    <div className="db-page">
+    <div className="editor-page" onClickCapture={interceptBack}>
+      <PageHeader
+        title={title}
+        subtitle="Distribución de comidas y objetivos nutricionales diarios"
+        back={{ to: pathname, label: 'Planes de dieta' }}
+      />
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="db-page-header">
-        <button type="button" className="db-back-btn" onClick={onCancel}>
-          ← Volver a Planes de Dieta
-        </button>
-        <div className="db-page-title-wrap">
-          <div className="db-page-icon">🥗</div>
-          <div>
-            <h1 className="db-page-title">{title}</h1>
-            <p className="db-page-subtitle">Diseña la distribución de comidas y objetivos nutricionales diarios</p>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="db-layout">
-
-        {/* ── Main Left Column ─────────────────────────────────── */}
-        <div className="db-main-col">
-
-          {/* Información General del Plan */}
-          <div className="db-section">
-            <div className="db-section-header">
-              <span className="db-section-badge db-badge-blue">📌</span>
-              <span className="db-section-title">Información del Plan</span>
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="editor-page-body">
+        <div className="editor-page-main pl-stack">
+          <section className="card pl-section" aria-labelledby="db-info">
+            <h2 id="db-info" className="pl-section-title">
+              <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                <span className="material-symbols-outlined">assignment</span>
+              </span>
+              Información del plan
+            </h2>
+            <div className="field">
+              <label htmlFor="db-name">Nombre del plan *</label>
+              <input
+                id="db-name"
+                type="text"
+                placeholder="Ej. Plan hipocalórico de definición"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setNameError(null) }}
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={nameError ? 'db-name-error' : undefined}
+              />
+              {nameError && <p id="db-name-error" className="field-error">{nameError}</p>}
             </div>
-            <div className="db-section-body">
-              <div className="db-field db-field-full">
-                <div className="db-field-icon">📋</div>
-                <div className="db-field-body">
-                  <span className="db-field-label">Nombre del plan de dieta *</span>
-                  <input
-                    type="text"
-                    placeholder="Ej. Plan Hipocalórico de Definición"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="db-input"
-                    required
-                  />
-                </div>
+            <div className="pl-form-grid">
+              <div className="field">
+                <label htmlFor="db-objective">Objetivo</label>
+                <select id="db-objective" value={objective} onChange={(e) => setObjective(e.target.value)}>
+                  <option value="">Seleccionar objetivo...</option>
+                  {OBJECTIVES.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                  {objective && !OBJECTIVES.includes(objective) && <option value={objective}>{objective}</option>}
+                </select>
               </div>
-
-              <div className="db-fields-row">
-                <div className="db-field">
-                  <div className="db-field-icon">🎯</div>
-                  <div className="db-field-body">
-                    <span className="db-field-label">Objetivo</span>
-                    <select
-                      value={objective}
-                      onChange={(e) => setObjective(e.target.value)}
-                      className="db-input"
-                    >
-                      <option value="">Seleccionar objetivo...</option>
-                      {OBJECTIVES.map((o) => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="db-field db-field-flex">
-                  <div className="db-field-icon">💬</div>
-                  <div className="db-field-body">
-                    <span className="db-field-label">Observaciones / Recomendaciones</span>
-                    <input
-                      type="text"
-                      placeholder="Ej. Beber 2L de agua al día, consumir fibra..."
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                      className="db-input"
-                    />
-                  </div>
-                </div>
+              <div className="field">
+                <label htmlFor="db-observations">Observaciones / recomendaciones</label>
+                <input
+                  id="db-observations"
+                  type="text"
+                  placeholder="Ej. Beber 2 L de agua al día"
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                />
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Tiempos de Comida */}
-          <div className="db-section">
-            <div className="db-section-header db-flex-between">
-              <div className="db-header-left">
-                <span className="db-section-badge db-badge-green">🍽️</span>
-                <span className="db-section-title">
-                  Tiempos de Comida ({meals.length})
-                </span>
-              </div>
-              <div className="db-presets-wrap">
-                <span className="db-preset-label">Añadir rápido:</span>
-                {MEAL_PRESETS.map((p) => (
-                  <button
-                    key={p.name}
-                    type="button"
-                    className="db-preset-btn"
-                    onClick={() => addMeal(p.name, p.time)}
-                  >
-                    {p.icon} {p.name}
-                  </button>
-                ))}
-              </div>
+          <section className="card pl-section" aria-labelledby="db-meals">
+            <h2 id="db-meals" className="pl-section-title">
+              <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                <span className="material-symbols-outlined">restaurant</span>
+              </span>
+              Tiempos de comida ({meals.length})
+            </h2>
+
+            <div className="pl-chips pl-chips--wrap" role="group" aria-label="Añadir tiempo de comida rápido">
+              {MEAL_PRESETS.map((p) => (
+                <button key={p.name} type="button" className="pl-chip" onClick={() => addMeal(p.name, p.time)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">{p.icon}</span>
+                  {p.name}
+                </button>
+              ))}
             </div>
 
-            <div className="db-meals-list">
+            <ol className="db-meals-list">
               {meals.map((meal, idx) => {
-                const foodsInMeal = mealFoods(meal.key)
-                const mealKcal = foodsInMeal.reduce((acc, i) => acc + (i.calories ?? 0), 0)
-                const mealProt = foodsInMeal.reduce((acc, i) => acc + (i.protein ?? 0), 0)
+                const foodsInMeal = mealFoods(meal)
+                const mealKcal = foodsInMeal.reduce((acc, i) => acc + i.calories, 0)
+                const mealProt = foodsInMeal.reduce((acc, i) => acc + i.protein, 0)
                 const isActive = activeMealKey === meal.key
+                const bodyId = `db-meal-body-${meal.key}`
 
                 return (
-                  <div
-                    key={meal.key}
-                    className={`db-meal-card ${isActive ? 'active' : ''}`}
-                    onClick={() => setActiveMealKey(meal.key)}
-                  >
+                  <li key={meal.key} className={`db-meal-card ${isActive ? 'active' : ''}`}>
                     <div className="db-meal-head">
-                      <div className="db-meal-drag">⋮⋮</div>
                       <div className="db-meal-inputs">
+                        <label className="sr-only" htmlFor={`db-meal-name-${meal.key}`}>Nombre de la comida {idx + 1}</label>
                         <input
+                          id={`db-meal-name-${meal.key}`}
                           type="text"
                           value={meal.name}
                           onChange={(e) => updateMeal(meal.key, { name: e.target.value })}
+                          onFocus={() => setActiveMealKey(meal.key)}
                           className="db-meal-name-input"
                           placeholder="Nombre de la comida"
-                          onClick={(e) => e.stopPropagation()}
                         />
-                        <div className="db-time-wrap">
-                          <span className="db-time-icon">⏰</span>
-                          <input
-                            type="time"
-                            value={meal.scheduledTime}
-                            onChange={(e) => updateMeal(meal.key, { scheduledTime: e.target.value })}
-                            className="db-meal-time-input"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
+                        <label className="sr-only" htmlFor={`db-meal-time-${meal.key}`}>Hora de {meal.name || `la comida ${idx + 1}`}</label>
+                        <input
+                          id={`db-meal-time-${meal.key}`}
+                          type="time"
+                          value={meal.scheduledTime}
+                          onChange={(e) => updateMeal(meal.key, { scheduledTime: e.target.value })}
+                          className="db-meal-time-input"
+                        />
                       </div>
 
                       <div className="db-meal-head-meta">
                         {foodsInMeal.length > 0 && (
-                          <span className="db-meal-kcal-badge">
-                            🔥 {Math.round(mealKcal)} kcal · 💪 {mealProt.toFixed(1)}g P
+                          <span className="badge badge--warning">
+                            {Math.round(mealKcal)} kcal · {mealProt.toFixed(1)} g P
                           </span>
                         )}
                         <div className="db-meal-actions">
                           <button
                             type="button"
-                            className="db-action-btn"
+                            className="btn btn--icon"
                             disabled={idx === 0}
+                            aria-label={`Subir ${meal.name}`}
                             title="Subir"
-                            onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, -1) }}
+                            onClick={() => moveMeal(meal.key, -1)}
                           >
-                            ↑
+                            <span className="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
                           </button>
                           <button
                             type="button"
-                            className="db-action-btn"
+                            className="btn btn--icon"
                             disabled={idx === meals.length - 1}
+                            aria-label={`Bajar ${meal.name}`}
                             title="Bajar"
-                            onClick={(e) => { e.stopPropagation(); moveMeal(meal.key, 1) }}
+                            onClick={() => moveMeal(meal.key, 1)}
                           >
-                            ↓
+                            <span className="material-symbols-outlined" aria-hidden="true">arrow_downward</span>
                           </button>
                           <button
                             type="button"
-                            className="db-action-btn db-action-danger"
-                            title="Eliminar tiempo"
-                            onClick={(e) => { e.stopPropagation(); removeMeal(meal.key) }}
+                            className="btn btn--icon pl-btn-danger-icon"
+                            aria-label={`Eliminar ${meal.name}`}
+                            title="Eliminar tiempo de comida"
+                            onClick={() => requestRemoveMeal(meal)}
                           >
-                            ✕
+                            <span className="material-symbols-outlined" aria-hidden="true">delete</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--icon"
+                            aria-expanded={isActive}
+                            aria-controls={bodyId}
+                            aria-label={isActive ? `Contraer ${meal.name}` : `Ver alimentos de ${meal.name}`}
+                            onClick={() => setActiveMealKey(isActive ? null : meal.key)}
+                          >
+                            <span className="material-symbols-outlined" aria-hidden="true">
+                              {isActive ? 'expand_less' : 'expand_more'}
+                            </span>
                           </button>
                         </div>
                       </div>
                     </div>
 
-                    {/* Meal Body */}
                     {isActive && (
-                      <div className="db-meal-body">
-                        {/* Food items list */}
-                        <div className="db-food-items">
-                          {foodsInMeal.map((item, i) => (
-                            <div key={i} className="db-food-item-row">
-                              <div className="db-food-item-main">
-                                <span className="db-food-item-icon">🥗</span>
+                      <div className="db-meal-body" id={bodyId}>
+                        {foodsInMeal.length === 0 ? (
+                          <p className="pl-muted">Aún no hay alimentos en este tiempo de comida.</p>
+                        ) : (
+                          <ul className="db-food-items">
+                            {foodsInMeal.map((item, i) => (
+                              <li key={`${item.foodId}-${i}`} className="db-food-item-row">
                                 <span className="db-food-item-name">{item.foodName}</span>
-                              </div>
-
-                              <div className="db-food-item-macros">
-                                <span className="db-macro-chip db-chip-qty">
-                                  {item.quantity} {item.unit}
-                                </span>
-                                <span className="db-macro-chip db-chip-kcal">
-                                  {item.calories} kcal
-                                </span>
-                                <span className="db-macro-chip db-chip-prot">
-                                  P: {item.protein}g
-                                </span>
-                                <span className="db-macro-chip db-chip-carb">
-                                  C: {item.carbohydrates}g
-                                </span>
-                                <span className="db-macro-chip db-chip-fat">
-                                  G: {item.fat}g
+                                <span className="db-food-item-macros">
+                                  <span className="pl-mini-chip">{item.quantity} {item.unit}</span>
+                                  <span className="pl-mini-chip pl-tone-kcal">{item.calories} kcal</span>
+                                  <span className="pl-mini-chip pl-tone-protein">P {item.protein} g</span>
+                                  <span className="pl-mini-chip pl-tone-carbs">C {item.carbohydrates} g</span>
+                                  <span className="pl-mini-chip pl-tone-fat">G {item.fat} g</span>
                                 </span>
                                 <button
                                   type="button"
-                                  className="db-item-del"
+                                  className="btn btn--icon"
                                   onClick={() => removeFoodFromMeal(meal.key, i)}
+                                  aria-label={`Quitar ${item.foodName}`}
                                   title="Quitar alimento"
                                 >
-                                  ✕
+                                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
                                 </button>
-                              </div>
-                            </div>
-                          ))}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
 
-                          {foodsInMeal.length === 0 && (
-                            <div className="db-empty-meal">
-                              <span>🍎 No hay alimentos añadidos a este tiempo de comida.</span>
-                            </div>
-                          )}
-                        </div>
+                        <button type="button" className="btn btn--secondary" onClick={() => openPicker(meal.key)}>
+                          <span className="material-symbols-outlined" aria-hidden="true">add</span>
+                          Añadir alimento
+                        </button>
 
-                        {/* Add food button */}
-                        <div className="db-meal-footer">
-                          <button
-                            type="button"
-                            className="db-btn-add-food"
-                            onClick={() => openPicker(meal.key)}
-                          >
-                            <span>+</span> Añadir alimento del catálogo
-                          </button>
-
+                        <div className="field pl-field-tight">
+                          <label htmlFor={`db-meal-notes-${meal.key}`}>Notas para esta comida</label>
                           <input
+                            id={`db-meal-notes-${meal.key}`}
                             type="text"
-                            placeholder="Notas o instrucciones para esta comida (ej. consumir con 200ml de agua)..."
+                            placeholder="Ej. consumir con 200 ml de agua"
                             value={meal.instructions}
                             onChange={(e) => updateMeal(meal.key, { instructions: e.target.value })}
-                            className="db-input db-instructions-input"
                           />
                         </div>
                       </div>
                     )}
-                  </div>
+                  </li>
                 )
               })}
-            </div>
+            </ol>
 
-            <div className="db-add-meal-row">
-              <button type="button" className="db-btn-new-meal" onClick={() => addMeal()}>
-                <span>+</span> Añadir otro tiempo de comida
-              </button>
-            </div>
-          </div>
-
-          {error && <div className="error-box">⚠️ {error}</div>}
-
-          {/* Form Bottom Actions */}
-          <div className="db-form-actions">
-            <button type="button" className="db-btn-cancel" onClick={onCancel}>
-              Cancelar
+            <button type="button" className="btn btn--ghost btn--block" onClick={() => addMeal()}>
+              <span className="material-symbols-outlined" aria-hidden="true">add</span>
+              Añadir otro tiempo de comida
             </button>
-            <button type="submit" className="db-btn-save" disabled={submitting}>
-              {submitting ? (
-                <><span className="mf-spinner" /> Guardando plan…</>
-              ) : (
-                <><span>💾</span> Guardar plan de dieta</>
-              )}
-            </button>
-          </div>
+          </section>
+
+          {error && (
+            <div className="error-box" role="alert">
+              <span className="material-symbols-outlined" aria-hidden="true">error</span>
+              {error}
+            </div>
+          )}
         </div>
 
-        {/* ── Right Column: Summary & Daily Goals ──────────────── */}
-        <aside className="db-summary-col">
-          <div className="db-summary-card">
-            <div className="db-summary-header">
-              <span>📊 Resumen diario y objetivos</span>
-            </div>
+        <aside className="editor-page-aside pl-summary" aria-label="Resumen diario y objetivos">
+            <h2 className="pl-section-title">
+              <span className="icon-chip" aria-hidden="true">
+                <span className="material-symbols-outlined">monitoring</span>
+              </span>
+              Resumen diario
+            </h2>
 
-            {/* Editable Goals */}
-            <div className="db-goals-section">
-              <span className="db-goals-title">Metas Nutricionales (Objetivo)</span>
-              
-              <div className="db-goal-row">
-                <span className="db-goal-label">🔥 Calorías</span>
-                <div className="db-goal-input-wrap">
-                  <input
-                    type="number"
-                    placeholder="2000"
-                    value={num(goalCalories)}
-                    onChange={(e) => setGoalCalories(e.target.value)}
-                    className="db-goal-input"
-                  />
-                  <span className="db-goal-unit">kcal</span>
+            <fieldset className="pl-fieldset">
+              <legend className="pl-subtitle">Metas nutricionales</legend>
+              {GOALS.map((g) => (
+                <div key={g.key} className="db-goal-row">
+                  <label htmlFor={`db-goal-${g.key}`} className={`db-goal-label pl-tone-${g.tone}`}>
+                    <span className="pl-chip-dot" aria-hidden="true" />
+                    {g.label}
+                  </label>
+                  <div className="pl-input-unit db-goal-input">
+                    <input
+                      id={`db-goal-${g.key}`}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      placeholder={g.placeholder}
+                      value={num(goals[g.key])}
+                      onChange={(e) => setGoals((gs) => ({ ...gs, [g.key]: e.target.value }))}
+                    />
+                    <span className="pl-unit" aria-hidden="true">{g.unit}</span>
+                  </div>
                 </div>
+              ))}
+            </fieldset>
+
+            <div className="db-kcal-hero">
+              <div className="db-kcal-hero-top">
+                <span>Calorías totales</span>
+                <span>{calGoalNum > 0 ? `${calPct}% del objetivo` : 'Sin meta'}</span>
               </div>
-
-              <div className="db-goal-row">
-                <span className="db-goal-label">💪 Proteína</span>
-                <div className="db-goal-input-wrap">
-                  <input
-                    type="number"
-                    placeholder="150"
-                    value={num(goalProtein)}
-                    onChange={(e) => setGoalProtein(e.target.value)}
-                    className="db-goal-input"
-                  />
-                  <span className="db-goal-unit">g</span>
-                </div>
-              </div>
-
-              <div className="db-goal-row">
-                <span className="db-goal-label">🌾 Carbohidratos</span>
-                <div className="db-goal-input-wrap">
-                  <input
-                    type="number"
-                    placeholder="200"
-                    value={num(goalCarbs)}
-                    onChange={(e) => setGoalCarbs(e.target.value)}
-                    className="db-goal-input"
-                  />
-                  <span className="db-goal-unit">g</span>
-                </div>
-              </div>
-
-              <div className="db-goal-row">
-                <span className="db-goal-label">🫒 Grasas</span>
-                <div className="db-goal-input-wrap">
-                  <input
-                    type="number"
-                    placeholder="65"
-                    value={num(goalFat)}
-                    onChange={(e) => setGoalFat(e.target.value)}
-                    className="db-goal-input"
-                  />
-                  <span className="db-goal-unit">g</span>
-                </div>
+              <p className="pl-kcal-hero">
+                <strong>{totals.calories}</strong> <span>/ {goals.calories || '—'} kcal</span>
+              </p>
+              <div
+                className="pl-macro-track"
+                role="progressbar"
+                aria-label="Calorías respecto al objetivo"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={calPct}
+              >
+                <div className="pl-macro-fill" style={{ width: `${calPct}%` }} />
               </div>
             </div>
 
-            {/* Real-time calculated totals */}
-            <div className="db-totals-section">
-              <span className="db-totals-title">Total Calculado en Plan</span>
-
-              {/* Kcal Hero Counter */}
-              <div className="db-kcal-hero">
-                <div className="db-kcal-hero-top">
-                  <span className="db-kcal-hero-label">Calorías Totales</span>
-                  <span className="db-kcal-hero-pct">{calGoalNum > 0 ? `${calPct}% del objetivo` : 'Sin meta'}</span>
-                </div>
-                <div className="db-kcal-hero-val">
-                  <strong>{totals.calories}</strong>
-                  <span>/ {goalCalories || '—'} kcal</span>
-                </div>
-                <div className="db-progress-track">
-                  <div className="db-progress-fill" style={{ width: `${calPct}%` }} />
-                </div>
+            <dl className="pl-macro-chips pl-macro-chips--2">
+              <div className="pl-tone-protein">
+                <dt>Proteína</dt>
+                <dd>{totals.protein} g{goals.protein && <small> / {goals.protein} g</small>}</dd>
               </div>
-
-              {/* Macro breakdown grid */}
-              <div className="db-totals-grid">
-                <div className="db-total-box db-box-prot">
-                  <span className="db-box-label">💪 Proteína</span>
-                  <strong className="db-box-val">{totals.protein}g</strong>
-                  <span className="db-box-target">{goalProtein ? `/ ${goalProtein}g` : ''}</span>
-                </div>
-
-                <div className="db-total-box db-box-carb">
-                  <span className="db-box-label">🌾 Carbos</span>
-                  <strong className="db-box-val">{totals.carbohydrates}g</strong>
-                  <span className="db-box-target">{goalCarbs ? `/ ${goalCarbs}g` : ''}</span>
-                </div>
-
-                <div className="db-total-box db-box-fat">
-                  <span className="db-box-label">🫒 Grasas</span>
-                  <strong className="db-box-val">{totals.fat}g</strong>
-                  <span className="db-box-target">{goalFat ? `/ ${goalFat}g` : ''}</span>
-                </div>
-
-                <div className="db-total-box db-box-fiber">
-                  <span className="db-box-label">🌿 Fibra</span>
-                  <strong className="db-box-val">{totals.fiber}g</strong>
-                  <span className="db-box-target">total</span>
-                </div>
+              <div className="pl-tone-carbs">
+                <dt>Carbos</dt>
+                <dd>{totals.carbohydrates} g{goals.carbs && <small> / {goals.carbs} g</small>}</dd>
               </div>
-            </div>
-
-          </div>
+              <div className="pl-tone-fat">
+                <dt>Grasas</dt>
+                <dd>{totals.fat} g{goals.fat && <small> / {goals.fat} g</small>}</dd>
+              </div>
+              <div className="pl-tone-fiber">
+                <dt>Fibra</dt>
+                <dd>{totals.fiber} g</dd>
+              </div>
+            </dl>
         </aside>
+        </div>
 
+        <div className="editor-page-actions">
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={submitting}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn--primary" disabled={submitting} aria-busy={submitting || undefined}>
+            {submitting ? (
+              <><span className="mf-spinner" aria-hidden="true" /> Guardando...</>
+            ) : (
+              <><span className="material-symbols-outlined" aria-hidden="true">save</span> Guardar plan</>
+            )}
+          </button>
+        </div>
       </form>
 
-      {/* ── Food Picker Modal Drawer ───────────────────────────── */}
-      {picking && !addingFood && activeMeal && (
-        <div className="db-picker-backdrop">
-          <div className="db-picker-drawer">
-            <div className="db-picker-head">
-              <div>
-                <h3 className="db-picker-title">Añadir a: {activeMeal.name}</h3>
-                <p className="db-picker-sub">Selecciona un alimento del catálogo nutricional</p>
-              </div>
-              <button type="button" className="db-picker-close" onClick={closePicker}>✕</button>
-            </div>
-
-            <div className="db-picker-search-bar">
-              <span className="db-picker-search-icon">🔍</span>
-              <input
-                autoFocus
-                type="text"
-                placeholder="Buscar alimento por nombre o categoría..."
-                value={foodSearch}
-                onChange={(e) => setFoodSearch(e.target.value)}
-                className="db-picker-search-input"
-              />
-            </div>
-
-            <div className="db-picker-results">
-              {filteredFoods.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  className="db-picker-item"
-                  onClick={() => addFoodToMeal(f)}
-                >
-                  <div className="db-picker-item-left">
-                    <span className="db-picker-item-name">{f.name}</span>
-                    <span className="db-picker-item-cat">{f.category}</span>
-                  </div>
-                  <div className="db-picker-item-right">
-                    <span className="db-picker-item-kcal">{f.calories ?? 0} kcal</span>
-                    <span className="db-picker-item-unit">por {f.defaultQuantity ?? 100}{f.unit ?? 'g'}</span>
-                  </div>
-                </button>
-              ))}
-
-              {filteredFoods.length === 0 && (
-                <div className="db-picker-empty">
-                  <span>🥗 No se encontraron alimentos que coincidan.</span>
+      {/* Selector de alimento (hoja en móvil): lista : cantidad */}
+      {picking && activeMeal && (
+        <Modal
+          title={addingFood ? addingFood.name : `Añadir a: ${activeMeal.name}`}
+          onClose={addingFood ? () => setAddingFood(null) : closePicker}
+          className="pl-picker"
+        >
+          {addingFood ? (
+            <form onSubmit={confirmAddFood} noValidate>
+              <p className="pl-muted">{addingFood.category} · valores por {addingFood.defaultQuantity ?? 100}{addingFood.unit ?? 'g'}</p>
+              <dl className="pl-macro-chips">
+                <div className="pl-tone-kcal"><dt>Kcal</dt><dd>{addingFood.calories ?? 0}</dd></div>
+                <div className="pl-tone-protein"><dt>Prot</dt><dd>{addingFood.protein ?? 0} g</dd></div>
+                <div className="pl-tone-carbs"><dt>Carb</dt><dd>{addingFood.carbohydrates ?? 0} g</dd></div>
+                <div className="pl-tone-fat"><dt>Grasa</dt><dd>{addingFood.fat ?? 0} g</dd></div>
+              </dl>
+              <div className="field">
+                <label htmlFor="db-qty">Cantidad para {activeMeal.name}</label>
+                <div className="pl-input-unit">
+                  <input
+                    id="db-qty"
+                    type="number"
+                    inputMode="decimal"
+                    step="1"
+                    min="1"
+                    autoFocus
+                    value={draftQty}
+                    onChange={(e) => { setDraftQty(e.target.value); setQtyError(null) }}
+                    aria-invalid={qtyError ? true : undefined}
+                    aria-describedby={qtyError ? 'db-qty-error' : undefined}
+                  />
+                  <span className="pl-unit" aria-hidden="true">{addingFood.unit ?? 'g'}</span>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Food Quantity Popover ───────────────────────────── */}
-      {addingFood && activeMeal && (
-        <div className="db-picker-backdrop">
-          <div className="db-qty-popover">
-            <div className="db-qty-head">
-              <div>
-                <h3 className="db-qty-title">{addingFood.name}</h3>
-                <span className="db-qty-cat">{addingFood.category}</span>
+                {qtyError && <p id="db-qty-error" className="field-error">{qtyError}</p>}
               </div>
-              <button type="button" className="db-picker-close" onClick={() => setAddingFood(null)}>✕</button>
-            </div>
-
-            <div className="db-qty-nutri-banner">
-              <div><span>🔥 Kcal</span><strong>{addingFood.calories ?? 0}</strong></div>
-              <div><span>💪 Prot</span><strong>{addingFood.protein ?? 0}g</strong></div>
-              <div><span>🌾 Carb</span><strong>{addingFood.carbohydrates ?? 0}g</strong></div>
-              <div><span>🫒 Grasa</span><strong>{addingFood.fat ?? 0}g</strong></div>
-              <span className="db-qty-serving">por {addingFood.defaultQuantity ?? 100}{addingFood.unit ?? 'g'}</span>
-            </div>
-
-            <div className="db-qty-field-group">
-              <label className="db-qty-label">Cantidad a añadir para {activeMeal.name}:</label>
-              <div className="db-qty-input-wrap">
+              <div className="modal-actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setAddingFood(null)}>
+                  Volver
+                </button>
+                <button type="submit" className="btn btn--primary">
+                  <span className="material-symbols-outlined" aria-hidden="true">add</span>
+                  Añadir
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="pl-search">
+                <span className="material-symbols-outlined pl-search-icon" aria-hidden="true">search</span>
+                <label htmlFor="db-picker-search" className="sr-only">Buscar alimento</label>
                 <input
-                  type="number"
-                  step="1"
-                  min="1"
+                  id="db-picker-search"
                   autoFocus
-                  value={draftQty}
-                  onChange={(e) => setDraftQty(e.target.value)}
-                  className="db-qty-input"
+                  type="search"
+                  placeholder="Buscar por nombre o categoría..."
+                  value={foodSearch}
+                  onChange={(e) => setFoodSearch(e.target.value)}
+                  className="db-picker-search-input"
                 />
-                <span className="db-qty-unit-badge">{addingFood.unit ?? 'g'}</span>
               </div>
-            </div>
-
-            <div className="db-qty-actions">
-              <button type="button" className="db-btn-cancel" onClick={() => setAddingFood(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="db-btn-save" onClick={confirmAddFood}>
-                <span>+</span> Añadir a {activeMeal.name}
-              </button>
-            </div>
-          </div>
-        </div>
+              {lastAdded && (
+                <p className="pl-added" role="status">
+                  <span className="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                  Añadido: {lastAdded}
+                </p>
+              )}
+              {filteredFoods.length === 0 ? (
+                <p className="pl-muted pl-center">No se encontraron alimentos.</p>
+              ) : (
+                <ul className="pl-pick-list">
+                  {filteredFoods.map((f) => (
+                    <li key={f.id}>
+                      <button type="button" className="pl-pick-item" onClick={() => chooseFood(f)}>
+                        <span className="pl-pick-main">
+                          <strong>{f.name}</strong>
+                          <span>{f.category}</span>
+                        </span>
+                        <span className="pl-pick-side">
+                          <strong>{f.calories ?? 0} kcal</strong>
+                          <span>por {f.defaultQuantity ?? 100}{f.unit ?? 'g'}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="modal-actions">
+                <button type="button" className="btn btn--primary" onClick={closePicker}>
+                  Listo
+                </button>
+              </div>
+            </>
+          )}
+        </Modal>
       )}
 
+      {mealToRemove && (
+        <ConfirmModal
+          title="Eliminar tiempo de comida"
+          message={`"${mealToRemove.name}" tiene ${mealToRemove.items.length} alimento(s). ¿Eliminarlo del plan?`}
+          confirmLabel="Eliminar"
+          danger
+          onConfirm={() => { removeMeal(mealToRemove.key); setMealToRemove(null) }}
+          onCancel={() => setMealToRemove(null)}
+        />
+      )}
     </div>
   )
-}
+}

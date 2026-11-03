@@ -7,7 +7,10 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/toastContext'
 import { membershipLabel, membershipTenant, roleIcon, sortMemberships } from './membershipUtils'
 
-/** Selector de perfil (membresía) en la cabecera. Solo se renderiza con >1 membresía. */
+/**
+ * Selector de perfil (membresía) en la cabecera. Solo se renderiza con >1 membresía.
+ * En móvil (≤640) el CSS lo reduce a icono y el menú pasa a ancho completo bajo la top bar.
+ */
 export default function ProfileSwitcher() {
   const { user, switchMembership } = useAuth()
   const toast = useToast()
@@ -102,8 +105,8 @@ export default function ProfileSwitcher() {
         <span className="profile-switcher-current">
           {current ? membershipTenant(current) : 'Cambiar perfil'}
         </span>
-        <span className="nav-chevron" aria-hidden="true">
-          ▾
+        <span className="material-symbols-outlined profile-switcher-chevron" aria-hidden="true">
+          expand_more
         </span>
       </button>
       {open && (

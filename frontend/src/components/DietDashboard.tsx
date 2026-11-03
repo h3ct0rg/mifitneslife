@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { dietsApi } from '../api'
 import type { DietDto, MealDto } from '../api/types'
+import StateView from './ui/StateView'
 
 interface Props {
   patientId: string
@@ -26,6 +27,17 @@ function sortMeals(meals: MealDto[]): MealDto[] {
 
 const r0 = (n?: number) => Math.round(n ?? 0)
 
+function pct(value: number, goal?: number) {
+  if (!goal || goal <= 0) return 0
+  return Math.min(100, Math.round((value / goal) * 100))
+}
+
+const STATUS_LABEL: Record<string, { text: string; tone: string }> = {
+  Active: { text: 'Activa', tone: 'badge--success' },
+  Inactive: { text: 'Inactiva', tone: 'badge--neutral' },
+  Draft: { text: 'Borrador', tone: 'badge--warning' },
+}
+
 function MacroLine({ kcal, p, c, g }: { kcal?: number; p?: number; c?: number; g?: number }) {
   return (
     <span className="diet-meal-macros">
@@ -37,12 +49,61 @@ function MacroLine({ kcal, p, c, g }: { kcal?: number; p?: number; c?: number; g
   )
 }
 
+/** Icono y variante de chip por comida (solo presentación): colaciones en acento, el resto en soft. */
+function mealVisual(name: string, time: string | null): { icon: string; chip: string } {
+  const n = name.toLowerCase()
+  const hour = time ? Number(time.slice(0, 2)) : null
+  if (/merienda|colaci|snack|media/.test(n)) return { icon: 'nutrition', chip: 'icon-chip--accent' }
+  if (/desayuno/.test(n) || (hour !== null && hour < 11)) return { icon: 'bakery_dining', chip: 'icon-chip--soft' }
+  if (/almuerzo|comida/.test(n) || (hour !== null && hour < 16)) return { icon: 'lunch_dining', chip: 'icon-chip--soft' }
+  if (/cena/.test(n) || (hour !== null && hour >= 19)) return { icon: 'dinner_dining', chip: 'icon-chip--soft' }
+  return { icon: 'restaurant', chip: 'icon-chip--soft' }
+}
+
+const RING_R = 46
+const RING_C = 2 * Math.PI * RING_R
+
+/** Anillo de kcal con degradado --chart-1 → --chart-2 (MV-4). */
+function KcalRing({ kcal, goal }: { kcal: number; goal?: number }) {
+  const ratio = goal && goal > 0 ? Math.min(1, kcal / goal) : 1
+  const gradId = `kcal-ring-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  return (
+    <div className="kcal-ring">
+      <svg viewBox="0 0 112 112" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" className="kcal-ring-stop-1" />
+            <stop offset="1" className="kcal-ring-stop-2" />
+          </linearGradient>
+        </defs>
+        <circle className="kcal-ring-track" cx="56" cy="56" r={RING_R} fill="none" strokeWidth="12" />
+        <circle
+          className="kcal-ring-prog"
+          cx="56"
+          cy="56"
+          r={RING_R}
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={RING_C}
+          style={{ strokeDashoffset: RING_C * (1 - ratio) }}
+        />
+      </svg>
+      <div className="kcal-ring-label">
+        <b className="num">{r0(kcal).toLocaleString('es-ES')}</b>
+        <span>{goal ? `de ${r0(goal).toLocaleString('es-ES')} kcal` : 'kcal al día'}</span>
+      </div>
+    </div>
+  )
+}
+
 function MealPlan({ meals }: { meals: MealDto[] }) {
   return (
-    <div style={{ marginBottom: '1.25rem' }}>
-      <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
+    <section className="diet-section" aria-labelledby="diet-meals-title">
+      <h3 id="diet-meals-title" className="diet-section-title">
         Plan de comidas
-      </h4>
+      </h3>
       {meals.length === 0 ? (
         <p className="diet-meal-empty">Aún no se han definido las comidas de esta dieta.</p>
       ) : (
@@ -50,18 +111,23 @@ function MealPlan({ meals }: { meals: MealDto[] }) {
           {sortMeals(meals).map((meal) => {
             const time = formatTime(meal.scheduledTime)
             const items = meal.items ?? []
+            const { icon, chip } = mealVisual(meal.name, time)
             return (
               <section key={meal.id} className="diet-meal" aria-label={meal.name}>
                 <header className="diet-meal-head">
+                  <span className={`icon-chip ${chip}`} aria-hidden="true">
+                    <span className="material-symbols-outlined">{icon}</span>
+                  </span>
                   <div className="diet-meal-title">
-                    <span className="material-symbols-outlined" aria-hidden="true">
-                      {time ? 'schedule' : 'restaurant'}
-                    </span>
                     <strong>{meal.name}</strong>
-                    {time && <span className="diet-meal-time">{time}</span>}
+                    {time && <span className="diet-meal-time num">{time}</span>}
                   </div>
-                  <MacroLine kcal={meal.calories} p={meal.protein} c={meal.carbohydrates} g={meal.fat} />
+                  <span className="diet-meal-kcal num">
+                    {r0(meal.calories)}
+                    <small>kcal</small>
+                  </span>
                 </header>
+                <MacroLine kcal={meal.calories} p={meal.protein} c={meal.carbohydrates} g={meal.fat} />
                 {meal.instructions && <p className="diet-meal-instructions">{meal.instructions}</p>}
                 {items.length === 0 ? (
                   <p className="diet-meal-empty">Sin alimentos asignados</p>
@@ -86,21 +152,8 @@ function MealPlan({ meals }: { meals: MealDto[] }) {
           })}
         </div>
       )}
-    </div>
+    </section>
   )
-}
-
-function pct(value: number, goal?: number) {
-  if (!goal || goal <= 0) return 0
-  return Math.min(100, Math.round((value / goal) * 100))
-}
-
-const MACRO_COLORS: Record<string, { bg: string; text: string; gradient: string }> = {
-  Calorías: { bg: 'rgba(234, 179, 8, 0.15)', text: '#D97706', gradient: 'linear-gradient(90deg, #F59E0B, #FBBF24)' },
-  Proteína: { bg: 'rgba(37, 99, 235, 0.15)', text: '#2563EB', gradient: 'linear-gradient(90deg, #2563EB, #60A5FA)' },
-  Carbohidratos: { bg: 'rgba(16, 185, 129, 0.15)', text: '#059669', gradient: 'linear-gradient(90deg, #10B981, #34D399)' },
-  Grasa: { bg: 'rgba(225, 29, 72, 0.15)', text: '#E11D48', gradient: 'linear-gradient(90deg, #E11D48, #FB7185)' },
-  Fibra: { bg: 'rgba(147, 51, 234, 0.15)', text: '#9333EA', gradient: 'linear-gradient(90deg, #9333EA, #C084FC)' },
 }
 
 export default function DietDashboard({ patientId }: Props) {
@@ -123,15 +176,16 @@ export default function DietDashboard({ patientId }: Props) {
     load()
   }, [load])
 
-  if (loading) return <p className="loading">Cargando dieta asignada...</p>
+  if (loading) return <StateView state="loading" title="Cargando dieta asignada..." />
   if (!diet) return null
 
+  // `tone` = sufijo del token de macro (--color-kcal, --color-protein…), aplicado por clase.
   const goals = [
-    { label: 'Calorías', value: diet.calories, goal: diet.goalCalories, unit: 'kcal', icon: 'local_fire_department' },
-    { label: 'Proteína', value: diet.protein, goal: diet.goalProtein, unit: 'g', icon: 'fitness_center' },
-    { label: 'Carbohidratos', value: diet.carbohydrates, goal: diet.goalCarbs, unit: 'g', icon: 'grain' },
-    { label: 'Grasa', value: diet.fat, goal: diet.goalFat, unit: 'g', icon: 'opacity' },
-    { label: 'Fibra', value: diet.fiber, goal: diet.goalFiber, unit: 'g', icon: 'eco' },
+    { label: 'Calorías', value: diet.calories, goal: diet.goalCalories, unit: 'kcal', icon: 'local_fire_department', tone: 'kcal' },
+    { label: 'Proteína', value: diet.protein, goal: diet.goalProtein, unit: 'g', icon: 'fitness_center', tone: 'protein' },
+    { label: 'Carbohidratos', value: diet.carbohydrates, goal: diet.goalCarbs, unit: 'g', icon: 'grain', tone: 'carbs' },
+    { label: 'Grasa', value: diet.fat, goal: diet.goalFat, unit: 'g', icon: 'opacity', tone: 'fat' },
+    { label: 'Fibra', value: diet.fiber, goal: diet.goalFiber, unit: 'g', icon: 'eco', tone: 'fiber' },
   ]
 
   const micros = [
@@ -143,123 +197,103 @@ export default function DietDashboard({ patientId }: Props) {
     { label: 'Calcio', value: diet.calcium, unit: 'mg' },
   ]
 
+  const status = STATUS_LABEL[diet.status] ?? { text: diet.status, tone: 'badge--neutral' }
+  const kcalPct = pct(diet.calories, diet.goalCalories)
+
   return (
-    <div className="card" style={{ background: 'var(--glass-level-1)', backdropFilter: 'blur(var(--glass-blur))' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+    <section className="card diet-dashboard" aria-labelledby="diet-dashboard-title">
+      {/* Resumen arriba: nombre, estado y calorías del día */}
+      <header className="panel-head panel-head--top">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '1.4rem' }}>
-              restaurant_menu
-            </span>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Dieta asignada: {diet.name}</h3>
-          </div>
-          {diet.objective && (
-            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--muted)', fontSize: '0.875rem' }}>
-              {diet.objective}
-            </p>
-          )}
+          <p className="panel-eyebrow">Dieta asignada</p>
+          <h2 id="diet-dashboard-title">{diet.name}</h2>
+          {diet.objective && <p className="panel-subtitle">{diet.objective}</p>}
         </div>
-        <span className="badge" style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}>
-          {diet.status}
-        </span>
+        <span className={`badge ${status.tone}`}>{status.text}</span>
+      </header>
+
+      <div className="diet-kcal-summary">
+        <KcalRing kcal={diet.calories} goal={diet.goalCalories} />
+        <dl className="kcal-info">
+          <div>
+            <dt>Plan diario</dt>
+            <dd className="num">{r0(diet.calories).toLocaleString('es-ES')} kcal</dd>
+          </div>
+          <div>
+            <dt>Meta</dt>
+            <dd className="num">{diet.goalCalories ? `${r0(diet.goalCalories).toLocaleString('es-ES')} kcal` : '—'}</dd>
+          </div>
+          {diet.goalCalories ? (
+            <div>
+              <dt>Cumplimiento</dt>
+              <dd className="num">{kcalPct}%</dd>
+            </div>
+          ) : null}
+        </dl>
       </div>
 
-      {/* Macronutrientes en tarjetas modernas */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
-          Metas de Macronutrientes y Calorías Diarias
-        </h4>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      <section className="diet-section" aria-labelledby="diet-goals-title">
+        <h3 id="diet-goals-title" className="diet-section-title">
+          Macronutrientes diarios
+        </h3>
+        <ul className="macro-goals">
           {goals.map((g) => {
             const percentage = pct(g.value, g.goal)
-            const styleTheme = MACRO_COLORS[g.label] || { bg: 'var(--primary-light)', text: 'var(--primary)', gradient: 'var(--primary)' }
-
             return (
-              <div
-                key={g.label}
-                style={{
-                  background: 'var(--glass-level-2)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1rem',
-                  boxShadow: 'var(--glass-shadow)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ background: styleTheme.bg, color: styleTheme.text, padding: '0.35rem', borderRadius: '8px', display: 'flex' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '1.1rem' }}>{g.icon}</span>
-                    </div>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{g.label}</span>
-                  </div>
-                  {g.goal ? (
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: styleTheme.text, background: styleTheme.bg, padding: '0.15rem 0.45rem', borderRadius: '999px', marginLeft: 'auto' }}>
-                      {percentage}%
-                    </span>
-                  ) : null}
+              <li key={g.label} className={`macro-goal macro-goal--${g.tone}`}>
+                <div className="macro-goal-head">
+                  <span className="macro-goal-icon material-symbols-outlined" aria-hidden="true">
+                    {g.icon}
+                  </span>
+                  <span className="macro-goal-label">{g.label}</span>
+                  {g.goal ? <span className="macro-goal-pct">{percentage}%</span> : null}
                 </div>
-
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)', marginBottom: '0.5rem' }}>
-                  {Math.round(g.value)} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--muted)' }}>/ {g.goal ? Math.round(g.goal) : '—'} {g.unit}</span>
+                <p className="macro-goal-value">
+                  {Math.round(g.value)}{' '}
+                  <span>
+                    / {g.goal ? Math.round(g.goal) : '—'} {g.unit}
+                  </span>
+                </p>
+                <div
+                  className="macro-goal-bar"
+                  role="progressbar"
+                  aria-label={`${g.label}: ${percentage}% de la meta`}
+                  aria-valuenow={percentage}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <span className="macro-goal-fill" style={{ width: `${percentage}%` }} />
                 </div>
-
-                {/* Progress bar con gradiente */}
-                <div style={{ height: '7px', width: '100%', background: 'rgba(15, 23, 42, 0.08)', borderRadius: '999px', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${percentage}%`,
-                      background: styleTheme.gradient,
-                      borderRadius: '999px',
-                      transition: 'width 0.4s ease',
-                    }}
-                  />
-                </div>
-              </div>
+              </li>
             )
           })}
-        </div>
-      </div>
+        </ul>
+      </section>
 
-      {/* Plan de comidas */}
       <MealPlan meals={diet.meals ?? []} />
 
-      {/* Micronutrientes */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>
-          Micronutrientes Diarios
-        </h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+      <section className="diet-section" aria-labelledby="diet-micros-title">
+        <h3 id="diet-micros-title" className="diet-section-title">
+          Micronutrientes diarios
+        </h3>
+        <dl className="micro-list">
           {micros.map((m) => (
-            <div
-              key={m.label}
-              style={{
-                background: 'var(--glass-level-2)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.65rem 0.85rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontSize: '0.825rem', color: 'var(--muted)' }}>{m.label}</span>
-              <strong style={{ fontSize: '0.875rem', color: 'var(--text)' }}>{Math.round(m.value)} {m.unit}</strong>
+            <div key={m.label} className="micro-list-item">
+              <dt>{m.label}</dt>
+              <dd>
+                {Math.round(m.value)} {m.unit}
+              </dd>
             </div>
           ))}
-        </div>
-      </div>
+        </dl>
+      </section>
 
       {diet.observations && (
-        <div style={{ background: 'var(--primary-light)', borderLeft: '4px solid var(--primary)', padding: '0.85rem 1.1rem', borderRadius: '0 var(--radius-sm) var(--radius-sm) 0', marginTop: '1rem' }}>
-          <strong style={{ display: 'block', fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.25rem' }}>Observaciones clínicas:</strong>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text)' }}>{diet.observations}</p>
-        </div>
+        <aside className="diet-observations">
+          <strong>Observaciones clínicas</strong>
+          <p>{diet.observations}</p>
+        </aside>
       )}
-    </div>
+    </section>
   )
 }

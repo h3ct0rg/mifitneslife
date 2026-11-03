@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { PagedResult } from '../api/types'
+import Modal from './Modal'
+import StateView from './ui/StateView'
 
 interface Item {
   id: string
@@ -39,6 +41,7 @@ export default function AssignPicker({
   const [message, setMessage] = useState<{ type: 'err'; text: string } | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initRef = useRef(false)
+  const searchId = useId()
 
   const doLoad = useCallback(async (p: number, s: string) => {
     setLoading(true)
@@ -84,67 +87,82 @@ export default function AssignPicker({
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  const close = () => {
+    if (!saving) onCancel()
+  }
+
   return (
-    <div className="modal-overlay" onClick={() => !saving && onCancel()}>
-      <div className="modal modal-diet-assign modal-picker" onClick={(e) => e.stopPropagation()}>
-        <h2>{title}</h2>
-        <p className="modal-subtitle">{subtitle}</p>
+    <Modal
+      title={title}
+      onClose={close}
+      className="modal-picker"
+      closeOnBackdrop
+      footer={
+        <button type="button" className="btn btn--ghost" onClick={close} disabled={saving}>
+          Cerrar
+        </button>
+      }
+    >
+      <p className="modal-subtitle">{subtitle}</p>
 
-        <div className="catalog-search">
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
-
-        {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-
-        <div className="assign-picker-list">
-          <button type="button" className="diet-assign-option" onClick={onClear} disabled={saving}>
-            <span className="diet-assign-name">Sin asignar</span>
-            <span className="diet-assign-meta">Quitar el elemento actual</span>
-          </button>
-
-          {loading ? (
-            <p className="loading">Cargando...</p>
-          ) : items.length === 0 ? (
-            <p className="meal-empty">{emptyText}</p>
-          ) : (
-            items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="diet-assign-option"
-                onClick={() => onSelect(item.id)}
-                disabled={saving}
-              >
-                <span className="diet-assign-name">{item.name}</span>
-                {item.meta && <span className="diet-assign-meta">{item.meta}</span>}
-              </button>
-            ))
-          )}
-        </div>
-
-        {totalPages > 1 && (
-          <div className="pagination">
-            <button type="button" className="btn-ghost" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>
-              Anterior
-            </button>
-            <span>Página {page} de {totalPages}</span>
-            <button type="button" className="btn-ghost" disabled={page >= totalPages || loading} onClick={() => setPage(page + 1)}>
-              Siguiente
-            </button>
-          </div>
-        )}
-
-        <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={saving}>
-            Cerrar
-          </button>
-        </div>
+      <div className="field assign-picker-search">
+        <label htmlFor={searchId}>Buscar</label>
+        <input
+          id={searchId}
+          type="search"
+          inputMode="search"
+          placeholder="Nombre u objetivo"
+          value={search}
+          onChange={(e) => handleSearch(e.target.value)}
+        />
       </div>
-    </div>
+
+      {message && <StateView state="error" compact title={message.text} />}
+
+      <div className="assign-picker-list" aria-busy={loading || undefined}>
+        <button type="button" className="assign-option assign-option--clear" onClick={onClear} disabled={saving}>
+          <span className="assign-option-name">Sin asignar</span>
+          <span className="assign-option-meta">Quitar el elemento actual</span>
+        </button>
+
+        {loading ? (
+          <StateView state="loading" compact />
+        ) : items.length === 0 ? (
+          <StateView state="empty" compact title={emptyText} />
+        ) : (
+          items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="assign-option"
+              onClick={() => onSelect(item.id)}
+              disabled={saving}
+            >
+              <span className="assign-option-name">{item.name}</span>
+              {item.meta && <span className="assign-option-meta">{item.meta}</span>}
+            </button>
+          ))
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button type="button" className="btn btn--ghost" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>
+            Anterior
+          </button>
+          <span>
+            Página {page} de {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage(page + 1)}
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
+    </Modal>
   )
 }

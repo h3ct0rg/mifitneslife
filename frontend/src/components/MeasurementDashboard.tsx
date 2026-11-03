@@ -1,17 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { measurementsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { MeasurementDashboardDto } from '../api/types'
+import type { MeasurementDashboardDto, MeasurementDeltaDto } from '../api/types'
 import TrendChart from './TrendChart'
+import StateView from './ui/StateView'
 
-function DeltaRow({ d }: { d: { label: string; first?: number; last?: number; change?: number; unit: string } }) {
+/** Series de evolución con su color de token (texto AA). */
+const SERIES = [
+  { key: 'weightSeries', title: 'Peso (kg)', color: 'var(--chart-1)' },
+  { key: 'imcSeries', title: 'IMC', color: 'var(--chart-2)' },
+  { key: 'bodyFatSeries', title: 'Grasa corporal (%)', color: 'var(--chart-3)' },
+  { key: 'waistSeries', title: 'Cintura (cm)', color: 'var(--chart-4)' },
+] as const
+
+const DELTA_LABEL = { up: 'subió', down: 'bajó', same: 'sin cambio' } as const
+
+function DeltaRow({ d }: { d: MeasurementDeltaDto }) {
   const dir = (d.change ?? 0) > 0 ? 'up' : (d.change ?? 0) < 0 ? 'down' : 'same'
   return (
     <tr>
-      <td>{d.label}</td>
-      <td>{d.first ?? '—'}</td>
-      <td>{d.last ?? '—'}</td>
-      <td className={`delta delta-${dir}`}>
+      <td data-label="Métrica" className="measure-delta-metric">
+        {d.label}
+      </td>
+      <td data-label="Inicial">{d.first ?? '—'}</td>
+      <td data-label="Actual">{d.last ?? '—'}</td>
+      <td data-label="Cambio" className={`delta delta-${dir}`}>
+        <span className="sr-only">{DELTA_LABEL[dir]} </span>
         {d.change != null && d.change > 0 ? '+' : ''}
         {d.change ?? '—'} {d.unit}
       </td>
@@ -23,64 +37,73 @@ export default function MeasurementDashboard({ patientId }: { patientId: string 
   const [data, setData] = useState<MeasurementDashboardDto | null>(null)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError('')
     measurementsApi
       .dashboard(patientId)
       .then(setData)
       .catch((err) => setError(getErrorMessage(err)))
   }, [patientId])
 
-  if (error) return <p className="text-muted">Error: {error}</p>
-  if (!data) return <p className="text-muted">Cargando evolución...</p>
+  useEffect(() => {
+    load()
+  }, [load])
+
+  if (error) {
+    return (
+      <StateView
+        state="error"
+        message={error}
+        action={
+          <button type="button" className="btn btn--ghost" onClick={load}>
+            Reintentar
+          </button>
+        }
+      />
+    )
+  }
+  if (!data) return <StateView state="loading" title="Cargando evolución..." />
 
   const idx = data.latestIndexes
+  const indexes = [
+    { label: 'IMC', value: idx?.imc, range: idx?.imcRange },
+    { label: 'Cintura-cadera', value: idx?.waistHipRatio, range: idx?.waistHipRange },
+    { label: 'IAC', value: idx?.iac, range: idx?.iacRange },
+  ]
 
   return (
     <>
-      <div className="stats">
-        <div className="stat-card">
-          <strong>{idx?.imc ?? '—'}</strong>
-          <span>IMC · {idx?.imcRange ?? '—'}</span>
-        </div>
-        <div className="stat-card">
-          <strong>{idx?.waistHipRatio ?? '—'}</strong>
-          <span>Cintura-cadera · {idx?.waistHipRange ?? '—'}</span>
-        </div>
-        <div className="stat-card">
-          <strong>{idx?.iac ?? '—'}</strong>
-          <span>IAC · {idx?.iacRange ?? '—'}</span>
-        </div>
-      </div>
+      <dl className="measure-indexes">
+        {indexes.map((i) => (
+          <div key={i.label} className="measure-index">
+            <dt>{i.label}</dt>
+            <dd>
+              <strong>{i.value ?? '—'}</strong>
+              <span>{i.range || '—'}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
 
-      <div className="dash-grid">
-        <div className="dash-panel">
-          <h3>Peso (kg)</h3>
-          <TrendChart data={data.weightSeries} />
-        </div>
-        <div className="dash-panel">
-          <h3>IMC</h3>
-          <TrendChart data={data.imcSeries} color="#3b82f6" />
-        </div>
-        <div className="dash-panel">
-          <h3>Grasa corporal (%)</h3>
-          <TrendChart data={data.bodyFatSeries} color="#f59e0b" />
-        </div>
-        <div className="dash-panel">
-          <h3>Cintura (cm)</h3>
-          <TrendChart data={data.waistSeries} color="#8b5cf6" />
-        </div>
+      <div className="measure-charts">
+        {SERIES.map((s) => (
+          <div key={s.key} className="dash-panel">
+            <h3>{s.title}</h3>
+            <TrendChart data={data[s.key]} color={s.color} label={s.title} />
+          </div>
+        ))}
       </div>
 
       {data.deltas.length > 0 && (
-        <div className="dash-panel">
+        <div className="dash-panel measure-deltas">
           <h3>Variación desde la primera medición</h3>
-          <table className="table">
+          <table className="table table--stack">
             <thead>
               <tr>
-                <th>Métrica</th>
-                <th>Inicial</th>
-                <th>Actual</th>
-                <th>Cambio</th>
+                <th scope="col">Métrica</th>
+                <th scope="col">Inicial</th>
+                <th scope="col">Actual</th>
+                <th scope="col">Cambio</th>
               </tr>
             </thead>
             <tbody>

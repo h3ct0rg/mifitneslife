@@ -1,25 +1,62 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { appointmentsApi, dietsApi, patientsApi } from '../api'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { appointmentsApi, dietsApi, measurementsApi, patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
-import type { AppointmentDto, AppointmentStatus, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
+import type {
+  AppointmentDto,
+  AppointmentStatus,
+  CreateAppointmentRequest,
+  CreateMeasurementRequest,
+  DietDto,
+  PatientDto,
+  ProfessionalDto,
+} from '../api/types'
 import AppointmentForm from '../components/AppointmentForm'
+import { avatarClass, initialsOf } from '../components/avatarIndex'
+import MeasurementForm from '../components/MeasurementForm'
+import { ConfirmModal } from '../components/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { useToast } from '../context/toastContext'
+import { toLocalDateKey, toLocalIso } from '../utils/localDate'
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
   Scheduled: 'Programada',
-  Completed: 'Completada',
+  Completed: 'Atendida',
   Cancelled: 'Cancelada',
-  NoShow: 'Inasistencia',
+  NoShow: 'No asistió',
 }
 
-function toKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  Scheduled: 'badge--info',
+  Completed: 'badge--success',
+  Cancelled: 'badge--neutral',
+  NoShow: 'badge--warning',
+}
+
+/** Valor de `?cita=` para crear una cita nueva. */
+const NEW_APPOINTMENT = 'nueva'
+
+/** Clave `YYYY-MM-DD` del día local (las citas son hora de reloj local, sin zona). */
+const toKey = toLocalDateKey
+
+function parseKey(value: string | null): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [y, m, d] = value.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  return isNaN(date.getTime()) ? null : date
 }
 
 function startOfDay(d: Date) {
   const n = new Date(d)
   n.setHours(0, 0, 0, 0)
   return n
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1)
 }
 
 function addDays(d: Date, n: number) {
@@ -36,53 +73,84 @@ function monthGrid(viewYear: number, viewMonth: number) {
   return days
 }
 
-type FormState =
-  | { mode: 'create'; day: Date }
-  | { mode: 'edit'; appointment: AppointmentDto }
-  | null
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
 
+/**
+ * Agenda (incluye las antiguas "Citas de hoy", U3/E2): calendario mensual + citas del día.
+ * Estado en la URL: `?dia=AAAA-MM-DD` (día seleccionado, por defecto hoy) y `?cita=nueva|<id>` (editor),
+ * así el "atrás" del navegador cierra el editor sin salir de la Agenda.
+ */
 export default function Agenda() {
-  const [cursor, setCursor] = useState(() => startOfDay(new Date()))
+  const toast = useToast()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const todayKey = toKey(new Date())
+  const selectedDay = parseKey(searchParams.get('dia')) ?? startOfDay(new Date())
+  const selectedKey = toKey(selectedDay)
+  const editorParam = searchParams.get('cita')
+
+  const [cursor, setCursor] = useState(() => startOfMonth(selectedDay))
   const [appointments, setAppointments] = useState<AppointmentDto[]>([])
   const [patients, setPatients] = useState<PatientDto[]>([])
   const [professionals, setProfessionals] = useState<ProfessionalDto[]>([])
   const [diets, setDiets] = useState<DietDto[]>([])
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [formState, setFormState] = useState<FormState>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [visitFor, setVisitFor] = useState<AppointmentDto | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<AppointmentDto | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [selectedDay, setSelectedDay] = useState<Date>(() => startOfDay(new Date()))
 
-  const period = useMemo(() => {
-    return {
+  const period = useMemo(
+    () => ({
       from: addDays(new Date(cursor.getFullYear(), cursor.getMonth(), 1), -7),
       to: addDays(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1), 7),
-    }
-  }, [cursor])
+    }),
+    [cursor],
+  )
 
+  // Datos de referencia del formulario: una vez.
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      patientsApi.list({ page: 1, pageSize: 100 }),
+      appointmentsApi.professionals(),
+      dietsApi.getPaged({ page: 1, pageSize: 100 }),
+    ])
+      .then(([pats, profs, dietData]) => {
+        if (cancelled) return
+        setPatients(pats.items)
+        setProfessionals(profs)
+        setDiets(dietData.items)
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(getErrorMessage(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [toast])
+
+  // Citas del periodo visible (mes ± 1 semana).
   const load = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
+    setError(null)
     try {
-      const [apps, pats, profs, dietData] = await Promise.all([
-        appointmentsApi.list({ from: period.from.toISOString(), to: period.to.toISOString() }),
-        patientsApi.list({ page: 1, pageSize: 100 }),
-        appointmentsApi.professionals(),
-        dietsApi.getPaged({ page: 1, pageSize: 100 }),
-      ])
-      setAppointments(apps)
-      setPatients(pats.items)
-      setProfessionals(profs)
-      setDiets(dietData.items)
+      setAppointments(
+        // Hora local de la clínica, sin convertir a UTC (D5): cubre exactamente los días visibles.
+        await appointmentsApi.list({ from: toLocalIso(period.from), to: toLocalIso(period.to) }),
+      )
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
   }, [period.from, period.to])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   const byKey = useMemo(() => {
     const map = new Map<string, AppointmentDto[]>()
@@ -96,137 +164,433 @@ export default function Agenda() {
     return map
   }, [appointments])
 
-  const navigate = (dir: -1 | 1) => {
-    setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
+  // Enlace directo `?cita=<id>` sin `?dia=` y fuera del mes cargado: se busca la cita
+  // (no hay getById de citas en la api; se usa list en ±12 meses) y se posiciona su día.
+  const [lookupFailed, setLookupFailed] = useState<string | null>(null)
+  const missingId =
+    editorParam && editorParam !== NEW_APPOINTMENT && !loading && !error && !appointments.some((a) => a.id === editorParam)
+      ? editorParam
+      : null
+  const needsLookup = !!missingId && !searchParams.has('dia') && lookupFailed !== missingId
+
+  useEffect(() => {
+    if (!needsLookup || !missingId) return
+    let cancelled = false
+    const now = new Date()
+    appointmentsApi
+      .list({ from: toLocalIso(startOfDay(addDays(now, -366))), to: toLocalIso(startOfDay(addDays(now, 367))) })
+      .then((list) => {
+        if (cancelled) return
+        const found = list.find((a) => a.id === missingId)
+        if (!found) {
+          setLookupFailed(missingId)
+          return
+        }
+        const d = startOfDay(new Date(found.startAt))
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            next.set('dia', toKey(d))
+            return next
+          },
+          { replace: true },
+        )
+        setCursor(startOfMonth(d))
+      })
+      .catch(() => {
+        if (!cancelled) setLookupFailed(missingId)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [needsLookup, missingId, setSearchParams])
+
+  const selectDay = (d: Date) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (toKey(d) === todayKey) next.delete('dia')
+        else next.set('dia', toKey(d))
+        return next
+      },
+      { replace: true },
+    )
+    if (d.getMonth() !== cursor.getMonth() || d.getFullYear() !== cursor.getFullYear()) setCursor(startOfMonth(d))
   }
 
-  const goToday = () => setCursor(startOfDay(new Date()))
+  const goToday = () => selectDay(startOfDay(new Date()))
+
+  const shiftMonth = (dir: -1 | 1) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1))
+
+  const openEditor = (value: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('cita', value)
+    navigate({ search: next.toString() }, { state: { agendaEditor: true } })
+  }
+
+  const closeEditor = () => {
+    if ((location.state as { agendaEditor?: boolean } | null)?.agendaEditor) {
+      navigate(-1)
+      return
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('cita')
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const handleCreate = async (payload: CreateAppointmentRequest) => {
     try {
       await appointmentsApi.create(payload)
-      setFormState(null)
-      setMessage({ type: 'ok', text: 'Cita registrada correctamente.' })
+      toast.success('Cita registrada correctamente.')
+      closeEditor()
       load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-      throw err
+      throw new Error(getErrorMessage(err))
     }
   }
 
   const handleUpdate = async (id: string, payload: CreateAppointmentRequest) => {
     try {
       await appointmentsApi.update(id, payload)
-      setFormState(null)
-      setMessage({ type: 'ok', text: 'Cita actualizada correctamente.' })
+      toast.success('Cita actualizada correctamente.')
+      closeEditor()
       load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
-      throw err
+      throw new Error(getErrorMessage(err))
     }
-  }
-
-  const requestDelete = (appointment: AppointmentDto) => {
-    setFormState(null)
-    setConfirmDelete(appointment)
   }
 
   const handleDelete = async () => {
     if (!confirmDelete) return
     setDeleting(true)
-    setMessage(null)
     try {
       await appointmentsApi.remove(confirmDelete.id)
       setConfirmDelete(null)
-      setMessage({ type: 'ok', text: 'Cita eliminada.' })
-      await load()
+      toast.success('Cita eliminada.')
+      closeEditor()
+      load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
       setConfirmDelete(null)
     } finally {
       setDeleting(false)
     }
   }
 
-  const handleAppointmentClick = (a: AppointmentDto) => {
-    setFormState({ mode: 'edit', appointment: a })
+  // "Registrar visita": guarda la medición y marca la cita como atendida.
+  const handleSaveVisit = async (payload: CreateMeasurementRequest) => {
+    if (!visitFor) return
+    const appointment = visitFor
+    try {
+      await measurementsApi.create(appointment.patientId, payload)
+      await appointmentsApi.update(appointment.id, {
+        patientId: appointment.patientId,
+        professionalId: appointment.professionalId,
+        dietId: appointment.dietId,
+        startAt: appointment.startAt,
+        endAt: appointment.endAt,
+        title: appointment.title,
+        notes: appointment.notes,
+        status: 'Completed',
+      })
+      setVisitFor(null)
+      toast.success(`Visita de ${appointment.patientFullName} registrada y cita marcada como atendida.`)
+      load()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    }
   }
 
-  if (formState) {
+  // ── Editor (página completa controlada por la URL) ──
+  if (editorParam) {
+    const backTo = `/agenda${searchParams.get('dia') ? `?dia=${searchParams.get('dia')}` : ''}`
+    if (editorParam === NEW_APPOINTMENT) {
+      return (
+        <AppointmentForm
+          title="Nueva cita"
+          backTo={backTo}
+          day={selectedDay}
+          patients={patients}
+          professionals={professionals}
+          diets={diets}
+          onSubmit={handleCreate}
+          onCancel={closeEditor}
+        />
+      )
+    }
+    const editing = appointments.find((a) => a.id === editorParam)
+    if (!editing) {
+      return (
+        <div className="page">
+          <div
+            onClickCapture={(e) => {
+              if ((e.target as HTMLElement).closest('.page-header-back')) {
+                e.preventDefault()
+                closeEditor()
+              }
+            }}
+          >
+            <PageHeader title="Editar cita" back={{ to: backTo, label: 'Agenda' }} />
+          </div>
+          {loading || needsLookup ? (
+            <StateView state="loading" title="Buscando la cita..." />
+          ) : (
+            <StateView
+              state="error"
+              title="No se encontró la cita"
+              message={
+                error ??
+                'La cita no existe, fue eliminada o no pertenece a tu agenda. Revisa el enlace o búscala en el calendario.'
+              }
+              action={
+                <button type="button" className="btn btn--ghost" onClick={closeEditor}>
+                  Volver a la Agenda
+                </button>
+              }
+            />
+          )}
+        </div>
+      )
+    }
     return (
-      <AppointmentForm
-        title={formState.mode === 'create' ? 'Registrar nueva cita' : 'Editar cita'}
-        day={formState.mode === 'create' ? formState.day : undefined}
-        initial={formState.mode === 'edit' ? formState.appointment : undefined}
-        patients={patients}
-        professionals={professionals}
-        diets={diets}
-        onSubmit={formState.mode === 'create'
-          ? handleCreate
-          : (payload) => handleUpdate(formState.appointment.id, payload)}
-        onDelete={formState.mode === 'edit' ? () => requestDelete(formState.appointment) : undefined}
-        onCancel={() => setFormState(null)}
-      />
+      <>
+        <AppointmentForm
+          title="Editar cita"
+          backTo={backTo}
+          initial={editing}
+          patients={patients}
+          professionals={professionals}
+          diets={diets}
+          onSubmit={(payload) => handleUpdate(editing.id, payload)}
+          onDelete={() => setConfirmDelete(editing)}
+          onCancel={closeEditor}
+        />
+        {confirmDelete && (
+          <ConfirmModal
+            title="Eliminar cita"
+            message={`¿Eliminar la cita de ${confirmDelete.patientFullName} del ${new Date(
+              confirmDelete.startAt,
+            ).toLocaleString('es-ES', {
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit',
+            })} con ${confirmDelete.professionalFullName}? Esta acción no se puede deshacer.`}
+            confirmLabel="Eliminar"
+            danger
+            busy={deleting}
+            onConfirm={handleDelete}
+            onCancel={() => !deleting && setConfirmDelete(null)}
+          />
+        )}
+      </>
     )
   }
 
-  const selectedDayKey = toKey(selectedDay)
-  const selectedDayApps = byKey.get(selectedDayKey) ?? []
+  // ── Vista principal ──
+  const dayApps = byKey.get(selectedKey) ?? []
+  const isToday = selectedKey === todayKey
+  const pending = dayApps.filter((a) => a.status === 'Scheduled').length
+  const done = dayApps.filter((a) => a.status === 'Completed').length
+  const monthLabel = cursor.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+  const dayLabel = selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
-    <div className="clean-agenda-container">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+    <div className="page agenda-page">
+      <PageHeader
+        title="Agenda"
+        actions={
+          <button type="button" className="btn btn--primary clin-desktop-action" onClick={() => openEditor(NEW_APPOINTMENT)}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              add
+            </span>
+            Nueva cita
+          </button>
+        }
+      />
 
-      <div className="purple-agenda-card">
-        <div className="purple-card-header">
-          <div className="purple-header-left">
-            <span className="purple-year">{cursor.getFullYear()}</span>
-            <h1 className="purple-month-name">
-              {cursor.toLocaleDateString('es-ES', { month: 'long' })}
-            </h1>
+      <div className="agenda-layout">
+        {/* Día seleccionado: en móvil va primero y abre en "Hoy". */}
+        <section className="card agenda-day" aria-labelledby="agenda-day-title">
+          <div className="agenda-day-head">
+            <button
+              type="button"
+              className="btn btn--icon"
+              onClick={() => selectDay(addDays(selectedDay, -1))}
+              aria-label="Día anterior"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                chevron_left
+              </span>
+            </button>
+            <div className="agenda-day-heading">
+              <h2 id="agenda-day-title">{isToday ? 'Hoy' : dayLabel}</h2>
+              <p className="text-muted">
+                {isToday && <span className="agenda-day-date">{dayLabel} · </span>}
+                {loading
+                  ? 'Cargando...'
+                  : dayApps.length === 0
+                    ? 'Sin citas'
+                    : `${dayApps.length} cita${dayApps.length === 1 ? '' : 's'} · ${pending} pendiente${pending === 1 ? '' : 's'} · ${done} atendida${done === 1 ? '' : 's'}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn--icon"
+              onClick={() => selectDay(addDays(selectedDay, 1))}
+              aria-label="Día siguiente"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                chevron_right
+              </span>
+            </button>
           </div>
 
-          <div className="purple-header-controls">
-            <button type="button" className="purple-nav-arrow" onClick={() => navigate(-1)} aria-label="Anterior">
-              ‹
+          {!isToday && (
+            <button type="button" className="btn btn--ghost btn-sm agenda-today-btn" onClick={goToday}>
+              Ir a hoy
             </button>
-            <button type="button" className="purple-today-chip" onClick={goToday}>
-              Hoy
-            </button>
-            <button type="button" className="purple-nav-arrow" onClick={() => navigate(1)} aria-label="Siguiente">
-              ›
-            </button>
-          </div>
-        </div>
+          )}
 
-        <div className="purple-cal-wrapper">
-          <div className="purple-day-names">
+          {loading && appointments.length === 0 ? (
+            <StateView state="loading" compact title="Cargando citas..." />
+          ) : error ? (
+            <StateView
+              state="error"
+              compact
+              message={error}
+              action={
+                <button type="button" className="btn btn--ghost" onClick={load}>
+                  Reintentar
+                </button>
+              }
+            />
+          ) : dayApps.length === 0 ? (
+            <StateView
+              state="empty"
+              compact
+              icon="event_available"
+              title="No hay citas para este día"
+              action={
+                <button type="button" className="btn btn--primary" onClick={() => openEditor(NEW_APPOINTMENT)}>
+                  Agendar cita
+                </button>
+              }
+            />
+          ) : (
+            <ul className="agenda-list">
+              {dayApps.map((a) => (
+                <li key={a.id} className={`agenda-item status-${a.status.toLowerCase()}`}>
+                  <div className="agenda-item-time">
+                    <strong>{fmtTime(a.startAt)}</strong>
+                    {a.endAt && <span>{fmtTime(a.endAt)}</span>}
+                  </div>
+                  <span className={`avatar agenda-avatar ${avatarClass(a.patientId)}`} aria-hidden="true">
+                    {initialsOf(a.patientFullName)}
+                  </span>
+                  <div className="agenda-item-main">
+                    <div className="agenda-item-top">
+                      <Link to={`/pacientes/${a.patientId}`} className="agenda-item-patient">
+                        {a.patientFullName}
+                      </Link>
+                      <span className={`badge ${STATUS_BADGE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
+                    </div>
+                    <p className="agenda-item-meta">
+                      <span className="material-symbols-outlined" aria-hidden="true">
+                        stethoscope
+                      </span>
+                      {a.professionalFullName}
+                      {a.title ? ` · ${a.title}` : ''}
+                    </p>
+                    {a.notes && <p className="agenda-item-notes">{a.notes}</p>}
+                    <div className="agenda-item-actions">
+                      {a.status === 'Scheduled' && (
+                        <button type="button" className="btn btn--primary" onClick={() => setVisitFor(a)}>
+                          <span className="material-symbols-outlined" aria-hidden="true">
+                            assignment_turned_in
+                          </span>
+                          Registrar visita
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        onClick={() => openEditor(a.id)}
+                        aria-label={`Editar cita de ${a.patientFullName} a las ${fmtTime(a.startAt)}`}
+                      >
+                        <span className="material-symbols-outlined" aria-hidden="true">
+                          edit
+                        </span>
+                        Editar
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Calendario del mes */}
+        <section className="card agenda-calendar" aria-labelledby="agenda-month-title">
+          <div className="agenda-cal-head">
+            <h2 id="agenda-month-title" className="agenda-month">
+              {monthLabel}
+            </h2>
+            <div className="agenda-cal-controls">
+              <button type="button" className="btn btn--icon" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  chevron_left
+                </span>
+              </button>
+              <button type="button" className="btn btn--ghost btn-sm" onClick={goToday}>
+                Hoy
+              </button>
+              <button type="button" className="btn btn--icon" onClick={() => shiftMonth(1)} aria-label="Mes siguiente">
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  chevron_right
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="agenda-weekdays" aria-hidden="true">
             {DAY_NAMES.map((name) => (
-              <span key={name} className="purple-day-name">{name}</span>
+              <span key={name}>{name}</span>
             ))}
           </div>
 
-          <div className="purple-dates-grid">
+          <div className="agenda-grid">
             {monthGrid(cursor.getFullYear(), cursor.getMonth()).map((d) => {
               const key = toKey(d)
-              const dayApps = byKey.get(key) ?? []
-              const isToday = key === toKey(new Date())
-              const isOut = d.getMonth() !== cursor.getMonth()
-              const isSelected = key === selectedDayKey
-              const hasApps = dayApps.length > 0
-
+              const cellApps = byKey.get(key) ?? []
+              const count = cellApps.length
+              const out = d.getMonth() !== cursor.getMonth()
+              const label = `${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}${
+                count ? `, ${count} cita${count === 1 ? '' : 's'}` : ''
+              }`
               return (
                 <button
                   key={key}
                   type="button"
-                  className={`purple-date-cell${isOut ? ' out' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${hasApps ? ' has-events' : ''}`}
-                  onClick={() => setSelectedDay(d)}
+                  className={`agenda-cell${out ? ' out' : ''}${key === todayKey ? ' today' : ''}${
+                    key === selectedKey ? ' selected' : ''
+                  }`}
+                  aria-label={label}
+                  aria-pressed={key === selectedKey}
+                  aria-current={key === todayKey ? 'date' : undefined}
+                  onClick={() => selectDay(d)}
                 >
-                  <span className="purple-date-number">{d.getDate()}</span>
-                  {hasApps && (
-                    <span className="purple-event-dots">
-                      {dayApps.slice(0, 3).map((a) => (
-                        <span key={a.id} className={`purple-dot ${a.status.toLowerCase()}`} />
+                  <span className="agenda-cell-num">{d.getDate()}</span>
+                  {count > 0 && (
+                    <span className="agenda-cell-dots" aria-hidden="true">
+                      {cellApps.slice(0, 3).map((a) => (
+                        <span key={a.id} className={`agenda-dot status-${a.status.toLowerCase()}`} />
                       ))}
                     </span>
                   )}
@@ -234,117 +598,22 @@ export default function Agenda() {
               )
             })}
           </div>
-        </div>
+        </section>
       </div>
 
-      <div className="clean-agenda-section">
-        <div className="agenda-section-header">
-          <div>
-            <span className="agenda-section-subtitle">
-              {selectedDay.toLocaleDateString('es-ES', { weekday: 'long' }).toUpperCase()}
-            </span>
-            <h2 className="agenda-section-title">
-              {selectedDay.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className="purple-add-btn"
-            id="btn-nueva-cita"
-            onClick={() => setFormState({ mode: 'create', day: selectedDay })}
-          >
-            + Nueva cita
-          </button>
-        </div>
+      <button type="button" className="clin-fab" onClick={() => openEditor(NEW_APPOINTMENT)} aria-label="Nueva cita">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          add
+        </span>
+      </button>
 
-        {loading ? (
-          <p className="loading">Cargando citas...</p>
-        ) : selectedDayApps.length === 0 ? (
-          <div className="clean-empty-state">
-            <span className="clean-empty-icon">☕</span>
-            <p>No tienes citas agendadas para este día.</p>
-            <button
-              type="button"
-              className="clean-empty-btn"
-              onClick={() => setFormState({ mode: 'create', day: selectedDay })}
-            >
-              Agendar consulta
-            </button>
-          </div>
-        ) : (
-          <div className="clean-apps-list">
-            {selectedDayApps.map((a) => (
-              <div
-                key={a.id}
-                role="button"
-                tabIndex={0}
-                className={`clean-app-card ${a.status.toLowerCase()}`}
-                onClick={() => handleAppointmentClick(a)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleAppointmentClick(a) }}
-              >
-                <div className={`clean-app-indicator ${a.status.toLowerCase()}`} />
-                <div className="clean-app-main">
-                  <div className="clean-app-top">
-                    <strong className="clean-app-patient">{a.patientFullName}</strong>
-                    <span className={`clean-app-badge ${a.status.toLowerCase()}`}>
-                      {STATUS_LABEL[a.status]}
-                    </span>
-                  </div>
-                  <div className="clean-app-sub">
-                    <span className="clean-app-time">
-                      🕒 {new Date(a.startAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                      {a.endAt && ` – ${new Date(a.endAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`}
-                    </span>
-                    <span className="clean-app-prof">👨‍⚕️ {a.professionalFullName}</span>
-                  </div>
-                  {a.notes && <p className="clean-app-notes">📝 {a.notes}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="clean-legend">
-        {Object.entries(STATUS_LABEL).map(([status, label]) => (
-          <span key={status} className="clean-legend-item">
-            <i className={`clean-dot-icon ${status.toLowerCase()}`} /> {label}
-          </span>
-        ))}
-      </div>
-
-      {confirmDelete && (
-        <div className="modal-overlay" onClick={() => !deleting && setConfirmDelete(null)}>
-          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-icon">🗑</div>
-            <h2>Eliminar cita</h2>
-            <p>
-              ¿Estás seguro que deseas eliminar la cita de{' '}
-              <strong>{confirmDelete.patientFullName}</strong> del{' '}
-              {new Date(confirmDelete.startAt).toLocaleString('es-ES', {
-                day: 'numeric',
-                month: 'long',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-              {' '}con <strong>{confirmDelete.professionalFullName}</strong>? Esta acción no se puede
-              deshacer.
-            </p>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => setConfirmDelete(null)}
-                disabled={deleting}
-              >
-                Cancelar
-              </button>
-              <button type="button" className="btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {visitFor && (
+        <MeasurementForm
+          title={`Registrar visita · ${visitFor.patientFullName}`}
+          defaultVisitDate={toKey(new Date(visitFor.startAt))}
+          onSubmit={handleSaveVisit}
+          onCancel={() => setVisitFor(null)}
+        />
       )}
     </div>
   )

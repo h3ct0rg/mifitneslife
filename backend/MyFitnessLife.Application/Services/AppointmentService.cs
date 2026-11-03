@@ -9,18 +9,24 @@ namespace MyFitnessLife.Application.Services;
 
 public class AppointmentService : IAppointmentService
 {
+    // D1 (zona horaria): Appointment.StartAt/EndAt son HORA DE RELOJ de la clínica, sin zona
+    // (Kind Unspecified), tal como la elige el usuario en el formulario. No se convierten a UTC ni se
+    // migran. Valores que lleguen con Z/offset (clientes viejos) se pasan a la zona del cliente.
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEmailService _emailService;
+    private readonly IClientClock _clock;
 
-    public AppointmentService(IUnitOfWork unitOfWork, IEmailService emailService)
+    public AppointmentService(IUnitOfWork unitOfWork, IEmailService emailService, IClientClock clock)
     {
         _unitOfWork = unitOfWork;
         _emailService = emailService;
+        _clock = clock;
     }
 
     public async Task<IEnumerable<AppointmentDto>> GetByRangeAsync(Guid tenantId, DateTime from, DateTime to)
     {
-        var appointments = await _unitOfWork.Appointments.GetByRangeAsync(tenantId, from, to);
+        // Contrato: from/to en hora de reloj local sin offset; con Z/offset → zona del header.
+        var appointments = await _unitOfWork.Appointments.GetByRangeAsync(tenantId, _clock.ToWallClock(from), _clock.ToWallClock(to));
         return appointments.Select(ToDto);
     }
 
@@ -28,6 +34,8 @@ public class AppointmentService : IAppointmentService
     {
         if (request.StartAt == default)
             throw new ArgumentException("La fecha de inicio es obligatoria.", nameof(request.StartAt));
+        request.StartAt = _clock.ToWallClock(request.StartAt);
+        request.EndAt = request.EndAt.HasValue ? _clock.ToWallClock(request.EndAt.Value) : null;
 
         var proportional = await GetProfessionalAsync(tenantId, request.ProfessionalId);
         if (proportional is null)
@@ -65,6 +73,8 @@ public class AppointmentService : IAppointmentService
         if (!await PatientExistsAsync(tenantId, request.PatientId))
             throw new KeyNotFoundException("Paciente no encontrado.");
 
+        request.StartAt = _clock.ToWallClock(request.StartAt);
+        request.EndAt = request.EndAt.HasValue ? _clock.ToWallClock(request.EndAt.Value) : null;
         request.Apply(appointment);
         appointment.ProfessionalId = professional.Id;
 
@@ -174,12 +184,13 @@ public class AppointmentService : IAppointmentService
         if (patient is null || string.IsNullOrWhiteSpace(patient.Email))
             return;
 
-        var localTime = TimeZoneInfo.ConvertTimeFromUtc(
-            DateTime.SpecifyKind(appointment.StartAt, DateTimeKind.Utc),
-            TimeZoneInfo.Local);
+        // D1: StartAt ya es la hora de reloj de la clínica → se formatea TAL CUAL. No convertir
+        // (antes se trataba como UTC y se pasaba a la zona del servidor, desplazando la hora).
+        var clinicTime = appointment.StartAt;
+        var culture = new System.Globalization.CultureInfo("es-ES");
 
-        var dateLabel = localTime.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
-        var timeLabel = localTime.ToString("HH:mm 'h'");
+        var dateLabel = clinicTime.ToString("dddd, d 'de' MMMM 'de' yyyy", culture);
+        var timeLabel = clinicTime.ToString("HH:mm 'h'", System.Globalization.CultureInfo.InvariantCulture);
 
         var html = _emailService.BuildAppointmentEmail(
             patient.FullName,

@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { MeasurementSeriesPointDto } from '../api/types'
 
 interface Props {
   data: MeasurementSeriesPointDto[]
+  /** Color CSS de la serie (idealmente un token: `var(--color-…)`). */
   color?: string
   height?: number
+  /** Nombre de la serie para lectores de pantalla. */
+  label?: string
 }
 
 function getCubicPath(points: { x: number; y: number }[]): string {
@@ -25,19 +28,21 @@ function getCubicPath(points: { x: number; y: number }[]): string {
   return path
 }
 
-export default function TrendChart({ data, color = 'var(--primary)', height = 140 }: Props) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+const fmtValue = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1))
+const fmtDate = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
 
-  const points = data.filter((p) => p.value != null) as (MeasurementSeriesPointDto & {
-    value: number
-  })[]
+/**
+ * Línea de tendencia en SVG. El color se hereda vía `currentColor` desde el contenedor,
+ * así que acepta tokens CSS. Puntos accesibles con foco/tap; resumen para lectores en <title>.
+ */
+export default function TrendChart({ data, color = 'var(--color-primary)', height = 140, label = 'Tendencia' }: Props) {
+  const [activeIdx, setActiveIdx] = useState<number | null>(null)
+  const gradId = `trend-grad-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  const points = data.filter((p) => p.value != null) as (MeasurementSeriesPointDto & { value: number })[]
 
   if (points.length === 0) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.875rem' }}>
-        Sin datos suficientes para graficar la tendencia
-      </div>
-    )
+    return <p className="trend-empty">Sin datos suficientes para graficar la tendencia</p>
   }
 
   const width = 600
@@ -48,7 +53,7 @@ export default function TrendChart({ data, color = 'var(--primary)', height = 14
   const min = Math.min(...values)
   const max = Math.max(...values)
   const span = max - min || 1
-  const padY = (max - min) === 0 ? 1 : span * 0.15
+  const padY = max - min === 0 ? 1 : span * 0.15
 
   const coords = points.map((p, i) => {
     const x = points.length === 1 ? width / 2 : paddingX + (i / (points.length - 1)) * (width - paddingX * 2)
@@ -58,108 +63,66 @@ export default function TrendChart({ data, color = 'var(--primary)', height = 14
 
   const curvePath = getCubicPath(coords)
   const areaPath = `${curvePath} L ${coords[coords.length - 1].x.toFixed(1)} ${height - 4} L ${coords[0].x.toFixed(1)} ${height - 4} Z`
-
-  const fmtValue = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1))
-  const fmtDate = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
-
-  const gradId = `grad-${color.replace(/[^a-zA-Z0-9]/g, '') || 'main'}`
-  const glowId = `glow-${color.replace(/[^a-zA-Z0-9]/g, '') || 'main'}`
-
-  const activeCoord = hoveredIdx !== null ? coords[hoveredIdx] : null
+  const active = activeIdx !== null ? coords[activeIdx] : null
+  const first = coords[0]
+  const last = coords[coords.length - 1]
+  const summary = `${label}: ${coords.length} mediciones, de ${fmtValue(first.value)} (${fmtDate(first.date)}) a ${fmtValue(last.value)} (${fmtDate(last.date)})`
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        style={{ width: '100%', height: 'auto', overflow: 'visible' }}
-        role="img"
-      >
+    <div className="trend" style={{ color }}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="trend-svg" role="img" aria-label={summary}>
         <defs>
+          {/* Relleno degradado del color de la serie: 32% → 0% (MV-1.10). */}
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color.includes('var(') ? 'var(--primary)' : color} stopOpacity="0.35" />
-            <stop offset="100%" stopColor={color.includes('var(') ? 'var(--primary)' : color} stopOpacity="0.0" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
-          <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor={color.includes('var(') ? 'var(--primary)' : color} floodOpacity="0.35" />
-          </filter>
         </defs>
 
-        {/* Dashed background grid lines */}
-        <line x1={paddingX} y1={paddingY} x2={width - paddingX} y2={paddingY} stroke="rgba(15,23,42,0.06)" strokeDasharray="4 4" />
-        <line x1={paddingX} y1={height / 2} x2={width - paddingX} y2={height / 2} stroke="rgba(15,23,42,0.06)" strokeDasharray="4 4" />
-        <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(15,23,42,0.06)" strokeDasharray="4 4" />
+        {[paddingY, height / 2, height - paddingY].map((y) => (
+          <line key={y} x1={paddingX} y1={y} x2={width - paddingX} y2={y} className="trend-grid" />
+        ))}
 
-        {/* Gradient fill area */}
-        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
-
-        {/* Glowing smooth curve line */}
+        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" className="trend-area" />
         <path
           d={curvePath}
           fill="none"
-          stroke={color.includes('var(') ? 'var(--primary)' : color}
-          strokeWidth="3.5"
+          stroke="currentColor"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
-          filter={`url(#${glowId})`}
+          pathLength={1}
+          className="trend-line"
         />
 
-        {/* Data points & hover triggers */}
-        {coords.map((c, i) => {
-          const isHovered = hoveredIdx === i
-          return (
-            <g
-              key={i}
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              style={{ cursor: 'pointer' }}
-            >
-              <circle
-                cx={c.x}
-                cy={c.y}
-                r={isHovered ? '7' : '4.5'}
-                fill="#ffffff"
-                stroke={color.includes('var(') ? 'var(--primary)' : color}
-                strokeWidth={isHovered ? '3.5' : '2.5'}
-                style={{ transition: 'all 0.15s ease' }}
-              />
-              {isHovered && (
-                <circle
-                  cx={c.x}
-                  cy={c.y}
-                  r="12"
-                  fill={color.includes('var(') ? 'var(--primary)' : color}
-                  fillOpacity="0.2"
-                />
-              )}
-            </g>
-          )
-        })}
+        {coords.map((c, i) => (
+          <circle
+            key={i}
+            cx={c.x}
+            cy={c.y}
+            r={activeIdx === i ? 7 : i === coords.length - 1 ? 6 : 4.5}
+            className={`trend-point${i === coords.length - 1 ? ' trend-point--last' : ''}`}
+            stroke="currentColor"
+            strokeWidth={activeIdx === i ? 3.5 : 2.5}
+            tabIndex={0}
+            aria-label={`${fmtValue(c.value)} el ${fmtDate(c.date)}`}
+            onPointerEnter={() => setActiveIdx(i)}
+            onPointerLeave={() => setActiveIdx(null)}
+            onFocus={() => setActiveIdx(i)}
+            onBlur={() => setActiveIdx(null)}
+            onClick={() => setActiveIdx(i)}
+          />
+        ))}
       </svg>
 
-      {/* Tooltip on hover */}
-      {activeCoord && (
+      {active && (
         <div
-          style={{
-            position: 'absolute',
-            left: `${(activeCoord.x / width) * 100}%`,
-            top: `${(activeCoord.y / height) * 100}%`,
-            transform: 'translate(-50%, -120%)',
-            background: 'var(--glass-level-2)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid var(--border-strong)',
-            boxShadow: 'var(--glass-shadow-hover)',
-            borderRadius: '8px',
-            padding: '0.35rem 0.65rem',
-            fontSize: '0.78rem',
-            fontWeight: 600,
-            color: 'var(--text)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-            zIndex: 10,
-          }}
+          className="trend-tooltip"
+          aria-hidden="true"
+          style={{ left: `${(active.x / width) * 100}%`, top: `${(active.y / height) * 100}%` }}
         >
-          <div style={{ color: 'var(--primary)' }}>{fmtValue(activeCoord.value)}</div>
-          <div style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>{fmtDate(activeCoord.date)}</div>
+          <strong>{fmtValue(active.value)}</strong>
+          <span>{fmtDate(active.date)}</span>
         </div>
       )}
     </div>

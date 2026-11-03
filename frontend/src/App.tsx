@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useOutletContext } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
-import { patientsApi } from './api'
-import Layout from './components/Layout'
+import Layout, { type ShellOutletContext } from './components/Layout'
 import ToastProvider from './components/ToastProvider'
+import StateView from './components/ui/StateView'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -11,7 +10,6 @@ import Patients from './pages/Patients'
 import PatientProfile from './pages/PatientProfile'
 import MeasurementHistory from './pages/MeasurementHistory'
 import Agenda from './pages/Agenda'
-import Citas from './pages/Citas'
 import FoodCatalog from './pages/FoodCatalog'
 import DietPlans from './pages/DietPlans'
 import Exercises from './pages/Exercises'
@@ -39,19 +37,26 @@ function HomeRoute() {
   return <PatientHomeRedirect />
 }
 
-// El home del paciente es su perfil.
+// El home del paciente es su perfil. El id lo resuelve Layout (única llamada a patients.me()).
 function PatientHomeRedirect() {
   const { user } = useAuth()
-  const [myPatientId, setMyPatientId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user?.role === 'Patient') {
-      patientsApi.me().then((p) => setMyPatientId(p.id)).catch(() => setMyPatientId(null))
-    }
-  }, [user])
+  const { myPatientId } = useOutletContext<ShellOutletContext>()
 
   if (user?.role === 'Patient') {
-    if (!myPatientId) return <div className="loading">Cargando perfil...</div>
+    if (myPatientId === null)
+      return (
+        <StateView
+          state="error"
+          title="No se pudo cargar tu perfil"
+          message="Tu cuenta no tiene una ficha de paciente asociada en este centro o hubo un error de conexión."
+          action={
+            <button type="button" className="btn btn--ghost" onClick={() => window.location.reload()}>
+              Reintentar
+            </button>
+          }
+        />
+      )
+    if (!myPatientId) return <StateView state="loading" title="Cargando perfil..." />
     return <Navigate to={`/pacientes/${myPatientId}`} replace />
   }
   return <Dashboard />
@@ -68,6 +73,13 @@ function ClinicalOnly({ children }: { children: React.ReactNode }) {
 function StaffOnly({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   if (user?.role === 'Patient' || isSuperAdmin(user?.role)) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+// Rutas de administración del centro: solo Admin.
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  if (user?.role !== 'Admin') return <Navigate to="/" replace />
   return <>{children}</>
 }
 
@@ -98,13 +110,14 @@ export default function App() {
           <Route path="pacientes/:id" element={<ClinicalOnly><PatientProfile /></ClinicalOnly>} />
           <Route path="pacientes/:id/historial" element={<StaffOnly><MeasurementHistory /></StaffOnly>} />
           <Route path="agenda" element={<StaffOnly><Agenda /></StaffOnly>} />
-          <Route path="citas" element={<StaffOnly><Citas /></StaffOnly>} />
+          {/* U3: Citas se fusiona en Agenda. */}
+          <Route path="citas" element={<Navigate to="/agenda" replace />} />
           <Route path="dieta/catalogo" element={<StaffOnly><FoodCatalog /></StaffOnly>} />
           <Route path="dieta/planes" element={<StaffOnly><DietPlans /></StaffOnly>} />
           <Route path="entrenamiento/ejercicios" element={<StaffOnly><Exercises /></StaffOnly>} />
           <Route path="entrenamiento/planes" element={<StaffOnly><WorkoutPlans /></StaffOnly>} />
           <Route path="configuracion" element={<StaffOnly><Settings /></StaffOnly>} />
-          <Route path="configuracion/usuarios" element={<StaffOnly><Users /></StaffOnly>} />
+          <Route path="configuracion/usuarios" element={<AdminOnly><Users /></AdminOnly>} />
           <Route path="configuracion/whatsapp" element={<StaffOnly><WhatsApp /></StaffOnly>} />
           <Route path="admin" element={<Navigate to="/" replace />} />
           <Route path="admin/tenants" element={<SuperAdminOnly><AdminTenants /></SuperAdminOnly>} />

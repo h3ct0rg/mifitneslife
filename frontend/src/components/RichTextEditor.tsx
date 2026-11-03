@@ -4,9 +4,20 @@ interface Props {
   value: string
   onChange: (html: string) => void
   placeholder?: string
+  /** id del <label>/título que nombra el editor. */
+  labelledBy?: string
 }
 
-export default function RichTextEditor({ value, onChange, placeholder }: Props) {
+const TOOLS: { command: string; icon: string; label: string }[] = [
+  { command: 'bold', icon: 'format_bold', label: 'Negrita' },
+  { command: 'italic', icon: 'format_italic', label: 'Cursiva' },
+  { command: 'underline', icon: 'format_underlined', label: 'Subrayado' },
+  { command: 'strikeThrough', icon: 'strikethrough_s', label: 'Tachado' },
+  { command: 'insertUnorderedList', icon: 'format_list_bulleted', label: 'Lista' },
+  { command: 'insertOrderedList', icon: 'format_list_numbered', label: 'Lista numerada' },
+]
+
+export default function RichTextEditor({ value, onChange, placeholder, labelledBy }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -15,7 +26,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
     if (el.innerHTML !== value) el.innerHTML = value
   }, [value])
 
-  const render = (command: string, arg?: string) => {
+  const run = (command: string, arg?: string) => {
     document.execCommand(command, false, arg)
     if (ref.current) onChange(ref.current.innerHTML)
   }
@@ -26,52 +37,43 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props) 
 
   const isEmpty = !value || value === '<br>' || value === '<div><br></div>'
 
+  const toolButton = (key: string, icon: string, label: string, onClick: () => void) => (
+    <button key={key} type="button" className="rte-btn" onClick={onClick} title={label} aria-label={label}>
+      <span className="material-symbols-outlined" aria-hidden="true">
+        {icon}
+      </span>
+    </button>
+  )
+
   return (
     <div className="rte">
-      <div className="rte-toolbar">
-        <button type="button" className="rte-btn" onClick={() => render('bold')} title="Negrita" aria-label="Negrita">
-          <strong>B</strong>
-        </button>
-        <button type="button" className="rte-btn" onClick={() => render('italic')} title="Cursiva" aria-label="Cursiva">
-          <em>I</em>
-        </button>
-        <button type="button" className="rte-btn" onClick={() => render('underline')} title="Subrayado" aria-label="Subrayado">
-          <u>U</u>
-        </button>
-        <button type="button" className="rte-btn" onClick={() => render('strikeThrough')} title="Tachado" aria-label="Tachado">
-          <s>S</s>
-        </button>
-        <span className="rte-sep" />
-        <button type="button" className="rte-btn" onClick={() => render('insertUnorderedList')} title="Lista" aria-label="Lista">
-          • Lista
-        </button>
-        <button type="button" className="rte-btn" onClick={() => render('insertOrderedList')} title="Lista numerada" aria-label="Lista numerada">
-          1. Lista
-        </button>
-        <span className="rte-sep" />
-        <button
-          type="button"
-          className="rte-btn"
-          onClick={() => {
-            const url = window.prompt('URL del enlace')
-            if (url) render('createLink', url)
-          }}
-          title="Insertar enlace"
-          aria-label="Insertar enlace"
-        >
-          🔗
-        </button>
-        <button type="button" className="rte-btn" onClick={() => render('removeFormat')} title="Limpiar formato" aria-label="Limpiar formato">
-          ⌫ Formato
-        </button>
+      <div className="rte-toolbar" role="toolbar" aria-label="Formato del texto">
+        {TOOLS.slice(0, 4).map((t) => toolButton(t.command, t.icon, t.label, () => run(t.command)))}
+        <span className="rte-sep" aria-hidden="true" />
+        {TOOLS.slice(4).map((t) => toolButton(t.command, t.icon, t.label, () => run(t.command)))}
+        <span className="rte-sep" aria-hidden="true" />
+        {toolButton('link', 'link', 'Insertar enlace', () => {
+          const url = window.prompt('URL del enlace')
+          if (url) run('createLink', url)
+        })}
+        {toolButton('clear', 'format_clear', 'Limpiar formato', () => run('removeFormat'))}
       </div>
 
       <div className="rte-body-wrap">
-        {isEmpty && <span className="rte-placeholder">{placeholder ?? 'Escribe aquí...'}</span>}
+        {isEmpty && (
+          <span className="rte-placeholder" aria-hidden="true">
+            {placeholder ?? 'Escribe aquí...'}
+          </span>
+        )}
         <div
           ref={ref}
           className="rte-body"
           contentEditable
+          role="textbox"
+          aria-multiline="true"
+          aria-labelledby={labelledBy}
+          aria-placeholder={placeholder ?? 'Escribe aquí...'}
+          tabIndex={0}
           suppressContentEditableWarning
           onInput={onInput}
         />

@@ -2,7 +2,12 @@ namespace MyFitnessLife.Application.DTOs.Measurements;
 
 public class CreateMeasurementRequest
 {
-    public DateTime VisitDate { get; set; } = DateTime.UtcNow;
+    /// <summary>
+    /// Hora de reloj de la clínica (sin zona, como Appointment.StartAt). Si se omite: en alta =
+    /// ahora local del cliente; en edición = se conserva. (Antes el default era DateTime.UtcNow, lo
+    /// que hacía inútil el "si se omite" del servicio y sobrescribía la fecha al editar.)
+    /// </summary>
+    public DateTime VisitDate { get; set; }
 
     public decimal? WeightKg { get; set; }
     public decimal? HeightCm { get; set; }

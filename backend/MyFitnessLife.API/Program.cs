@@ -98,6 +98,15 @@ builder.Services.AddAuthorization(MyFitnessLife.API.Authorization.AuthPolicies.A
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<MyFitnessLife.API.Authorization.ICurrentUser, MyFitnessLife.API.Authorization.CurrentUser>();
 
+// Reloj del cliente (header X-Time-Zone). TimeProvider sustituible: en Development se puede fijar la
+// hora con Clock:FixedUtcNow (p. ej. Clock__FixedUtcNow=2026-12-01T03:30:00Z) para pruebas.
+var fixedUtcNow = builder.Configuration["Clock:FixedUtcNow"];
+if (builder.Environment.IsDevelopment() && DateTimeOffset.TryParse(fixedUtcNow, out var fixedNow))
+    builder.Services.AddSingleton<TimeProvider>(new MyFitnessLife.API.Services.FixedTimeProvider(fixedNow));
+else
+    builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<MyFitnessLife.Application.Interfaces.IClientClock, MyFitnessLife.API.Services.ClientClock>();
+
 var allowedOrigins = (builder.Configuration["FrontendUrl"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -106,7 +115,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy =>
     {
         policy.WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
+            .AllowAnyHeader() // incluye X-Time-Zone
             .AllowAnyMethod()
             .AllowCredentials();
     });

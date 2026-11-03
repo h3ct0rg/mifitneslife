@@ -257,13 +257,17 @@ public record TodayAppointmentRow(Guid Id, DateTime StartAt, Guid PatientId, str
 /// <summary>
 /// Consultas agregadas (solo lectura) para el dashboard de gestión del tenant.
 /// professionalId != null restringe las consultas de citas a ese profesional.
+/// Marcos de fecha (zona horaria D4): parámetros *Utc comparan columnas UTC (CreatedAt);
+/// el resto son hora de reloj local y comparan columnas wall-clock (Appointment.StartAt,
+/// Measurement.VisitDate).
 /// </summary>
 public interface IDashboardRepository
 {
-    Task<PatientKpis> GetPatientKpisAsync(Guid tenantId, DateTime thisMonthStart, DateTime prevMonthStart, DateTime followUpCutoff, DateTime now);
+    Task<PatientKpis> GetPatientKpisAsync(Guid tenantId, DateTime prevMonthStartUtc, DateTime thisMonthStartUtc, DateTime nextMonthStartUtc, DateTime followUpCutoff, DateTime now);
     Task<IReadOnlyList<MonthStatusCount>> GetAppointmentsByMonthAndStatusAsync(Guid tenantId, Guid? professionalId, DateTime from, DateTime to);
     Task<int> CountAppointmentsAsync(Guid tenantId, Guid? professionalId, DateTime from, DateTime to, IReadOnlyCollection<AppointmentStatus> statuses);
-    Task<Dictionary<(int Year, int Month), int>> GetNewPatientsByMonthAsync(Guid tenantId, DateTime from, DateTime to);
+    /// <summary>Pacientes creados en cada rango UTC (mes local convertido a UTC); un Count por rango.</summary>
+    Task<IReadOnlyList<int>> GetNewPatientsByRangesAsync(Guid tenantId, IReadOnlyList<(DateTime FromUtc, DateTime ToUtc)> ranges);
     Task<Dictionary<(int Year, int Month), int>> GetMeasurementsByMonthAsync(Guid tenantId, DateTime from, DateTime to);
     Task<IReadOnlyList<ProfessionalKpiRow>> GetProfessionalKpisAsync(Guid tenantId, DateTime monthStart, DateTime monthEnd, DateTime now);
     Task<IReadOnlyList<AtRiskPatientRow>> GetAtRiskPatientsAsync(Guid tenantId, DateTime followUpCutoff, DateTime now, int take);

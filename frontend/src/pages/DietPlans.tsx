@@ -1,19 +1,63 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { dietsApi, foodsApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { CreateDietRequest, DietDto, FoodDto } from '../api/types'
 import DietBuilder from '../components/DietBuilder'
+import { ConfirmModal } from '../components/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { useToast } from '../context/toastContext'
+
+/** Parámetro de URL del editor: `?editar=nuevo` o `?editar=<id>` (el "atrás" del navegador lo cierra). */
+const EDIT_PARAM = 'editar'
+const NEW = 'nuevo'
 
 export default function DietPlans() {
+  const toast = useToast()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [diets, setDiets] = useState<DietDto[]>([])
   const [foods, setFoods] = useState<FoodDto[]>([])
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [showForm, setShowForm] = useState<{ mode: 'create' } | { mode: 'edit'; diet: DietDto } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [toDelete, setToDelete] = useState<DietDto | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [fetchedDiet, setFetchedDiet] = useState<DietDto | null>(null)
+
+  const editParam = searchParams.get(EDIT_PARAM)
+  const editId = editParam && editParam !== NEW ? editParam : null
+
+  const openEditor = (value: string) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set(EDIT_PARAM, value)
+        return next
+      },
+      { state: { fromList: true } },
+    )
+
+  const closeEditor = useCallback(() => {
+    if ((location.state as { fromList?: boolean } | null)?.fromList) {
+      navigate(-1)
+      return
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete(EDIT_PARAM)
+        return next
+      },
+      { replace: true },
+    )
+  }, [location.state, navigate, setSearchParams])
 
   const load = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
+    setLoadError(null)
     try {
       const [dietData, foodData] = await Promise.all([
         dietsApi.list(),
@@ -22,7 +66,7 @@ export default function DietPlans() {
       setDiets(dietData)
       setFoods(foodData.items)
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      setLoadError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -32,172 +76,188 @@ export default function DietPlans() {
     load()
   }, [load])
 
-  const handleCreate = async (payload: CreateDietRequest) => {
-    await dietsApi.create(payload)
-    setShowForm(null)
-    setMessage({ type: 'ok', text: '✅ Plan de dieta creado correctamente.' })
+  // Editor abierto por URL con un id que no está en la lista : se consulta.
+  const localDiet = editId ? diets.find((d) => d.id === editId) ?? null : null
+  useEffect(() => {
+    if (!editId || loading || localDiet || fetchedDiet?.id === editId) return
+    let cancelled = false
+    dietsApi
+      .getById(editId)
+      .then((d) => { if (!cancelled) setFetchedDiet(d) })
+      .catch((err) => {
+        if (cancelled) return
+        toast.error(getErrorMessage(err))
+        closeEditor()
+      })
+    return () => { cancelled = true }
+  }, [editId, loading, localDiet, fetchedDiet, toast, closeEditor])
+
+  const handleSubmit = async (payload: CreateDietRequest, editing?: DietDto) => {
+    if (editing) {
+      await dietsApi.update(editing.id, { ...payload, status: 'Active' })
+    } else {
+      await dietsApi.create(payload)
+    }
+    closeEditor()
+    toast.success(editing ? 'Plan de dieta actualizado.' : 'Plan de dieta creado.')
     await load()
   }
 
-  const handleUpdate = async (id: string, payload: CreateDietRequest) => {
-    await dietsApi.update(id, { ...payload, status: 'Active' })
-    setShowForm(null)
-    setMessage({ type: 'ok', text: '✅ Plan de dieta actualizado correctamente.' })
-    await load()
-  }
-
-  const handleDelete = async (diet: DietDto) => {
-    if (!window.confirm(`¿Eliminar el plan "${diet.name}"?`)) return
+  const confirmDelete = async () => {
+    if (!toDelete) return
+    setDeleting(true)
     try {
-      await dietsApi.remove(diet.id)
-      setMessage({ type: 'ok', text: '🗑️ Plan de dieta eliminado.' })
+      await dietsApi.remove(toDelete.id)
+      setToDelete(null)
+      toast.success('Plan de dieta eliminado.')
       await load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
-  // If form view is active, render DietBuilder inline as a full page
-  if (showForm) {
-    const editingDiet = showForm.mode === 'edit' ? showForm.diet : undefined
+  // ── Editor a pantalla completa (sincronizado con la URL) ─────────────
+  if (editParam) {
+    const editing = editId ? localDiet ?? (fetchedDiet?.id === editId ? fetchedDiet : null) : undefined
+    if (loading || editing === null) return <StateView state="loading" title="Cargando plan..." />
     return (
       <DietBuilder
-        title={showForm.mode === 'create' ? 'Nuevo plan de dieta' : `Editar: ${editingDiet?.name ?? ''}`}
-        initial={editingDiet}
+        key={editParam}
+        title={editing ? `Editar: ${editing.name}` : 'Nuevo plan de dieta'}
+        initial={editing}
         foods={foods}
-        onSubmit={async (payload) => {
-          if (editingDiet) {
-            await handleUpdate(editingDiet.id, payload)
-          } else {
-            await handleCreate(payload)
-          }
-        }}
-        onCancel={() => setShowForm(null)}
+        onSubmit={(payload) => handleSubmit(payload, editing)}
+        onCancel={closeEditor}
       />
     )
   }
 
   return (
-    <div className="dp-page">
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="dp-page-header">
-        <div className="dp-header-left">
-          <div className="dp-header-icon">🥗</div>
-          <div>
-            <h1 className="dp-page-title">Planes de Dieta</h1>
-            <p className="dp-page-subtitle">
-              {diets.length > 0 ? `${diets.length} planes creados` : 'Crea y gestiona planes dietéticos personalizados'}
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="dp-btn-new"
-          onClick={() => setShowForm({ mode: 'create' })}
-        >
-          <span>+</span> Nuevo plan de dieta
-        </button>
-      </div>
-
-      {/* ── Alert ────────────────────────────────────────────────── */}
-      {message && (
-        <div className={`fc-alert ${message.type === 'ok' ? 'fc-alert-ok' : 'fc-alert-err'}`}>
-          {message.text}
-          <button type="button" className="fc-alert-close" onClick={() => setMessage(null)}>✕</button>
-        </div>
-      )}
-
-      {/* ── Content Grid ─────────────────────────────────────────── */}
-      {loading ? (
-        <div className="fc-loading">
-          <div className="fc-loading-spinner" />
-          <span>Cargando planes de dieta...</span>
-        </div>
-      ) : diets.length === 0 ? (
-        <div className="fc-empty">
-          <div className="fc-empty-icon">🥗</div>
-          <p>Aún no hay planes de dieta creados.</p>
-          <button
-            type="button"
-            className="dp-btn-new fc-empty-btn"
-            onClick={() => setShowForm({ mode: 'create' })}
-          >
-            + Crear primer plan de dieta
+    <div className="pl-page">
+      <PageHeader
+        title="Planes de dieta"
+        subtitle={diets.length > 0 ? `${diets.length} planes creados` : 'Crea y gestiona planes dietéticos'}
+        actions={
+          <button type="button" className="btn btn--primary pl-hide-mobile" onClick={() => openEditor(NEW)}>
+            <span className="material-symbols-outlined" aria-hidden="true">add</span>
+            Nuevo plan de dieta
           </button>
-        </div>
+        }
+      />
+
+      {loading ? (
+        <StateView state="loading" title="Cargando planes de dieta..." />
+      ) : loadError ? (
+        <StateView
+          state="error"
+          message={loadError}
+          action={<button type="button" className="btn btn--ghost" onClick={load}>Reintentar</button>}
+        />
+      ) : diets.length === 0 ? (
+        <StateView
+          state="empty"
+          icon="restaurant_menu"
+          title="Aún no hay planes de dieta"
+          message="Crea un plan con sus tiempos de comida y objetivos para asignarlo a tus pacientes."
+          action={
+            <button type="button" className="btn btn--secondary" onClick={() => openEditor(NEW)}>
+              Crear plan de dieta
+            </button>
+          }
+        />
       ) : (
-        <div className="dp-grid">
+        <ul className="pl-card-grid">
           {diets.map((d) => (
-            <article key={d.id} className="dp-card">
-              <div className="dp-card-head">
-                <div className="dp-card-title-wrap">
-                  <h3 className="dp-card-title">{d.name}</h3>
-                  {d.objective && <span className="dp-card-obj-badge">🎯 {d.objective}</span>}
-                </div>
-                <span className={`dp-status-badge ${d.status === 'Active' ? 'active' : ''}`}>
+            <li key={d.id} className="card card--link pl-plan-card">
+              <div className="pl-plan-head">
+                <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                  <span className="material-symbols-outlined">restaurant_menu</span>
+                </span>
+                <h2 className="pl-plan-title">
+                  <button type="button" className="pl-stretched" onClick={() => openEditor(d.id)}>
+                    {d.name}
+                  </button>
+                </h2>
+                <span className={`badge ${d.status === 'Active' ? 'badge--success' : 'badge--neutral'}`}>
                   {d.status === 'Active' ? 'Activo' : d.status}
                 </span>
               </div>
 
-              {d.patientName && (
-                <p className="dp-card-patient">👤 Paciente: <strong>{d.patientName}</strong></p>
+              {(d.objective || d.patientName) && (
+                <div className="pl-plan-meta">
+                  {d.objective && (
+                    <span className="pl-meta-item">
+                      <span className="material-symbols-outlined" aria-hidden="true">flag</span>
+                      {d.objective}
+                    </span>
+                  )}
+                  {d.patientName && (
+                    <span className="pl-meta-item">
+                      <span className="material-symbols-outlined" aria-hidden="true">person</span>
+                      {d.patientName}
+                    </span>
+                  )}
+                </div>
               )}
 
-              {/* Total Macros Banner */}
-              <div className="dp-card-totals">
-                <div className="dp-total-chip">
-                  <span>🔥 Calorías</span>
-                  <strong>{d.calories ?? 0} kcal</strong>
-                </div>
-                <div className="dp-total-chip">
-                  <span>💪 Prot</span>
-                  <strong>{d.protein ?? 0}g</strong>
-                </div>
-                <div className="dp-total-chip">
-                  <span>🌾 Carb</span>
-                  <strong>{d.carbohydrates ?? 0}g</strong>
-                </div>
-                <div className="dp-total-chip">
-                  <span>🫒 Grasa</span>
-                  <strong>{d.fat ?? 0}g</strong>
-                </div>
-              </div>
+              <dl className="pl-macro-chips">
+                <div className="pl-tone-kcal"><dt>Calorías</dt><dd>{d.calories ?? 0} kcal</dd></div>
+                <div className="pl-tone-protein"><dt>Proteína</dt><dd>{d.protein ?? 0} g</dd></div>
+                <div className="pl-tone-carbs"><dt>Carbos</dt><dd>{d.carbohydrates ?? 0} g</dd></div>
+                <div className="pl-tone-fat"><dt>Grasa</dt><dd>{d.fat ?? 0} g</dd></div>
+              </dl>
 
-              {/* Meals Chips List */}
               {d.meals && d.meals.length > 0 && (
-                <div className="dp-card-meals">
-                  <span className="dp-meals-label">Tiempos de comida ({d.meals.length}):</span>
-                  <div className="dp-meals-chips">
+                <div>
+                  <p className="pl-subtitle">Tiempos de comida ({d.meals.length})</p>
+                  <ul className="pl-tag-list">
                     {d.meals.map((m) => (
-                      <span key={m.id} className="dp-meal-chip">
-                        {m.scheduledTime ? `⏰ ${m.scheduledTime} ` : ''}{m.name}
-                      </span>
+                      <li key={m.id} className="pl-tag">
+                        {m.scheduledTime && <span className="pl-tag-time">{m.scheduledTime}</span>}
+                        {m.name}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="dp-card-actions">
-                <button
-                  type="button"
-                  className="dp-btn-edit"
-                  onClick={() => setShowForm({ mode: 'edit', diet: d })}
-                >
-                  ✏️ Editar plan
+              <div className="pl-card-actions">
+                <button type="button" className="btn btn--secondary" onClick={() => openEditor(d.id)}>
+                  <span className="material-symbols-outlined" aria-hidden="true">edit</span>
+                  Editar
                 </button>
                 <button
                   type="button"
-                  className="dp-btn-delete"
-                  onClick={() => handleDelete(d)}
+                  className="btn btn--icon pl-btn-danger-icon"
+                  onClick={() => setToDelete(d)}
+                  aria-label={`Eliminar ${d.name}`}
+                  title="Eliminar"
                 >
-                  🗑️ Eliminar
+                  <span className="material-symbols-outlined" aria-hidden="true">delete</span>
                 </button>
               </div>
-            </article>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
+
+      {toDelete && (
+        <ConfirmModal
+          title="Eliminar plan de dieta"
+          message={`¿Eliminar el plan "${toDelete.name}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          danger
+          busy={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setToDelete(null)}
+        />
+      )}
+
+      <button type="button" className="pl-fab" onClick={() => openEditor(NEW)} aria-label="Nuevo plan de dieta">
+        <span className="material-symbols-outlined" aria-hidden="true">add</span>
+      </button>
     </div>
   )
-}
+}

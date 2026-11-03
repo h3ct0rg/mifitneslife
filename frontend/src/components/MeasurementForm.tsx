@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { CreateMeasurementRequest, DietDto, MeasurementDto } from '../api/types'
+import Modal from './Modal'
 import RichTextEditor from './RichTextEditor'
+import { toLocalDateKey } from '../utils/localDate'
 
 interface Props {
   title: string
@@ -10,81 +12,97 @@ interface Props {
   onDietChange?: (dietId: string) => void
   onSubmit: (payload: CreateMeasurementRequest) => Promise<void>
   onCancel: () => void
+  /** Fecha `YYYY-MM-DD` por defecto en altas (p. ej. el día de la cita); si falta, hoy en hora local. */
+  defaultVisitDate?: string
 }
 
-const EMPTY: CreateMeasurementRequest = {
-  visitDate: new Date().toISOString().slice(0, 10),
-  weightKg: undefined,
-  heightCm: undefined,
-  bodyFatPct: undefined,
-  muscleMassKg: undefined,
-  boneMassKg: undefined,
-  bodyWaterPct: undefined,
-  basalMetabolism: undefined,
-  chestCm: undefined,
-  waistCm: undefined,
-  hipCm: undefined,
-  armCm: undefined,
-  forearmCm: undefined,
-  thighCm: undefined,
-  calfCm: undefined,
-  neckCm: undefined,
-  heartRateBpm: undefined,
-  systolicMmHg: undefined,
-  diastolicMmHg: undefined,
-  oxygenSaturationPct: undefined,
-  respiratoryRate: undefined,
-  temperatureC: undefined,
-  notes: '',
+type NumericKey = Exclude<keyof CreateMeasurementRequest, 'visitDate' | 'notes'>
+
+interface NumericField {
+  key: NumericKey
+  label: string
+  unit: string
 }
+
+const SECTIONS: { title: string; icon: string; fields: NumericField[] }[] = [
+  {
+    title: 'Composición corporal',
+    icon: 'monitor_weight',
+    fields: [
+      { key: 'weightKg', label: 'Peso', unit: 'kg' },
+      { key: 'heightCm', label: 'Altura', unit: 'cm' },
+      { key: 'bodyFatPct', label: 'Grasa corporal', unit: '%' },
+      { key: 'muscleMassKg', label: 'Masa muscular', unit: 'kg' },
+      { key: 'boneMassKg', label: 'Masa ósea', unit: 'kg' },
+      { key: 'bodyWaterPct', label: 'Agua corporal', unit: '%' },
+      { key: 'basalMetabolism', label: 'Metabolismo basal', unit: 'kcal' },
+    ],
+  },
+  {
+    title: 'Circunferencias',
+    icon: 'straighten',
+    fields: [
+      { key: 'chestCm', label: 'Pecho', unit: 'cm' },
+      { key: 'waistCm', label: 'Cintura', unit: 'cm' },
+      { key: 'hipCm', label: 'Cadera', unit: 'cm' },
+      { key: 'armCm', label: 'Brazo', unit: 'cm' },
+      { key: 'forearmCm', label: 'Antebrazo', unit: 'cm' },
+      { key: 'thighCm', label: 'Muslo', unit: 'cm' },
+      { key: 'calfCm', label: 'Pantorrilla', unit: 'cm' },
+      { key: 'neckCm', label: 'Cuello', unit: 'cm' },
+    ],
+  },
+  {
+    title: 'Signos vitales',
+    icon: 'favorite',
+    fields: [
+      { key: 'heartRateBpm', label: 'Frec. cardíaca', unit: 'lpm' },
+      { key: 'systolicMmHg', label: 'Presión sistólica', unit: 'mmHg' },
+      { key: 'diastolicMmHg', label: 'Presión diastólica', unit: 'mmHg' },
+      { key: 'oxygenSaturationPct', label: 'Saturación O₂', unit: '%' },
+      { key: 'respiratoryRate', label: 'Frec. respiratoria', unit: 'rpm' },
+      { key: 'temperatureC', label: 'Temperatura', unit: '°C' },
+    ],
+  },
+]
+
+const ALL_NUMERIC: NumericKey[] = SECTIONS.flatMap((s) => s.fields.map((f) => f.key))
 
 function num(v?: number) {
   return v == null ? '' : String(v)
 }
 
-export default function MeasurementForm({ title, initial, diets, assignedDietId, onDietChange, onSubmit, onCancel }: Props) {
-  const [values, setValues] = useState<CreateMeasurementRequest>(() => {
-    if (!initial) return EMPTY
-    return {
-      visitDate: initial.visitDate.slice(0, 10),
-      weightKg: initial.weightKg,
-      heightCm: initial.heightCm,
-      bodyFatPct: initial.bodyFatPct,
-      muscleMassKg: initial.muscleMassKg,
-      boneMassKg: initial.boneMassKg,
-      bodyWaterPct: initial.bodyWaterPct,
-      basalMetabolism: initial.basalMetabolism,
-      chestCm: initial.chestCm,
-      waistCm: initial.waistCm,
-      hipCm: initial.hipCm,
-      armCm: initial.armCm,
-      forearmCm: initial.forearmCm,
-      thighCm: initial.thighCm,
-      calfCm: initial.calfCm,
-      neckCm: initial.neckCm,
-      heartRateBpm: initial.heartRateBpm,
-      systolicMmHg: initial.systolicMmHg,
-      diastolicMmHg: initial.diastolicMmHg,
-      oxygenSaturationPct: initial.oxygenSaturationPct,
-      respiratoryRate: initial.respiratoryRate,
-      temperatureC: initial.temperatureC,
-      notes: initial.notes ?? '',
-    }
-  })
+function initialValues(initial?: MeasurementDto, defaultVisitDate?: string): CreateMeasurementRequest {
+  const values: CreateMeasurementRequest = {
+    // Fecha local (no UTC): de noche en UTC-4 toISOString() ya daba el día siguiente.
+    visitDate: initial ? initial.visitDate.slice(0, 10) : (defaultVisitDate ?? toLocalDateKey(new Date())),
+    notes: initial?.notes ?? '',
+  }
+  for (const key of ALL_NUMERIC) values[key] = initial?.[key]
+  return values
+}
 
+/** Registro/edición de una visita (mediciones) en Modal: hoja en móvil con "Guardar" fijo al pie. */
+export default function MeasurementForm({
+  title,
+  initial,
+  diets,
+  assignedDietId,
+  onDietChange,
+  onSubmit,
+  onCancel,
+  defaultVisitDate,
+}: Props) {
+  const [values, setValues] = useState<CreateMeasurementRequest>(() => initialValues(initial, defaultVisitDate))
   const [submitting, setSubmitting] = useState(false)
   const [dietId, setDietId] = useState(assignedDietId ?? '')
+  const formId = useId()
+  const uid = useId()
 
-  const setN = (field: keyof CreateMeasurementRequest) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const setN = (field: NumericKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    setValues((v) => ({
-      ...v,
-      [field]: field === 'notes' ? raw : raw === '' ? undefined : Number(raw),
-    }))
+    setValues((v) => ({ ...v, [field]: raw === '' ? undefined : Number(raw) }))
   }
-
-  const date = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setValues((v) => ({ ...v, visitDate: e.target.value }))
 
   const setNotes = (html: string) => setValues((v) => ({ ...v, notes: html }))
 
@@ -99,165 +117,130 @@ export default function MeasurementForm({ title, initial, diets, assignedDietId,
     }
   }
 
-  /** Campo numérico con unidad badge */
-  const field = (
-    label: string,
-    fieldKey: keyof CreateMeasurementRequest,
-    unit: string,
-    icon: string
-  ) => (
-    <div className="mf-field">
-      <div className="mf-field-icon">{icon}</div>
-      <div className="mf-field-body">
-        <span className="mf-field-label">{label}</span>
-        <div className="mf-field-input-wrap">
-          <input
-            type="number"
-            step="0.1"
-            placeholder="—"
-            value={num(values[fieldKey] as number | undefined)}
-            onChange={setN(fieldKey)}
-            className="mf-input"
-          />
-          {unit && <span className="mf-unit">{unit}</span>}
-        </div>
-      </div>
-    </div>
-  )
+  const close = () => {
+    if (!submitting) onCancel()
+  }
 
   return (
-    <div className="mf-overlay">
-      <div className="mf-modal">
-
-        {/* Header */}
-        <div className="mf-header">
-          <div className="mf-header-icon">📋</div>
-          <div className="mf-header-text">
-            <h2 className="mf-title">{title}</h2>
-            <p className="mf-subtitle">Registra las métricas y observaciones de la consulta</p>
-          </div>
-          <button className="mf-close" type="button" onClick={onCancel} aria-label="Cerrar">✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="mf-form">
-
-          {/* Información de la visita */}
-          <div className="mf-section">
-            <div className="mf-section-header">
-              <span className="mf-section-badge mf-badge-blue">📅</span>
-              <span className="mf-section-title">Información de la visita</span>
+    <Modal
+      title={title}
+      onClose={close}
+      className="modal-wide"
+      footer={
+        <>
+          <button type="button" className="btn btn--ghost" onClick={close} disabled={submitting}>
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            className="btn btn--primary"
+            disabled={submitting}
+            aria-busy={submitting || undefined}
+          >
+            {submitting ? (
+              <>
+                <span className="mf-spinner" aria-hidden="true" /> Guardando...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  save
+                </span>
+                Guardar visita
+              </>
+            )}
+          </button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="clin-form">
+        <fieldset className="mf-section">
+          <legend className="mf-section-title">
+            <span className="material-symbols-outlined" aria-hidden="true">
+              event
+            </span>
+            Información de la visita
+          </legend>
+          <div className="mf-fields-grid">
+            <div className="field">
+              <label htmlFor={`${uid}-date`}>Fecha de la visita *</label>
+              <input
+                id={`${uid}-date`}
+                type="date"
+                value={values.visitDate}
+                onChange={(e) => setValues((v) => ({ ...v, visitDate: e.target.value }))}
+                required
+              />
             </div>
-            <div className="mf-meta-grid">
-              <div className="mf-field">
-                <div className="mf-field-icon">📅</div>
-                <div className="mf-field-body">
-                  <span className="mf-field-label">Fecha de la visita *</span>
-                  <div className="mf-field-input-wrap">
-                    <input type="date" value={values.visitDate} onChange={date} required className="mf-input" />
-                  </div>
-                </div>
+            {diets && onDietChange && (
+              <div className="field">
+                <label htmlFor={`${uid}-diet`}>Dieta asignada</label>
+                <select
+                  id={`${uid}-diet`}
+                  value={dietId}
+                  onChange={(e) => setDietId(e.target.value)}
+                  aria-describedby={`${uid}-diet-hint`}
+                >
+                  <option value="">Sin dieta asignada</option>
+                  {diets.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                      {d.objective ? ` · ${d.objective}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="field-hint" id={`${uid}-diet-hint`}>
+                  Se asignará al guardar la visita.
+                </p>
               </div>
+            )}
+          </div>
+        </fieldset>
 
-              {diets && onDietChange && (
-                <div className="mf-field">
-                  <div className="mf-field-icon">🥗</div>
-                  <div className="mf-field-body">
-                    <span className="mf-field-label">Dieta asignada</span>
-                    <div className="mf-field-input-wrap">
-                      <select value={dietId} onChange={(e) => setDietId(e.target.value)} className="mf-input">
-                        <option value="">Sin dieta asignada</option>
-                        {diets.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}{d.objective ? ` · ${d.objective}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <span className="mf-hint">Se asignará al guardar la visita</span>
+        {SECTIONS.map((section) => (
+          <fieldset key={section.title} className="mf-section">
+            <legend className="mf-section-title">
+              <span className="material-symbols-outlined" aria-hidden="true">
+                {section.icon}
+              </span>
+              {section.title}
+            </legend>
+            <div className="mf-fields-grid">
+              {section.fields.map((f) => (
+                <div key={f.key} className="field">
+                  <label htmlFor={`${uid}-${f.key}`}>{f.label}</label>
+                  <div className="mf-input-wrap">
+                    <input
+                      id={`${uid}-${f.key}`}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      placeholder="—"
+                      value={num(values[f.key])}
+                      onChange={setN(f.key)}
+                      aria-describedby={`${uid}-${f.key}-unit`}
+                    />
+                    <span className="mf-unit" id={`${uid}-${f.key}-unit`}>
+                      {f.unit}
+                    </span>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          </fieldset>
+        ))}
 
-          {/* Composición corporal */}
-          <div className="mf-section">
-            <div className="mf-section-header">
-              <span className="mf-section-badge mf-badge-green">⚖️</span>
-              <span className="mf-section-title">Composición corporal</span>
-            </div>
-            <div className="mf-fields-grid">
-              {field('Peso', 'weightKg', 'kg', '⚖️')}
-              {field('Altura', 'heightCm', 'cm', '📏')}
-              {field('Grasa corporal', 'bodyFatPct', '%', '🔥')}
-              {field('Masa muscular', 'muscleMassKg', 'kg', '💪')}
-              {field('Masa ósea', 'boneMassKg', 'kg', '🦴')}
-              {field('Agua corporal', 'bodyWaterPct', '%', '💧')}
-              {field('Metabolismo basal', 'basalMetabolism', 'kcal', '⚡')}
-            </div>
-          </div>
-
-          {/* Circunferencias */}
-          <div className="mf-section">
-            <div className="mf-section-header">
-              <span className="mf-section-badge mf-badge-purple">📐</span>
-              <span className="mf-section-title">Circunferencias</span>
-            </div>
-            <div className="mf-fields-grid">
-              {field('Pecho', 'chestCm', 'cm', '👕')}
-              {field('Cintura', 'waistCm', 'cm', '📐')}
-              {field('Cadera', 'hipCm', 'cm', '📐')}
-              {field('Brazo', 'armCm', 'cm', '💪')}
-              {field('Antebrazo', 'forearmCm', 'cm', '🦾')}
-              {field('Muslo', 'thighCm', 'cm', '🦵')}
-              {field('Pantorrilla', 'calfCm', 'cm', '🦵')}
-              {field('Cuello', 'neckCm', 'cm', '🪢')}
-            </div>
-          </div>
-
-          {/* Signos vitales */}
-          <div className="mf-section">
-            <div className="mf-section-header">
-              <span className="mf-section-badge mf-badge-red">❤️</span>
-              <span className="mf-section-title">Signos vitales</span>
-            </div>
-            <div className="mf-fields-grid">
-              {field('Frec. cardíaca', 'heartRateBpm', 'lpm', '❤️')}
-              {field('Presión sistólica', 'systolicMmHg', 'mmHg', '🩺')}
-              {field('Presión diastólica', 'diastolicMmHg', 'mmHg', '🩺')}
-              {field('Saturación O₂', 'oxygenSaturationPct', '%', '🫁')}
-              {field('Frec. respiratoria', 'respiratoryRate', 'rpm', '🌬️')}
-              {field('Temperatura', 'temperatureC', '°C', '🌡️')}
-            </div>
-          </div>
-
-          {/* Notas */}
-          <div className="mf-section">
-            <div className="mf-section-header">
-              <span className="mf-section-badge mf-badge-amber">📝</span>
-              <span className="mf-section-title">Notas y observaciones</span>
-            </div>
-            <div className="mf-notes-wrap">
-              <RichTextEditor value={values.notes ?? ''} onChange={setNotes} />
-            </div>
-          </div>
-
-          {/* Acciones */}
-          <div className="mf-actions">
-            <button type="button" className="mf-btn-cancel" onClick={onCancel}>
-              Cancelar
-            </button>
-            <button type="submit" className="mf-btn-save" disabled={submitting}>
-              {submitting ? (
-                <><span className="mf-spinner" /> Guardando…</>
-              ) : (
-                <><span>💾</span> Guardar visita</>
-              )}
-            </button>
-          </div>
-
-        </form>
-      </div>
-    </div>
+        <fieldset className="mf-section">
+          <legend className="mf-section-title" id={`${uid}-notes`}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              notes
+            </span>
+            Notas y observaciones
+          </legend>
+          <RichTextEditor value={values.notes ?? ''} onChange={setNotes} labelledBy={`${uid}-notes`} />
+        </fieldset>
+      </form>
+    </Modal>
   )
 }

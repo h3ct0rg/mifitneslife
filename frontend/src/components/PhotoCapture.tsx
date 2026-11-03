@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Modal from './Modal'
 
 interface Props {
   onCapture: (file: File) => Promise<void>
@@ -42,58 +43,68 @@ export default function PhotoCapture({ onCapture, onCancel }: Props) {
     }
   }
 
+  const close = () => {
+    if (!submitting) onCancel()
+  }
+
   return (
-    <div className="modal-overlay" onClick={() => !submitting && onCancel()}>
-      <div className="modal modal-photo" onClick={(e) => e.stopPropagation()}>
-        <h2>Foto del paciente</h2>
-        <p className="modal-subtitle">Toma una foto o elige una de la galería. Se guardará con la fecha de hoy.</p>
-
-        {preview ? (
-          <div className="photo-preview">
-            <img src={preview} alt="Vista previa" />
-          </div>
-        ) : (
-          <div className="photo-placeholder">📷</div>
-        )}
-
-        {error && <div className="error-box">{error}</div>}
-
-        {/* Cámara (móvil) */}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFile}
-        />
-        {/* Galería */}
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={handleFile}
-        />
-
-        <div className="photo-actions">
-          <button type="button" className="btn-ghost" onClick={() => cameraInputRef.current?.click()} disabled={submitting}>
-            📷 Tomar foto
-          </button>
-          <button type="button" className="btn-ghost" onClick={() => galleryInputRef.current?.click()} disabled={submitting}>
-            🖼 Elegir de galería
-          </button>
-        </div>
-
-        <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={submitting}>
+    <Modal
+      title="Foto del paciente"
+      onClose={close}
+      className="modal-photo"
+      footer={
+        <>
+          <button type="button" className="btn btn--ghost" onClick={close} disabled={submitting}>
             Cancelar
           </button>
-          <button type="button" className="btn-primary" onClick={handleSubmit} disabled={submitting || !selected}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={handleSubmit}
+            disabled={submitting || !selected}
+            aria-busy={submitting || undefined}
+          >
+            {submitting && <span className="mf-spinner" aria-hidden="true" />}
             {submitting ? 'Guardando...' : 'Guardar foto'}
           </button>
+        </>
+      }
+    >
+      <p className="modal-subtitle">Toma una foto o elige una de la galería. Se guardará con la fecha de hoy.</p>
+
+      {preview ? (
+        <div className="photo-preview">
+          <img src={preview} alt="Vista previa de la foto seleccionada" />
         </div>
+      ) : (
+        <div className="photo-placeholder">
+          <span className="material-symbols-outlined" aria-hidden="true">
+            add_a_photo
+          </span>
+          <span>Aún no hay foto seleccionada</span>
+        </div>
+      )}
+
+      {error && <div className="error-box" role="alert">{error}</div>}
+
+      {/* Cámara (móvil) y galería: inputs ocultos que se abren con los botones */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleFile} />
+      <input ref={galleryInputRef} type="file" accept="image/*" hidden onChange={handleFile} />
+
+      <div className="photo-actions">
+        <button type="button" className="btn btn--secondary" onClick={() => cameraInputRef.current?.click()} disabled={submitting}>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            photo_camera
+          </span>
+          Tomar foto
+        </button>
+        <button type="button" className="btn btn--secondary" onClick={() => galleryInputRef.current?.click()} disabled={submitting}>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            photo_library
+          </span>
+          Elegir de galería
+        </button>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -1,0 +1,815 @@
+/* clinical.css — Pacientes, historial de visitas, dashboard de gestión y formularios clínicos (F3-2).
+   Mobile-first (base ≤640 · 641 · 1025). Solo tokens; gráficos con --chart-1..4 del tema (MV-2). */
+
+/* ==========================================================================
+   Utilidades del carril: acción de cabecera solo en tablet/desktop y FAB en móvil
+   ========================================================================== */
+.clin-desktop-action {
+  display: none;
+}
+
+.clin-fab {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-4) + var(--bottom-nav-offset, 0px));
+  z-index: calc(var(--z-bottom-nav) - 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--gradient-brand);
+  color: var(--color-on-primary);
+  box-shadow: var(--shadow-brand);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.clin-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-3);
+}
+
+.clin-fab:active {
+  transform: scale(0.95);
+}
+
+.clin-fab .material-symbols-outlined {
+  font-size: var(--fs-2xl);
+}
+
+/* Hueco para que el FAB no tape el último elemento. */
+.page:has(> .clin-fab) {
+  padding-bottom: calc(56px + var(--sp-6));
+}
+
+@media (min-width: 641px) {
+  .clin-desktop-action {
+    display: inline-flex;
+  }
+
+  .clin-fab {
+    display: none;
+  }
+
+  .page:has(> .clin-fab) {
+    padding-bottom: 0;
+  }
+}
+
+/* ==========================================================================
+   Formularios clínicos (dentro de Modal): 1 columna en móvil
+   ========================================================================== */
+.clin-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+.form-photo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+@media (min-width: 641px) {
+  .clin-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .clin-form-full {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ==========================================================================
+   Pacientes: búsqueda inmediata + filas clicables (tarjetas en móvil)
+   ========================================================================== */
+.patients-card {
+  padding-top: var(--sp-4);
+}
+
+.clin-search {
+  position: relative;
+  margin-bottom: var(--sp-4);
+}
+
+.clin-search input {
+  margin: 0;
+  padding-left: calc(var(--sp-3) + 24px + var(--sp-2));
+}
+
+.clin-search-icon {
+  position: absolute;
+  left: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.clin-row-link {
+  cursor: pointer;
+}
+
+.patient-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.patient-name .row-link {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.patient-name .row-link:hover {
+  text-decoration: underline;
+}
+
+.patients-chevron {
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.clin-break {
+  overflow-wrap: anywhere;
+}
+
+/* Móvil: la celda del nombre encabeza la tarjeta; el resto son pares etiqueta/valor. */
+@media (max-width: 640px) {
+  .patients-table td.patients-name-cell {
+    padding-top: var(--sp-1);
+    font-size: var(--fs-md);
+    text-align: left;
+  }
+
+  .patients-table td.patients-name-cell .patient-name {
+    flex: 1;
+  }
+
+  .patients-table .patient-name .row-link {
+    min-height: var(--touch-min);
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@media (min-width: 641px) {
+  .patients-chevron {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Editor de texto enriquecido (notas de visita)
+   ========================================================================== */
+.rte {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+/* Foco visible del editor (el contentEditable no muestra anillo propio). */
+.rte:focus-within {
+  border-color: var(--color-primary);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.rte-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+
+.rte-btn:hover {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-text);
+}
+
+.rte-btn .material-symbols-outlined {
+  font-size: var(--fs-xl);
+}
+
+.rte-sep {
+  width: 1px;
+  height: var(--sp-5);
+  margin: 0 var(--sp-1);
+  background: var(--color-border-strong);
+}
+
+.rte-body-wrap {
+  position: relative;
+}
+
+.rte-placeholder {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  color: var(--color-subtle);
+  pointer-events: none;
+  font-size: var(--fs-md);
+}
+
+.rte-body {
+  min-height: 120px;
+  padding: var(--sp-3);
+  color: var(--color-text);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+}
+
+/* El anillo lo pinta .rte:focus-within. */
+.rte-body:focus {
+  outline: none;
+}
+
+.rte-body ul,
+.rte-body ol {
+  padding-left: var(--sp-6);
+}
+
+.rte-body a {
+  color: var(--color-primary-text);
+}
+
+@media (pointer: coarse) {
+  .rte-btn {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+}
+
+/* ==========================================================================
+   Formulario de visita (MeasurementForm)
+   ========================================================================== */
+.mf-section {
+  min-width: 0;
+  margin: 0 0 var(--sp-5);
+  padding: 0;
+  border: none;
+}
+
+.mf-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0;
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--color-primary-text);
+}
+
+.mf-section-title .material-symbols-outlined {
+  font-size: var(--fs-xl);
+}
+
+.mf-fields-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+.mf-input-wrap {
+  position: relative;
+}
+
+.mf-input-wrap input {
+  padding-right: calc(var(--sp-3) + 3.5em);
+}
+
+.mf-unit {
+  position: absolute;
+  right: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+}
+
+@media (min-width: 641px) {
+  .mf-fields-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1025px) {
+  .mf-fields-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   Historial de visitas
+   ========================================================================== */
+.visit-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+.visit-card {
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.visit-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.visit-card-date strong {
+  display: block;
+  font-size: var(--fs-md);
+  color: var(--color-primary-text);
+}
+
+/* Solo la primera letra ("03 de noviembre de 2026" no lleva "De"). */
+.visit-card-date strong::first-letter {
+  text-transform: uppercase;
+}
+
+.visit-card-date span {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.visit-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.visit-card-body {
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.visit-notes {
+  color: var(--color-text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.visit-notes ul,
+.visit-notes ol {
+  padding-left: var(--sp-6);
+  margin: var(--sp-1) 0;
+}
+
+.visit-notes a {
+  color: var(--color-primary-text);
+}
+
+.visit-notes-empty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+.visit-card-footer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  background: var(--color-surface-2);
+}
+
+.visit-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+  text-align: center;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.visit-metric:nth-child(3n) {
+  border-right: none;
+}
+
+.visit-metric dt {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.visit-metric dd {
+  margin: 0;
+}
+
+.visit-metric strong {
+  font-size: var(--fs-md);
+  color: var(--color-text);
+}
+
+.visit-metric em {
+  margin-left: var(--sp-1);
+  font-style: normal;
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+@media (min-width: 641px) {
+  .visit-card-footer {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .visit-metric {
+    border-bottom: none;
+  }
+
+  .visit-metric:nth-child(3n) {
+    border-right: 1px solid var(--color-border);
+  }
+
+  .visit-metric:last-child {
+    border-right: none;
+  }
+}
+
+/* ==========================================================================
+   Dashboard de gestión
+   ========================================================================== */
+.mgmt-page {
+  max-width: 1200px;
+}
+
+.mgmt-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.mgmt-kpis > .kpi {
+  min-width: 0;
+  margin: 0;
+}
+
+.kpi-sub {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.mgmt-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.mgmt-block-head h2 {
+  margin: 0;
+}
+
+.mgmt-block-meta {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.mgmt-grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+.mgmt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mgmt-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+}
+
+.mgmt-list li:last-child {
+  border-bottom: none;
+}
+
+.mgmt-list-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+.mgmt-list-main .row-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  text-decoration: none;
+}
+
+.mgmt-list-main .text-muted {
+  font-size: var(--fs-xs);
+}
+
+.mgmt-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: var(--fs-xs);
+}
+
+.mgmt-time {
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.mgmt-days {
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+/* Gráfico */
+.mgmt-chart {
+  margin: 0;
+}
+
+.mgmt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+}
+
+.mgmt-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.mgmt-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.mgmt-swatch-dot,
+.mgmt-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 3px var(--chart-2), 0 0 0 2px var(--color-surface);
+}
+
+/* Series por tema (MV-2): barras con degradado vertical del color de la serie. */
+.mgmt-completed {
+  --mgmt-serie: var(--chart-1);
+}
+
+.mgmt-cancelled {
+  --mgmt-serie: var(--chart-4);
+}
+
+.mgmt-noshow {
+  --mgmt-serie: var(--chart-3);
+}
+
+.mgmt-swatch.mgmt-completed,
+.mgmt-swatch.mgmt-cancelled,
+.mgmt-swatch.mgmt-noshow {
+  background: var(--mgmt-serie);
+}
+
+.mgmt-seg {
+  background: linear-gradient(to top, var(--mgmt-serie), color-mix(in srgb, var(--mgmt-serie) 70%, var(--color-surface)));
+}
+
+/* Línea + área de nuevos pacientes: trazo de 3px redondeado y relleno .32 → 0. */
+.mgmt-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mgmt-line-path {
+  fill: none;
+  stroke: var(--chart-2);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mgmt-grad-start {
+  stop-color: var(--chart-2);
+  stop-opacity: 0.32;
+}
+
+.mgmt-grad-end {
+  stop-color: var(--chart-2);
+  stop-opacity: 0;
+}
+
+.mgmt-plot {
+  display: flex;
+  gap: var(--sp-2);
+  height: 190px;
+  padding-bottom: var(--sp-6);
+}
+
+.mgmt-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 1.75rem;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mgmt-area {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.mgmt-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.mgmt-grid span {
+  border-top: 1px dashed var(--color-border);
+}
+
+.mgmt-grid span:last-child {
+  border-top-color: var(--color-border-strong);
+}
+
+.mgmt-cols {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-around;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mgmt-col {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  border-radius: var(--radius-sm);
+}
+
+.mgmt-col:hover,
+.mgmt-col:focus-visible {
+  background: var(--color-primary-subtle);
+}
+
+.mgmt-col:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.mgmt-bar {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  width: min(36px, 55%);
+  height: 100%;
+  transform-origin: bottom;
+  animation: mgmt-grow 0.9s var(--ease-out) both;
+}
+
+@keyframes mgmt-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.mgmt-seg {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+}
+
+.mgmt-bar .mgmt-seg:last-child {
+  border-radius: 6px 6px 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mgmt-bar {
+    animation: none;
+  }
+}
+
+.mgmt-dot {
+  position: absolute;
+  left: 50%;
+  margin: 0 0 -5px -5px;
+  pointer-events: none;
+}
+
+.mgmt-xlabel {
+  position: absolute;
+  top: 100%;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.mgmt-table {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.mgmt-table summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  color: var(--color-primary-text);
+  font-weight: var(--fw-semibold);
+}
+
+.mgmt-table caption {
+  padding: var(--sp-2) 0;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+
+@media (min-width: 641px) {
+  .mgmt-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .mgmt-plot {
+    height: 220px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .mgmt-grid2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

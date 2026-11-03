@@ -65,11 +65,14 @@ public class PatientPhotosController : ControllerBase
         if (!AllowedExtensions.Contains(ext))
             return BadRequest(new { error = "Formato no permitido. Use jpg, png, webp o heic." });
 
-        // Fecha de la foto: el front puede enviarla como form field "takenAt" (ISO 8601).
-        var takenAt = DateTime.UtcNow;
+        // Fecha de la foto (hora de reloj, D4): form field "takenAt" ISO 8601. Sin offset → se guarda tal
+        // cual; con Z/offset → el servicio la pasa a la zona del header X-Time-Zone. Si falta o no se
+        // puede leer → default, y el servicio usa la hora local actual del cliente (IClientClock.LocalNow).
+        DateTime takenAt = default;
         var rawTakenAt = Request.Form["takenAt"].ToString();
         if (!string.IsNullOrWhiteSpace(rawTakenAt)
-            && DateTime.TryParse(rawTakenAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+            && DateTime.TryParse(rawTakenAt, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
         {
             takenAt = parsed;
         }

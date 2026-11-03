@@ -1,22 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { AppointmentDto, CreateAppointmentRequest, DietDto, PatientDto, ProfessionalDto } from '../api/types'
 import { roleLabel } from '../api/types'
+import PageHeader from './ui/PageHeader'
+import { normalizeLocalInput, toLocalIso } from '../utils/localDate'
 
 interface Props {
   title: string
+  /** Destino del enlace "volver" (la Agenda en el día seleccionado). */
+  backTo: string
   day?: Date
   initial?: AppointmentDto
   patients: PatientDto[]
   professionals: ProfessionalDto[]
   diets: DietDto[]
+  /** Debe lanzar Error con mensaje legible si falla (se muestra inline). */
   onSubmit: (payload: CreateAppointmentRequest) => Promise<void>
   onDelete?: () => void
   onCancel: () => void
 }
 
+/** Valor para `<input type="datetime-local">` en hora local (la API devuelve las citas sin `Z` → local). */
 function toLocalInput(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return toLocalIso(d).slice(0, 16)
 }
 
 function parseLocalInput(value: string) {
@@ -32,8 +37,17 @@ const DURATION_PRESETS = [
   { label: '2 horas', minutes: 120 },
 ]
 
+function fmtDuration(min: number) {
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${h} h${m > 0 ? ` ${m} min` : ''}`
+}
+
+/** Editor de cita a página completa: 1 columna en móvil con acciones fijas abajo; resumen lateral en desktop. */
 export default function AppointmentForm({
   title,
+  backTo,
   day,
   initial,
   patients,
@@ -43,6 +57,7 @@ export default function AppointmentForm({
   onDelete,
   onCancel,
 }: Props) {
+  const uid = useId()
   const [patientId, setPatientId] = useState('')
   const [professionalId, setProfessionalId] = useState('')
   const [dietId, setDietId] = useState('')
@@ -111,8 +126,9 @@ export default function AppointmentForm({
         patientId,
         professionalId,
         dietId: dietId || undefined,
-        startAt,
-        endAt: end,
+        // Hora elegida tal cual, sin pasar por Date ni UTC (D5): `YYYY-MM-DDTHH:mm:ss` local.
+        startAt: normalizeLocalInput(startAt),
+        endAt: end && normalizeLocalInput(end),
         title: titleValue.trim() || undefined,
         notes: notes.trim() || undefined,
       })
@@ -129,311 +145,297 @@ export default function AppointmentForm({
 
   const startDate = parseLocalInput(startAt)
   const endDate = parseLocalInput(endAt)
-  const durationMin = startDate && endDate
-    ? Math.round((endDate.getTime() - startDate.getTime()) / 60000)
-    : null
+  const durationMin =
+    startDate && endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : null
 
   const completeness = [patientId, professionalId, startAt].filter(Boolean).length
+  const errorId = `${uid}-error`
 
   return (
-    <div className="af-page">
-
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="af-page-header">
-        <button type="button" className="af-back-btn" onClick={onCancel}>
-          ← Volver a Agenda
-        </button>
-        <div className="af-page-title-wrap">
-          <div className="af-page-icon">{initial ? '📋' : '📅'}</div>
-          <div>
-            <h1 className="af-page-title">{title}</h1>
-            <p className="af-page-subtitle">
-              {initial
-                ? `Editando cita de ${initial.patientFullName}`
-                : 'Completa los datos para registrar la nueva cita'}
-            </p>
-          </div>
-        </div>
+    <div className="page af-page">
+      {/* "Volver" cierra el editor como Cancelar (navigate(-1) o replace), para que el atrás del navegador no lo reabra. */}
+      <div
+        onClickCapture={(e) => {
+          if ((e.target as HTMLElement).closest('.page-header-back')) {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+      >
+        <PageHeader
+          title={title}
+          subtitle={initial ? `Cita de ${initial.patientFullName}` : 'Completa los datos para registrar la cita'}
+          back={{ to: backTo, label: 'Agenda' }}
+        />
       </div>
 
-      <form onSubmit={handleSubmit} className="af-layout">
-
-        {/* ── Main Column ──────────────────────────────────────── */}
+      <form onSubmit={handleSubmit} className="af-layout" aria-describedby={error ? errorId : undefined} noValidate>
         <div className="af-main-col">
+          <fieldset className="card af-section">
+            <legend className="af-section-title">
+              <span className="material-symbols-outlined" aria-hidden="true">
+                group
+              </span>
+              Participantes
+            </legend>
 
-          {/* Sección: Participantes */}
-          <div className="af-section">
-            <div className="af-section-header">
-              <span className="af-section-badge af-badge-blue">👥</span>
-              <span className="af-section-title">Participantes</span>
+            <div className="field">
+              <label htmlFor={`${uid}-patient`}>Paciente *</label>
+              <select
+                id={`${uid}-patient`}
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                required
+                aria-invalid={!!error && !patientId}
+              >
+                <option value="">Seleccionar paciente...</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.fullName}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="af-section-body">
 
-              <div className="af-field">
-                <div className="af-field-icon">🏥</div>
-                <div className="af-field-body">
-                  <span className="af-field-label">Paciente *</span>
-                  <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="af-input" required>
-                    <option value="">Seleccionar paciente...</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>{p.fullName}</option>
+            <div className="field">
+              <label htmlFor={`${uid}-prof`}>Profesional *</label>
+              <select
+                id={`${uid}-prof`}
+                value={professionalId}
+                onChange={(e) => setProfessionalId(e.target.value)}
+                required
+                disabled={professionals.length === 1}
+                aria-invalid={!!error && !professionalId}
+                aria-describedby={professionals.length === 1 ? `${uid}-prof-hint` : undefined}
+              >
+                {professionals.length === 0 && <option value="">No hay profesionales disponibles</option>}
+                {professionals.length === 1 && (
+                  <option value={professionals[0].id}>
+                    {professionals[0].fullName} ({roleLabel(professionals[0].role)})
+                  </option>
+                )}
+                {professionals.length > 1 && (
+                  <>
+                    <option value="">Seleccionar profesional...</option>
+                    {professionals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName} ({roleLabel(p.role)})
+                      </option>
                     ))}
-                  </select>
-                </div>
-              </div>
+                  </>
+                )}
+              </select>
+              {professionals.length === 1 && (
+                <p className="field-hint" id={`${uid}-prof-hint`}>
+                  Único profesional disponible: asignado automáticamente.
+                </p>
+              )}
+            </div>
 
-              <div className="af-field">
-                <div className="af-field-icon">👨‍⚕️</div>
-                <div className="af-field-body">
-                  <span className="af-field-label">Profesional *</span>
-                  <select
-                    value={professionalId}
-                    onChange={(e) => setProfessionalId(e.target.value)}
-                    className="af-input"
-                    required
-                    disabled={professionals.length === 1}
+            <div className="field">
+              <label htmlFor={`${uid}-diet`}>Dieta asignada (opcional)</label>
+              <select
+                id={`${uid}-diet`}
+                value={dietId}
+                onChange={(e) => setDietId(e.target.value)}
+                aria-describedby={`${uid}-diet-hint`}
+              >
+                <option value="">Sin dieta asignada</option>
+                {diets.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                    {d.objective ? ` · ${d.objective}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="field-hint" id={`${uid}-diet-hint`}>
+                Puedes asignar o cambiar la dieta del paciente desde aquí.
+              </p>
+            </div>
+          </fieldset>
+
+          <fieldset className="card af-section">
+            <legend className="af-section-title">
+              <span className="material-symbols-outlined" aria-hidden="true">
+                schedule
+              </span>
+              Fecha y horario
+            </legend>
+
+            <div className="field">
+              <label htmlFor={`${uid}-title`}>Título (opcional)</label>
+              <input
+                id={`${uid}-title`}
+                type="text"
+                placeholder="Ej. Control mensual, consulta inicial..."
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+              />
+            </div>
+
+            <div className="af-fields-row">
+              <div className="field">
+                <label htmlFor={`${uid}-start`}>Inicio *</label>
+                <input
+                  id={`${uid}-start`}
+                  type="datetime-local"
+                  value={startAt}
+                  onChange={(e) => {
+                    setStartAt(e.target.value)
+                    setActivePreset(null)
+                    setEndAt('')
+                  }}
+                  required
+                  aria-invalid={!!error && !startAt}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`${uid}-end`}>Fin (opcional)</label>
+                <input
+                  id={`${uid}-end`}
+                  type="datetime-local"
+                  value={endAt}
+                  onChange={(e) => {
+                    setEndAt(e.target.value)
+                    setActivePreset(null)
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="af-duration" role="group" aria-labelledby={`${uid}-dur`}>
+              <span className="field-label" id={`${uid}-dur`}>
+                Duración rápida
+              </span>
+              <div className="af-presets">
+                {DURATION_PRESETS.map((p) => (
+                  <button
+                    key={p.minutes}
+                    type="button"
+                    className={`af-preset${activePreset === p.minutes ? ' active' : ''}`}
+                    aria-pressed={activePreset === p.minutes}
+                    onClick={() => applyQuick(p.minutes)}
+                    disabled={!quickBase}
                   >
-                    {professionals.length === 0 && <option value="">No hay profesionales disponibles</option>}
-                    {professionals.length === 1 && (
-                      <option value={professionals[0].id}>
-                        {professionals[0].fullName} ({roleLabel(professionals[0].role)}) — asignado
-                      </option>
-                    )}
-                    {professionals.length > 1 && (
-                      <>
-                        <option value="">Seleccionar profesional...</option>
-                        {professionals.map((p) => (
-                          <option key={p.id} value={p.id}>{p.fullName} ({roleLabel(p.role)})</option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                  {professionals.length === 1 && (
-                    <span className="af-hint">Solo un profesional disponible — asignado automáticamente.</span>
-                  )}
-                </div>
+                    {p.label}
+                  </button>
+                ))}
               </div>
-
-              <div className="af-field">
-                <div className="af-field-icon">🥗</div>
-                <div className="af-field-body">
-                  <span className="af-field-label">Dieta asignada <em className="af-optional">(opcional)</em></span>
-                  <select value={dietId} onChange={(e) => setDietId(e.target.value)} className="af-input">
-                    <option value="">Sin dieta asignada</option>
-                    {diets.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}{d.objective ? ` · ${d.objective}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="af-hint">Puedes asignar o cambiar la dieta del paciente desde aquí.</span>
-                </div>
-              </div>
-
             </div>
-          </div>
 
-          {/* Sección: Fecha & Hora */}
-          <div className="af-section">
-            <div className="af-section-header">
-              <span className="af-section-badge af-badge-green">🕐</span>
-              <span className="af-section-title">Fecha y Horario</span>
+            <div className="field">
+              <label htmlFor={`${uid}-notes`}>Notas (opcional)</label>
+              <textarea
+                id={`${uid}-notes`}
+                rows={3}
+                placeholder="Motivo de la consulta, recordatorios, indicaciones..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
-            <div className="af-section-body">
+          </fieldset>
 
-              <div className="af-field">
-                <div className="af-field-icon">📌</div>
-                <div className="af-field-body">
-                  <span className="af-field-label">Título de la cita <em className="af-optional">(opcional)</em></span>
-                  <input
-                    type="text"
-                    className="af-input"
-                    placeholder="Ej. Control mensual, Consulta inicial..."
-                    value={titleValue}
-                    onChange={(e) => setTitleValue(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="af-fields-row">
-                <div className="af-field">
-                  <div className="af-field-icon">▶️</div>
-                  <div className="af-field-body">
-                    <span className="af-field-label">Inicio *</span>
-                    <input
-                      type="datetime-local"
-                      className="af-input"
-                      value={startAt}
-                      onChange={(e) => {
-                        setStartAt(e.target.value)
-                        setActivePreset(null)
-                        setEndAt('')
-                      }}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="af-field">
-                  <div className="af-field-icon">⏹️</div>
-                  <div className="af-field-body">
-                    <span className="af-field-label">Fin <em className="af-optional">(opcional)</em></span>
-                    <input
-                      type="datetime-local"
-                      className="af-input"
-                      value={endAt}
-                      onChange={(e) => { setEndAt(e.target.value); setActivePreset(null) }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Presets duración */}
-              <div className="af-duration-row">
-                <span className="af-duration-label">⚡ Duración rápida:</span>
-                <div className="af-presets">
-                  {DURATION_PRESETS.map((p) => (
-                    <button
-                      key={p.minutes}
-                      type="button"
-                      className={`af-preset-btn${activePreset === p.minutes ? ' active' : ''}`}
-                      onClick={() => applyQuick(p.minutes)}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notas */}
-              <div className="af-field">
-                <div className="af-field-icon">📝</div>
-                <div className="af-field-body">
-                  <span className="af-field-label">Notas <em className="af-optional">(opcional)</em></span>
-                  <textarea
-                    rows={3}
-                    className="af-textarea"
-                    placeholder="Motivo de la consulta, recordatorios, indicaciones especiales..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
-              </div>
-
+          {error && (
+            <div className="error-box" id={errorId} role="alert">
+              <span className="material-symbols-outlined" aria-hidden="true">
+                error
+              </span>
+              {error}
             </div>
-          </div>
+          )}
 
-          {error && <div className="error-box">⚠️ {error}</div>}
-
-          <div className="af-form-actions">
+          {/* Barra de acciones: fija abajo en móvil (por encima de la bottom-nav). */}
+          <div className="af-actions">
             {onDelete && (
-              <button type="button" className="af-btn-delete" onClick={onDelete}>
-                🗑️ Eliminar cita
+              <button type="button" className="btn btn--ghost af-delete" onClick={onDelete} disabled={submitting}>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  delete
+                </span>
+                Eliminar
               </button>
             )}
             <div className="af-actions-right">
-              <button type="button" className="af-btn-cancel" onClick={onCancel}>Cancelar</button>
-              <button type="submit" className="af-btn-save" disabled={submitting}>
-                {submitting ? <><span className="mf-spinner" /> Guardando…</> : <><span>💾</span> Guardar cita</>}
+              <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={submitting}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn--primary" disabled={submitting} aria-busy={submitting || undefined}>
+                {submitting ? (
+                  <>
+                    <span className="mf-spinner" aria-hidden="true" /> Guardando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined" aria-hidden="true">
+                      save
+                    </span>
+                    Guardar cita
+                  </>
+                )}
               </button>
             </div>
           </div>
-
         </div>
 
-        {/* ── Right Summary Panel ──────────────────────────────── */}
-        <aside className="af-summary-col">
-          <div className="af-summary-card">
-            <div className="af-summary-header">📋 Resumen de la cita</div>
-            <div className="af-summary-body">
-
-              <div className="af-summary-row">
-                <span className="af-summary-label">🏥 Paciente</span>
-                <span className="af-summary-val">
-                  {selectedPatient ? selectedPatient.fullName : <em>No seleccionado</em>}
-                </span>
+        <aside className="af-summary-col" aria-label="Resumen de la cita">
+          <div className="card af-summary">
+            <h2 className="af-summary-title">Resumen</h2>
+            <dl className="af-summary-list">
+              <div>
+                <dt>Paciente</dt>
+                <dd>{selectedPatient ? selectedPatient.fullName : <em>Sin seleccionar</em>}</dd>
               </div>
-
-              <div className="af-summary-row">
-                <span className="af-summary-label">👨‍⚕️ Profesional</span>
-                <span className="af-summary-val">
-                  {selectedProfessional
-                    ? `${selectedProfessional.fullName} (${roleLabel(selectedProfessional.role)})`
-                    : <em>No seleccionado</em>}
-                </span>
-              </div>
-
-              {selectedDiet && (
-                <div className="af-summary-row">
-                  <span className="af-summary-label">🥗 Dieta</span>
-                  <span className="af-summary-val">{selectedDiet.name}</span>
-                </div>
-              )}
-
-              {startDate && (
-                <div className="af-summary-date-hero">
-                  <div className="af-date-badge">
-                    <span className="af-date-day">
-                      {startDate.toLocaleDateString('es-ES', { weekday: 'short' }).toUpperCase()}
-                    </span>
-                    <strong className="af-date-num">{startDate.getDate()}</strong>
-                    <span className="af-date-month">
-                      {startDate.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="af-time-block">
-                    <span className="af-time-val">
-                      {startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    {endDate && (
-                      <>
-                        <span className="af-time-sep">→</span>
-                        <span className="af-time-val">
-                          {endDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {durationMin !== null && durationMin > 0 && (
-                    <div className="af-duration-badge">
-                      ⏱ {durationMin >= 60
-                        ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ''}`
-                        : `${durationMin} min`}
-                    </div>
+              <div>
+                <dt>Profesional</dt>
+                <dd>
+                  {selectedProfessional ? (
+                    `${selectedProfessional.fullName} (${roleLabel(selectedProfessional.role)})`
+                  ) : (
+                    <em>Sin seleccionar</em>
                   )}
-                </div>
-              )}
-
-              {titleValue && (
-                <div className="af-summary-row">
-                  <span className="af-summary-label">📌 Título</span>
-                  <span className="af-summary-val">{titleValue}</span>
-                </div>
-              )}
-
-              {notes && (
-                <div className="af-summary-notes">
-                  <span className="af-summary-label">📝 Notas</span>
-                  <p className="af-summary-notes-text">{notes}</p>
-                </div>
-              )}
-
-              <div className="af-completeness">
-                <div className="af-completeness-bar">
-                  <div
-                    className="af-completeness-fill"
-                    style={{ width: `${Math.round((completeness / 3) * 100)}%` }}
-                  />
-                </div>
-                <span className="af-completeness-label">{completeness}/3 campos requeridos</span>
+                </dd>
               </div>
-
+              {selectedDiet && (
+                <div>
+                  <dt>Dieta</dt>
+                  <dd>{selectedDiet.name}</dd>
+                </div>
+              )}
+              {startDate && (
+                <div>
+                  <dt>Fecha</dt>
+                  <dd>
+                    {startDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    <br />
+                    {startDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    {endDate &&
+                      ` – ${endDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`}
+                    {durationMin !== null && durationMin > 0 && ` (${fmtDuration(durationMin)})`}
+                  </dd>
+                </div>
+              )}
+              {titleValue && (
+                <div>
+                  <dt>Título</dt>
+                  <dd>{titleValue}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="af-completeness">
+              <div
+                className="af-completeness-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={3}
+                aria-valuenow={completeness}
+                aria-label="Campos obligatorios completados"
+              >
+                <div className="af-completeness-fill" style={{ width: `${Math.round((completeness / 3) * 100)}%` }} />
+              </div>
+              <span className="text-muted">{completeness}/3 campos obligatorios</span>
             </div>
           </div>
         </aside>
-
       </form>
     </div>
   )
 }
-

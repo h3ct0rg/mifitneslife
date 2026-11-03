@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { browserTimeZone } from '../utils/localDate'
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:7115/api'
 
@@ -10,9 +11,13 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Zona horaria del navegador (IANA) para que el backend calcule "hoy"/"ahora" en hora local (D2).
+const TIME_ZONE = browserTimeZone()
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  if (TIME_ZONE) config.headers['X-Time-Zone'] = TIME_ZONE
   return config
 })
 
@@ -25,9 +30,11 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token')
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${API_URL}/auth/refresh`, {
-            refreshToken,
-          })
+          const { data } = await axios.post(
+            `${API_URL}/auth/refresh`,
+            { refreshToken },
+            { headers: TIME_ZONE ? { 'X-Time-Zone': TIME_ZONE } : undefined },
+          )
           localStorage.setItem('access_token', data.accessToken)
           localStorage.setItem('refresh_token', data.refreshToken)
           // AuthContext escucha este evento para actualizar `user` (membresía/rol/tenant).

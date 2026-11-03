@@ -1,5 +1,9 @@
 import { useState } from 'react'
+import type { ChangeEvent, FormEvent, MouseEvent } from 'react'
+import { useLocation } from 'react-router-dom'
+import { getErrorMessage } from '../api/client'
 import type { CreateFoodRequest, FoodDto } from '../api/types'
+import PageHeader from './ui/PageHeader'
 
 interface Props {
   title: string
@@ -38,17 +42,42 @@ const EMPTY: CreateFoodRequest = {
   cholesterol: 0,
 }
 
+type NumericField =
+  | 'calories' | 'protein' | 'carbohydrates' | 'fat' | 'fiber' | 'sugar'
+  | 'sodium' | 'potassium' | 'calcium' | 'iron' | 'cholesterol'
+
+const MACROS: { label: string; field: NumericField; unit: string }[] = [
+  { label: 'Calorías', field: 'calories', unit: 'kcal' },
+  { label: 'Proteína', field: 'protein', unit: 'g' },
+  { label: 'Carbohidratos', field: 'carbohydrates', unit: 'g' },
+  { label: 'Grasa total', field: 'fat', unit: 'g' },
+  { label: 'Fibra', field: 'fiber', unit: 'g' },
+  { label: 'Azúcares', field: 'sugar', unit: 'g' },
+]
+
+const MICROS: { label: string; field: NumericField; unit: string }[] = [
+  { label: 'Sodio', field: 'sodium', unit: 'mg' },
+  { label: 'Potasio', field: 'potassium', unit: 'mg' },
+  { label: 'Calcio', field: 'calcium', unit: 'mg' },
+  { label: 'Hierro', field: 'iron', unit: 'mg' },
+  { label: 'Colesterol', field: 'cholesterol', unit: 'mg' },
+]
+
 function num(v?: number) {
   return v == null ? '' : String(v)
 }
 
-// Derived macro ring percentages (for visual preview)
 function macroPct(cal: number, grams: number, factor: number) {
   if (!cal || cal <= 0) return 0
   return Math.min(100, Math.round(((grams * factor) / cal) * 100))
 }
 
+/**
+ * Editor de alimento a pantalla completa (`.editor-page`): 1 columna en móvil,
+ * formulario + vista previa en desktop y barra de acciones fija abajo.
+ */
 export default function FoodForm({ title, initial, onSubmit, onCancel }: Props) {
+  const { pathname } = useLocation()
   const [values, setValues] = useState<CreateFoodRequest>(() => {
     if (!initial) return EMPTY
     return {
@@ -76,20 +105,37 @@ export default function FoodForm({ title, initial, onSubmit, onCancel }: Props) 
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string }>({})
 
   const setText = (field: keyof CreateFoodRequest) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setValues((v) => ({ ...v, [field]: e.target.value }))
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const value = e.target.value
+      setValues((v) => ({ ...v, [field]: value }))
+      if (field === 'name' || field === 'category') setFieldErrors((fe) => ({ ...fe, [field]: undefined }))
+    }
 
-  const setNum = (field: keyof CreateFoodRequest) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const setNum = (field: keyof CreateFoodRequest) => (e: ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
     setValues((v) => ({ ...v, [field]: raw === '' ? 0 : Number(raw) }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // El enlace "volver" de PageHeader cierra el editor (history.back) en vez de apilar otra entrada.
+  const interceptBack = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if ((e.target as Element).closest('.page-header-back')) {
+      e.preventDefault()
+      onCancel()
+    }
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!values.name.trim() || !values.category.trim()) {
-      setError('El nombre y la categoría son obligatorios.')
+    const errors: { name?: string; category?: string } = {}
+    if (!values.name.trim()) errors.name = 'Escribe el nombre del alimento.'
+    if (!values.category.trim()) errors.category = 'Selecciona una categoría.'
+    setFieldErrors(errors)
+    if (errors.name || errors.category) {
+      document.getElementById(errors.name ? 'ff-name' : 'ff-category')?.focus()
       return
     }
     setSubmitting(true)
@@ -97,282 +143,199 @@ export default function FoodForm({ title, initial, onSubmit, onCancel }: Props) 
     try {
       await onSubmit(values)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar el alimento.')
+      setError(getErrorMessage(err) || 'No se pudo guardar el alimento.')
       setSubmitting(false)
     }
   }
 
-  /** Macro percentages for the live preview */
   const protPct = macroPct(values.calories, values.protein, 4)
   const carbPct = macroPct(values.calories, values.carbohydrates, 4)
-  const fatPct  = macroPct(values.calories, values.fat, 9)
+  const fatPct = macroPct(values.calories, values.fat, 9)
 
-  /** Reusable numeric field with unit badge */
-  const numField = (
-    label: string,
-    field: keyof CreateFoodRequest,
-    unit: string,
-    icon: string
-  ) => (
-    <div className="ff-field">
-      <div className="ff-field-icon">{icon}</div>
-      <div className="ff-field-body">
-        <span className="ff-field-label">{label}</span>
-        <div className="ff-field-input-wrap">
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            placeholder="0"
-            value={num(values[field] as number)}
-            onChange={setNum(field)}
-            className="ff-input"
-          />
-          <span className="ff-unit">{unit}</span>
-        </div>
+  const numField = ({ label, field, unit }: { label: string; field: NumericField; unit: string }) => (
+    <div className="field" key={field}>
+      <label htmlFor={`ff-${field}`}>{label}</label>
+      <div className="pl-input-unit">
+        <input
+          id={`ff-${field}`}
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="0"
+          placeholder="0"
+          value={num(values[field])}
+          onChange={setNum(field)}
+        />
+        <span className="pl-unit" aria-hidden="true">{unit}</span>
       </div>
     </div>
   )
 
   return (
-    <div className="ff-page">
-      {/* ── Page Header ──────────────────────────────────────── */}
-      <div className="ff-page-header">
-        <button type="button" className="ff-back-btn" onClick={onCancel}>
-          ← Volver al catálogo
-        </button>
-        <div className="ff-page-title-wrap">
-          <div className="ff-page-icon">🥦</div>
-          <div>
-            <h1 className="ff-page-title">{title}</h1>
-            <p className="ff-page-subtitle">Completa la información nutricional del alimento</p>
-          </div>
-        </div>
-      </div>
+    <div className="editor-page" onClickCapture={interceptBack}>
+      <PageHeader
+        title={title}
+        subtitle="Información nutricional del alimento"
+        back={{ to: pathname, label: 'Catálogo de alimentos' }}
+      />
 
-      <form onSubmit={handleSubmit} className="ff-layout">
-
-        {/* ── Left: Main form ─────────────────────────────────── */}
-        <div className="ff-main-col">
-
-          {/* Información básica */}
-          <div className="ff-section">
-            <div className="ff-section-header">
-              <span className="ff-section-badge ff-badge-blue">📋</span>
-              <span className="ff-section-title">Información básica</span>
-            </div>
-            <div className="ff-section-body">
-              <div className="ff-field ff-field-full">
-                <div className="ff-field-icon">🏷️</div>
-                <div className="ff-field-body">
-                  <span className="ff-field-label">Nombre del alimento *</span>
-                  <input
-                    type="text"
-                    placeholder="Ej. Pechuga de pollo cocida"
-                    value={values.name}
-                    onChange={setText('name')}
-                    className="ff-input"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="ff-fields-row">
-                <div className="ff-field">
-                  <div className="ff-field-icon">🗂️</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Categoría *</span>
-                    <div className="ff-field-input-wrap">
-                      <select value={values.category} onChange={setText('category')} className="ff-input">
-                        <option value="">Seleccionar...</option>
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                        {values.category && !CATEGORIES.includes(values.category) && (
-                          <option value={values.category}>{values.category}</option>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ff-field">
-                  <div className="ff-field-icon">🔖</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Subcategoría</span>
-                    <div className="ff-field-input-wrap">
-                      <input
-                        type="text"
-                        placeholder="Ej. Magras"
-                        value={values.subcategory ?? ''}
-                        onChange={setText('subcategory')}
-                        className="ff-input"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ff-field">
-                  <div className="ff-field-icon">📏</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Unidad de medida</span>
-                    <div className="ff-field-input-wrap">
-                      <select value={values.unit} onChange={setText('unit')} className="ff-input">
-                        {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ff-field">
-                  <div className="ff-field-icon">⚖️</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Cantidad base</span>
-                    <div className="ff-field-input-wrap">
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={num(values.defaultQuantity)}
-                        onChange={setNum('defaultQuantity')}
-                        className="ff-input"
-                      />
-                      <span className="ff-unit">{values.unit}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ff-field">
-                  <div className="ff-field-icon">🏭</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Marca</span>
-                    <div className="ff-field-input-wrap">
-                      <input type="text" placeholder="Opcional" value={values.brand ?? ''} onChange={setText('brand')} className="ff-input" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="ff-field">
-                  <div className="ff-field-icon">🔢</div>
-                  <div className="ff-field-body">
-                    <span className="ff-field-label">Código interno</span>
-                    <div className="ff-field-input-wrap">
-                      <input type="text" placeholder="Opcional" value={values.code ?? ''} onChange={setText('code')} className="ff-input" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="ff-field ff-field-full">
-                <div className="ff-field-icon">📝</div>
-                <div className="ff-field-body">
-                  <span className="ff-field-label">Descripción</span>
-                  <textarea
-                    rows={2}
-                    placeholder="Descripción opcional del alimento..."
-                    value={values.description ?? ''}
-                    onChange={setText('description')}
-                    className="ff-input ff-textarea"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Macronutrientes */}
-          <div className="ff-section">
-            <div className="ff-section-header">
-              <span className="ff-section-badge ff-badge-green">⚡</span>
-              <span className="ff-section-title">
-                Macronutrientes — por {values.defaultQuantity}{values.unit}
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="editor-page-body">
+        <div className="editor-page-main pl-stack">
+          <section className="card pl-section" aria-labelledby="ff-basic">
+            <h2 id="ff-basic" className="pl-section-title">
+              <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                <span className="material-symbols-outlined">info</span>
               </span>
+              Información básica
+            </h2>
+            <div className="field">
+              <label htmlFor="ff-name">Nombre del alimento *</label>
+              <input
+                id="ff-name"
+                type="text"
+                placeholder="Ej. Pechuga de pollo cocida"
+                value={values.name}
+                onChange={setText('name')}
+                aria-invalid={fieldErrors.name ? true : undefined}
+                aria-describedby={fieldErrors.name ? 'ff-name-error' : undefined}
+              />
+              {fieldErrors.name && <p id="ff-name-error" className="field-error">{fieldErrors.name}</p>}
             </div>
-            <div className="ff-macro-grid">
-              {numField('Calorías', 'calories', 'kcal', '🔥')}
-              {numField('Proteína', 'protein', 'g', '💪')}
-              {numField('Carbohidratos', 'carbohydrates', 'g', '🌾')}
-              {numField('Grasa total', 'fat', 'g', '🫒')}
-              {numField('Fibra', 'fiber', 'g', '🌿')}
-              {numField('Azúcares', 'sugar', 'g', '🍬')}
-            </div>
-          </div>
 
-          {/* Micronutrientes */}
-          <div className="ff-section">
-            <div className="ff-section-header">
-              <span className="ff-section-badge ff-badge-purple">🔬</span>
-              <span className="ff-section-title">Micronutrientes</span>
+            <div className="pl-form-grid">
+              <div className="field">
+                <label htmlFor="ff-category">Categoría *</label>
+                <select
+                  id="ff-category"
+                  value={values.category}
+                  onChange={setText('category')}
+                  aria-invalid={fieldErrors.category ? true : undefined}
+                  aria-describedby={fieldErrors.category ? 'ff-category-error' : undefined}
+                >
+                  <option value="">Seleccionar...</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  {values.category && !CATEGORIES.includes(values.category) && (
+                    <option value={values.category}>{values.category}</option>
+                  )}
+                </select>
+                {fieldErrors.category && <p id="ff-category-error" className="field-error">{fieldErrors.category}</p>}
+              </div>
+
+              <div className="field">
+                <label htmlFor="ff-subcategory">Subcategoría</label>
+                <input
+                  id="ff-subcategory"
+                  type="text"
+                  placeholder="Ej. Magras"
+                  value={values.subcategory ?? ''}
+                  onChange={setText('subcategory')}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="ff-unit">Unidad de medida</label>
+                <select id="ff-unit" value={values.unit} onChange={setText('unit')}>
+                  {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="ff-qty">Cantidad base</label>
+                <div className="pl-input-unit">
+                  <input
+                    id="ff-qty"
+                    type="number"
+                    inputMode="decimal"
+                    step="1"
+                    min="1"
+                    value={num(values.defaultQuantity)}
+                    onChange={setNum('defaultQuantity')}
+                  />
+                  <span className="pl-unit" aria-hidden="true">{values.unit}</span>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="ff-brand">Marca</label>
+                <input id="ff-brand" type="text" placeholder="Opcional" value={values.brand ?? ''} onChange={setText('brand')} />
+              </div>
+
+              <div className="field">
+                <label htmlFor="ff-code">Código interno</label>
+                <input id="ff-code" type="text" placeholder="Opcional" value={values.code ?? ''} onChange={setText('code')} />
+              </div>
             </div>
-            <div className="ff-micro-grid">
-              {numField('Sodio', 'sodium', 'mg', '🧂')}
-              {numField('Potasio', 'potassium', 'mg', '🍌')}
-              {numField('Calcio', 'calcium', 'mg', '🦴')}
-              {numField('Hierro', 'iron', 'mg', '⚙️')}
-              {numField('Colesterol', 'cholesterol', 'mg', '💊')}
+
+            <div className="field">
+              <label htmlFor="ff-description">Descripción</label>
+              <textarea
+                id="ff-description"
+                rows={2}
+                placeholder="Descripción opcional del alimento..."
+                value={values.description ?? ''}
+                onChange={setText('description')}
+              />
             </div>
-          </div>
+          </section>
+
+          <section className="card pl-section" aria-labelledby="ff-macros">
+            <h2 id="ff-macros" className="pl-section-title">
+              <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                <span className="material-symbols-outlined">bolt</span>
+              </span>
+              Macronutrientes · por {values.defaultQuantity}{values.unit}
+            </h2>
+            <div className="pl-form-grid pl-form-grid--3">{MACROS.map(numField)}</div>
+          </section>
+
+          <section className="card pl-section" aria-labelledby="ff-micros">
+            <h2 id="ff-micros" className="pl-section-title">
+              <span className="icon-chip icon-chip--soft" aria-hidden="true">
+                <span className="material-symbols-outlined">science</span>
+              </span>
+              Micronutrientes
+            </h2>
+            <div className="pl-form-grid pl-form-grid--3">{MICROS.map(numField)}</div>
+          </section>
 
           {error && (
-            <div className="error-box">⚠️ {error}</div>
+            <div className="error-box" role="alert">
+              <span className="material-symbols-outlined" aria-hidden="true">error</span>
+              {error}
+            </div>
           )}
-
-          {/* Actions */}
-          <div className="ff-actions">
-            <button type="button" className="ff-btn-cancel" onClick={onCancel}>
-              Cancelar
-            </button>
-            <button type="submit" className="ff-btn-save" disabled={submitting}>
-              {submitting ? (
-                <><span className="mf-spinner" /> Guardando…</>
-              ) : (
-                <><span>💾</span> Guardar alimento</>
-              )}
-            </button>
-          </div>
         </div>
 
-        {/* ── Right: Live preview card ─────────────────────────── */}
-        <aside className="ff-preview-col">
-          <div className="ff-preview-card">
-            <div className="ff-preview-header">
-              <span className="ff-preview-label">Vista previa nutricional</span>
-            </div>
-            <div className="ff-preview-name">{values.name || 'Nombre del alimento'}</div>
-            {values.category && (
-              <span className="ff-preview-cat">{values.category}</span>
-            )}
-            <p className="ff-preview-serving">
-              Valores por {values.defaultQuantity}{values.unit}
+        <aside className="editor-page-aside pl-summary" aria-label="Vista previa nutricional">
+            <p className="pl-subtitle">Vista previa nutricional</p>
+            <p className="ff-preview-name">{values.name || 'Nombre del alimento'}</p>
+            {values.category && <span className="badge badge--info">{values.category}</span>}
+            <p className="pl-muted">Valores por {values.defaultQuantity}{values.unit}</p>
+
+            <p className="pl-kcal-hero">
+              <strong>{Math.round(values.calories ?? 0)}</strong> <span>kcal</span>
             </p>
 
-            <div className="ff-preview-kcal">
-              <strong>{Math.round(values.calories ?? 0)}</strong>
-              <span>kcal</span>
-            </div>
-
-            <div className="ff-preview-macros">
-              {[
-                { label: 'Proteína', val: values.protein ?? 0, unit: 'g', pct: protPct, color: '#2170e4' },
-                { label: 'Carbohid.', val: values.carbohydrates ?? 0, unit: 'g', pct: carbPct, color: '#e29100' },
-                { label: 'Grasa', val: values.fat ?? 0, unit: 'g', pct: fatPct, color: '#ef4444' },
-              ].map((m) => (
-                <div key={m.label} className="ff-macro-row">
-                  <div className="ff-macro-label">
-                    <span>{m.label}</span>
-                    <strong>{(m.val ?? 0).toFixed(1)}{m.unit}</strong>
-                  </div>
-                  <div className="ff-macro-bar-track">
-                    <div
-                      className="ff-macro-bar-fill"
-                      style={{ width: `${m.pct}%`, background: m.color }}
-                    />
-                  </div>
-                  <span className="ff-macro-pct">{m.pct}%</span>
+            {[
+              { label: 'Proteína', val: values.protein ?? 0, pct: protPct, tone: 'protein' },
+              { label: 'Carbohidratos', val: values.carbohydrates ?? 0, pct: carbPct, tone: 'carbs' },
+              { label: 'Grasa', val: values.fat ?? 0, pct: fatPct, tone: 'fat' },
+            ].map((m) => (
+              <div key={m.label} className={`pl-macro-row pl-tone-${m.tone}`}>
+                <div className="pl-macro-label">
+                  <span>{m.label}</span>
+                  <strong>{m.val.toFixed(1)} g <em>{m.pct}%</em></strong>
                 </div>
-              ))}
-            </div>
+                <div className="pl-macro-track" aria-hidden="true">
+                  <div className="pl-macro-fill" style={{ width: `${m.pct}%` }} />
+                </div>
+              </div>
+            ))}
 
-            <div className="ff-preview-micro">
+            <dl className="pl-kv">
               {[
                 { label: 'Fibra', val: values.fiber ?? 0, unit: 'g' },
                 { label: 'Azúcares', val: values.sugar ?? 0, unit: 'g' },
@@ -380,17 +343,28 @@ export default function FoodForm({ title, initial, onSubmit, onCancel }: Props) 
                 { label: 'Potasio', val: values.potassium ?? 0, unit: 'mg' },
                 { label: 'Colesterol', val: values.cholesterol ?? 0, unit: 'mg' },
               ].map((m) => (
-                <div key={m.label} className="ff-micro-row">
-                  <span>{m.label}</span>
-                  <strong>{(m.val ?? 0).toFixed(1)}{m.unit}</strong>
+                <div key={m.label}>
+                  <dt>{m.label}</dt>
+                  <dd>{m.val.toFixed(1)} {m.unit}</dd>
                 </div>
               ))}
-            </div>
-          </div>
+            </dl>
         </aside>
+        </div>
 
+        <div className="editor-page-actions">
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={submitting}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn--primary" disabled={submitting} aria-busy={submitting || undefined}>
+            {submitting ? (
+              <><span className="mf-spinner" aria-hidden="true" /> Guardando...</>
+            ) : (
+              <><span className="material-symbols-outlined" aria-hidden="true">save</span> Guardar alimento</>
+            )}
+          </button>
+        </div>
       </form>
     </div>
   )
 }
-

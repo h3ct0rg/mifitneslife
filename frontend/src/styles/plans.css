@@ -1,0 +1,1476 @@
+/* plans.css — Catálogo de alimentos, planes de dieta, ejercicios y planes de entrenamiento (F3-3).
+   Solo tokens (sin hex/rgba ni font-size literales). Prefijos: pl- (común del carril), fc- (catálogo
+   de alimentos), db- (constructor de dieta / días), ex- (ejercicios), wp- (planes de entrenamiento).
+   Editor único: `.editor-page` (components.css) a pantalla completa con barra de acciones fija abajo;
+   formularios cortos en hoja (Modal.tsx). */
+
+/* ==========================================================================
+   Página y utilidades del carril
+   ========================================================================== */
+.pl-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.pl-muted {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.pl-center {
+  text-align: center;
+  padding: var(--sp-4) 0;
+}
+
+.pl-subtitle {
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.pl-media-empty {
+  font-size: var(--fs-3xl);
+  color: var(--color-subtle);
+}
+
+.pl-btn-danger-icon {
+  color: var(--color-danger);
+}
+
+.btn--icon.pl-btn-danger-icon:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.pl-pagination {
+  flex-wrap: wrap;
+}
+
+/* Tonos (pares texto/fondo AA de tokens.css) → --tone-fg / --tone-bg */
+:where(.pl-chip, .pl-mini-chip, .pl-macro-chips > div) {
+  --tone-fg: var(--color-primary-text);
+  --tone-bg: var(--color-primary-subtle);
+}
+
+.pl-tone-kcal { --tone-fg: var(--color-kcal); --tone-bg: var(--color-kcal-bg); }
+.pl-tone-protein { --tone-fg: var(--color-protein); --tone-bg: var(--color-protein-bg); }
+.pl-tone-carbs { --tone-fg: var(--color-carbs); --tone-bg: var(--color-carbs-bg); }
+.pl-tone-fat { --tone-fg: var(--color-fat); --tone-bg: var(--color-fat-bg); }
+.pl-tone-fiber { --tone-fg: var(--color-fiber); --tone-bg: var(--color-fiber-bg); }
+.pl-tone-info { --tone-fg: var(--color-info); --tone-bg: var(--color-info-bg); }
+.pl-tone-success { --tone-fg: var(--color-success); --tone-bg: var(--color-success-bg); }
+.pl-tone-warning { --tone-fg: var(--color-warning); --tone-bg: var(--color-warning-bg); }
+.pl-tone-danger { --tone-fg: var(--color-danger); --tone-bg: var(--color-danger-bg); }
+.pl-tone-neutral { --tone-fg: var(--color-text-2); --tone-bg: var(--color-surface-tint, var(--color-surface-2)); }
+
+.pl-cat-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--tone-bg, var(--color-surface-tint, var(--color-surface-2)));
+  color: var(--tone-fg, var(--color-text-2));
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-full);
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.pl-mini-chip:not([class*='pl-tone-']) {
+  background: var(--color-surface-tint, var(--color-surface-2));
+  color: var(--color-text-2);
+}
+
+/* ==========================================================================
+   Filtros: buscador (foco visible con --color-focus) + selects + chips
+   ========================================================================== */
+.pl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.pl-filters select {
+  width: auto;
+  min-width: 12rem;
+  margin: 0;
+}
+
+.pl-search {
+  position: relative;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.pl-search-icon {
+  position: absolute;
+  left: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  font-size: var(--fs-xl);
+  pointer-events: none;
+}
+
+.fc-search-input,
+.db-picker-search-input {
+  margin: 0;
+  padding-left: var(--sp-10);
+}
+
+.fc-search-input:focus-visible,
+.db-picker-search-input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-color: var(--color-focus);
+}
+
+.pl-chips {
+  display: flex;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-1) var(--sp-1) var(--sp-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pl-chips--wrap {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  padding: 0;
+}
+
+.pl-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.pl-chip .material-symbols-outlined {
+  font-size: var(--fs-lg);
+}
+
+.pl-chip:active {
+  transform: scale(0.97);
+}
+
+.pl-chip:hover {
+  border-color: var(--tone-fg);
+}
+
+.pl-chip[aria-pressed='true'] {
+  background: var(--tone-bg);
+  border-color: var(--tone-fg);
+  color: var(--tone-fg);
+  font-weight: var(--fw-semibold);
+}
+
+/* Táctil (UX-06): chips ≥44px de alto con puntero grueso. */
+@media (pointer: coarse) {
+  .pl-chip {
+    min-height: var(--touch-min);
+  }
+}
+
+.pl-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone-fg, var(--color-primary));
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   FAB (solo ≤640, por encima de la bottom-nav) y acción del header (solo ≥641)
+   ========================================================================== */
+.pl-fab {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .pl-hide-mobile {
+    display: none;
+  }
+
+  .pl-page {
+    padding-bottom: calc(56px + var(--sp-6));
+  }
+
+  .pl-fab {
+    position: fixed;
+    right: var(--sp-4);
+    bottom: calc(var(--bottom-nav-offset, 0px) + var(--sp-4));
+    z-index: var(--z-bottom-nav);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--gradient-brand, var(--color-primary));
+    color: var(--color-on-primary);
+    box-shadow: var(--shadow-brand, var(--shadow-md));
+    transition: transform var(--dur-fast) var(--ease-out);
+    cursor: pointer;
+  }
+
+  .pl-fab:active {
+    transform: scale(0.95);
+  }
+
+  .pl-fab .material-symbols-outlined {
+    font-size: var(--fs-3xl);
+  }
+
+  .pl-filters select {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+}
+
+/* ==========================================================================
+   Catálogo de alimentos (.fc-*): tabla en desktop, tarjetas (.fc-row) en ≤900
+   ========================================================================== */
+.fc-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
+.fc-table-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2, var(--shadow-sm));
+  overflow: hidden;
+}
+
+.fc-table-header,
+.fc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.5fr) minmax(0, 1.2fr) repeat(5, minmax(56px, 0.65fr));
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.fc-table-header {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface-tint, var(--color-surface-2));
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fc-num {
+  text-align: right;
+}
+
+.fc-table-body {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fc-table-body > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.fc-row {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-4);
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.fc-row:active {
+  transform: scale(0.995);
+}
+
+.fc-row:hover {
+  background: var(--color-surface-tint, var(--color-surface-2));
+}
+
+.fc-row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.fc-row.active {
+  background: var(--color-primary-subtle);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.fc-td-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.fc-cat-stripe {
+  flex-shrink: 0;
+  width: 4px;
+  height: 1.75rem;
+  border-radius: var(--radius-full);
+  background: var(--tone-fg);
+}
+
+.fc-name-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fc-food-name {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-brand {
+  color: var(--color-muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-td-cat {
+  min-width: 0;
+}
+
+.fc-td-muted {
+  color: var(--color-muted);
+}
+
+.fc-td-cal {
+  font-weight: var(--fw-bold);
+}
+
+.fc-td-prot {
+  color: var(--color-protein);
+}
+
+.fc-td-carb {
+  color: var(--color-carbs);
+}
+
+.fc-td-fat {
+  color: var(--color-fat);
+}
+
+.fc-unit-mobile {
+  display: none;
+}
+
+/* Panel de detalle (desktop) / contenido de la hoja (≤900) */
+.fc-detail {
+  flex: 0 0 340px;
+  position: sticky;
+  top: calc(var(--header-h) + var(--sp-4));
+  max-height: calc(100dvh - var(--header-h) - var(--sp-8));
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2, var(--shadow-sm));
+}
+
+.fc-detail-content {
+  --fc-pad: var(--sp-4);
+}
+
+.modal .fc-detail-content {
+  --fc-pad: 0px;
+}
+
+.fc-detail-header,
+.fc-detail-kcal,
+.fc-detail-micros {
+  padding: var(--sp-3) var(--fc-pad);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fc-detail .fc-detail-header {
+  border-top: 4px solid var(--tone-fg);
+  padding-top: var(--sp-4);
+}
+
+.modal .fc-detail-header {
+  padding-top: 0;
+}
+
+.fc-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.fc-detail-name {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-title);
+  overflow-wrap: anywhere;
+}
+
+.fc-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.fc-detail-meta .material-symbols-outlined {
+  font-size: var(--fs-md);
+}
+
+.fc-kcal-main {
+  margin: 0 0 var(--sp-3);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.fc-kcal-main strong {
+  color: var(--color-kcal);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.fc-micros-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sp-4);
+  margin: 0;
+}
+
+.fc-micro-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+}
+
+.fc-micro-item dt {
+  color: var(--color-muted);
+}
+
+.fc-micro-item dd {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.fc-detail-desc {
+  margin: 0;
+  padding: var(--sp-3) var(--fc-pad);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+}
+
+.fc-detail-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.fc-detail-actions > * {
+  flex: 1;
+}
+
+.fc-table-card .pl-pagination {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 900px) {
+  .fc-table-header {
+    display: none;
+  }
+
+  .fc-table-card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .fc-table-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .fc-table-body > li + li {
+    border-top: none;
+  }
+
+  .fc-row {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'name name name kcal'
+      'prot carb fat cat';
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .fc-row:focus-visible {
+    outline-offset: 2px;
+  }
+
+  .fc-td-name { grid-area: name; }
+  .fc-td-cal { grid-area: kcal; }
+  .fc-td-prot { grid-area: prot; }
+  .fc-td-carb { grid-area: carb; }
+  .fc-td-fat { grid-area: fat; }
+
+  .fc-td-cat {
+    grid-area: cat;
+    justify-self: end;
+  }
+
+  .fc-row .fc-td-muted {
+    display: none;
+  }
+
+  .fc-td-prot,
+  .fc-td-carb,
+  .fc-td-fat {
+    text-align: left;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+  }
+
+  .fc-unit-mobile {
+    display: inline;
+  }
+
+  .fc-table-card .pl-pagination {
+    border-top: none;
+    padding: var(--sp-3) 0 0;
+  }
+}
+
+/* Barras de macros (detalle, vista previa, resumen) */
+.pl-macro-row {
+  margin-bottom: var(--sp-3);
+}
+
+.pl-macro-row:last-child {
+  margin-bottom: 0;
+}
+
+.pl-macro-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+}
+
+.pl-macro-label strong {
+  color: var(--color-text);
+  font-weight: var(--fw-semibold);
+}
+
+.pl-macro-label em {
+  font-style: normal;
+  color: var(--color-muted);
+  font-size: var(--fs-xs);
+}
+
+.pl-macro-track {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.pl-macro-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--tone-fg, var(--color-primary));
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+/* Chips de totales (dl > div > dt + dd) */
+.pl-macro-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.pl-macro-chips--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pl-macro-chips > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg);
+}
+
+.pl-macro-chips dt {
+  color: var(--tone-fg);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.pl-macro-chips dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.pl-macro-chips small {
+  color: var(--color-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+}
+
+@media (max-width: 400px) {
+  .pl-macro-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   Editores: estructura y barra fija en components.css (.editor-page*). Aquí solo lo de planes:
+   columna principal apilada (.pl-stack) y contenido del resumen lateral (.pl-summary).
+   ========================================================================== */
+.pl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.pl-stack > .card {
+  margin-bottom: 0;
+}
+
+.pl-stack > .error-box {
+  margin: 0;
+}
+
+.pl-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.card h2.pl-section-title {
+  margin: 0 0 var(--sp-4);
+}
+
+.pl-section-title .icon-chip {
+  width: 36px;
+  height: 36px;
+}
+
+.pl-section-title .icon-chip .material-symbols-outlined,
+.pl-plan-head .icon-chip .material-symbols-outlined {
+  font-size: var(--fs-xl);
+}
+
+.pl-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+@media (min-width: 641px) {
+  .pl-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pl-form-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pl-field-tight {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.pl-input-unit {
+  position: relative;
+}
+
+.pl-input-unit input {
+  padding-right: var(--sp-12);
+}
+
+.pl-unit {
+  position: absolute;
+  right: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+}
+
+.pl-fieldset {
+  margin: 0 0 var(--sp-4);
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.pl-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.pl-summary .pl-macro-row {
+  margin-bottom: 0;
+}
+
+.ff-preview-name {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.pl-summary .badge {
+  align-self: flex-start;
+}
+
+.pl-kcal-hero {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.pl-kcal-hero strong {
+  color: var(--color-primary-text);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  line-height: 1.1;
+}
+
+.pl-kv {
+  margin: 0;
+}
+
+.pl-kv > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+}
+
+.pl-kv > div:last-child {
+  border-bottom: none;
+}
+
+.pl-kv dt {
+  color: var(--color-muted);
+}
+
+.pl-kv dd {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+
+/* ==========================================================================
+   Constructor de dieta / días de entrenamiento (.db-*)
+   ========================================================================== */
+.db-meals-list {
+  list-style: none;
+  margin: var(--sp-2) 0 var(--sp-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.db-meal-card {
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-tint, var(--color-surface-2));
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.db-meal-card.active {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.db-meal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.db-meal-inputs {
+  flex: 1 1 15rem;
+  display: flex;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.db-meal-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.db-meal-time-input {
+  flex: 0 0 8.5rem;
+  width: 8.5rem;
+  margin: 0;
+}
+
+.db-meal-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.db-meal-actions {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.db-meal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.db-food-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.db-food-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name del'
+    'macros macros';
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.db-food-item-name {
+  grid-area: name;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+
+.db-food-item-macros {
+  grid-area: macros;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.db-food-item-row > .btn--icon {
+  grid-area: del;
+}
+
+@media (min-width: 900px) {
+  .db-food-item-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'name macros del';
+  }
+}
+
+@media (max-width: 640px) {
+  .db-meal-inputs {
+    flex-basis: 100%;
+  }
+
+  .db-meal-head-meta {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+}
+
+.db-goal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.db-goal-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+.db-goal-input {
+  flex: 0 0 9rem;
+}
+
+.db-goal-input input {
+  margin: 0;
+}
+
+.db-kcal-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--gradient-soft, var(--color-primary-subtle));
+}
+
+.db-kcal-hero .pl-macro-fill {
+  background: var(--gradient-brand, var(--color-primary));
+}
+
+.db-kcal-hero-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--color-primary-text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.db-kcal-hero .pl-macro-track {
+  background: var(--color-surface);
+}
+
+/* Selector (hoja/modal) de alimento o ejercicio */
+.pl-pick-list {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.pl-pick-item {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.pl-pick-item:active {
+  transform: scale(0.99);
+}
+
+.pl-pick-item:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.pl-pick-main,
+.pl-pick-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.pl-pick-main {
+  flex: 1;
+}
+
+.pl-pick-side {
+  align-items: flex-end;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.pl-pick-main strong,
+.pl-pick-side strong {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.pl-pick-side strong {
+  color: var(--color-kcal);
+}
+
+.pl-pick-main span,
+.pl-pick-side span {
+  color: var(--color-muted);
+  font-size: var(--fs-xs);
+}
+
+.pl-added {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  font-size: var(--fs-sm);
+}
+
+.pl-picker .pl-macro-chips {
+  margin: var(--sp-3) 0 var(--sp-4);
+}
+
+/* ==========================================================================
+   Listas de planes (dieta y entrenamiento) como tarjetas
+   ========================================================================== */
+.pl-card-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--sp-4);
+}
+
+.pl-plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  margin: 0;
+}
+
+.pl-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.card h2.pl-plan-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-title);
+  overflow-wrap: anywhere;
+}
+
+.pl-stretched {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pl-stretched::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.pl-stretched:focus-visible {
+  outline: none;
+}
+
+.pl-stretched:focus-visible::after {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
+
+.pl-plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+}
+
+.pl-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.pl-meta-item .material-symbols-outlined {
+  color: var(--color-muted);
+  font-size: var(--fs-lg);
+}
+
+.pl-tag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.pl-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-tint, var(--color-surface-2));
+  color: var(--color-text-2);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.pl-tag-time {
+  color: var(--color-primary-text);
+  font-weight: var(--fw-semibold);
+}
+
+.pl-card-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-2);
+}
+
+.pl-card-actions > .btn:first-child {
+  flex: 1;
+}
+
+.wp-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.wp-day {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-tint, var(--color-surface-2));
+}
+
+.wp-day > strong {
+  display: block;
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+/* ==========================================================================
+   Ejercicios (.ex-*)
+   ========================================================================== */
+.ex-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--sp-4);
+}
+
+.ex-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-2, var(--shadow-sm));
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+
+.ex-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  background: var(--color-surface-tint, var(--color-surface-2));
+  overflow: hidden;
+}
+
+.ex-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ex-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  min-width: 0;
+}
+
+.ex-card-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-title);
+  overflow-wrap: anywhere;
+}
+
+.ex-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.ex-detail {
+  max-width: 620px;
+}
+
+.ex-detail-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 260px;
+  margin: 0 0 var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-tint, var(--color-surface-2));
+  overflow: hidden;
+}
+
+.ex-detail-media .ex-img {
+  object-fit: contain;
+}
+
+.ex-instructions {
+  margin-top: var(--sp-4);
+}
+
+.ex-instructions p {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  white-space: pre-line;
+}
+
+@media (max-width: 640px) {
+  .ex-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .ex-card {
+    flex-direction: row;
+    border-radius: var(--radius-md);
+  }
+
+  .ex-media {
+    flex: 0 0 88px;
+    height: auto;
+    min-height: 88px;
+  }
+
+  .ex-detail-media {
+    height: 200px;
+  }
+}
+
+/* ==========================================================================
+   Constructor de plan de entrenamiento (.wp-*)
+   ========================================================================== */
+.wp-ex-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.wp-ex-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.wp-ex-media {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-tint, var(--color-surface-2));
+  overflow: hidden;
+}
+
+.wp-ex-media--sm {
+  flex-basis: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.wp-ex-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wp-ex-media .pl-media-empty {
+  font-size: var(--fs-xl);
+}
+
+.wp-ex-fields {
+  flex: 1;
+  min-width: 0;
+}
+
+.wp-ex-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.wp-ex-title strong {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.wp-ex-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+  .wp-ex-row > .wp-ex-media {
+    display: none;
+  }
+}

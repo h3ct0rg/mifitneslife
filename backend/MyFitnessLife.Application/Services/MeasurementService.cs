@@ -10,10 +10,12 @@ namespace MyFitnessLife.Application.Services;
 public class MeasurementService : IMeasurementService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IClientClock _clock;
 
-    public MeasurementService(IUnitOfWork unitOfWork)
+    public MeasurementService(IUnitOfWork unitOfWork, IClientClock clock)
     {
         _unitOfWork = unitOfWork;
+        _clock = clock;
     }
 
     public async Task<PagedResult<MeasurementDto>> GetByPatientAsync(
@@ -54,7 +56,8 @@ public class MeasurementService : IMeasurementService
         var measurement = request.ToEntity();
         measurement.PatientId = patientId;
         measurement.TenantId = tenantId;
-        measurement.VisitDate = request.VisitDate == default ? DateTime.UtcNow : request.VisitDate;
+        // VisitDate = hora de reloj (D4): por defecto "ahora" local del cliente; si llega con Z/offset se pasa a local.
+        measurement.VisitDate = request.VisitDate == default ? _clock.LocalNow : _clock.ToWallClock(request.VisitDate);
 
         await _unitOfWork.Measurements.AddAsync(measurement);
         await _unitOfWork.SaveChangesAsync();
@@ -71,7 +74,7 @@ public class MeasurementService : IMeasurementService
             throw new KeyNotFoundException("Medición no encontrada.");
 
         request.Apply(measurement);
-        measurement.VisitDate = request.VisitDate == default ? measurement.VisitDate : request.VisitDate;
+        measurement.VisitDate = request.VisitDate == default ? measurement.VisitDate : _clock.ToWallClock(request.VisitDate);
         measurement.UpdatedAt = DateTime.UtcNow;
 
         await _unitOfWork.Measurements.UpdateAsync(measurement);

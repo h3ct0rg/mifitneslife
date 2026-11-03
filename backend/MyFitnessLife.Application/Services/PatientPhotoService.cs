@@ -8,10 +8,12 @@ namespace MyFitnessLife.Application.Services;
 public class PatientPhotoService : IPatientPhotoService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IClientClock _clock;
 
-    public PatientPhotoService(IUnitOfWork unitOfWork)
+    public PatientPhotoService(IUnitOfWork unitOfWork, IClientClock clock)
     {
         _unitOfWork = unitOfWork;
+        _clock = clock;
     }
 
     public async Task<IEnumerable<PatientPhotoDto>> GetByPatientAsync(Guid tenantId, Guid patientId)
@@ -36,7 +38,8 @@ public class PatientPhotoService : IPatientPhotoService
             TenantId = tenantId,
             PatientId = patientId,
             FileName = fileName,
-            TakenAt = takenAt == default ? DateTime.UtcNow : takenAt
+            // TakenAt = hora de reloj (D4): por defecto "ahora" local del cliente; Z/offset → zona del header.
+            TakenAt = takenAt == default ? _clock.LocalNow : _clock.ToWallClock(takenAt)
         };
 
         await _unitOfWork.PatientPhotos.AddAsync(photo);

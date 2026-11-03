@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { patientsApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { PatientDto, PatientInvitationStatus } from '../api/types'
 import PatientForm, { type PatientFormValues } from '../components/PatientForm'
 import AuthImage from '../components/AuthImage'
+import { avatarClass, initialsOf } from '../components/avatarIndex'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
+import { useToast } from '../context/toastContext'
+
+const PAGE_SIZE = 10
+const SEARCH_DEBOUNCE_MS = 300
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  Active: { label: 'Activo', cls: 'badge--success' },
+  Inactive: { label: 'Inactivo', cls: 'badge--neutral' },
+}
 
 function createdMessage(status: PatientInvitationStatus | undefined, email: string): string {
   switch (status) {
@@ -24,44 +36,56 @@ function createdMessage(status: PatientInvitationStatus | undefined, email: stri
   }
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const b = STATUS_BADGE[status] ?? { label: status, cls: 'badge--neutral' }
+  return <span className={`badge ${b.cls}`}>{b.label}</span>
+}
+
 export default function Patients() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [patients, setPatients] = useState<PatientDto[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(10)
   const [search, setSearch] = useState('')
-  const [appliedSearch, setAppliedSearch] = useState('')
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
-  const loadPatients = async (p = page, s = appliedSearch) => {
+  // Filtro inmediato: la búsqueda se aplica 300 ms después de dejar de escribir.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setQuery(search.trim())
+      setPage(1)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(t)
+  }, [search])
+
+  // Solo se aplica la última respuesta (evita que una búsqueda lenta pise a la siguiente).
+  const requestId = useRef(0)
+
+  const load = useCallback(async () => {
+    const id = ++requestId.current
     setLoading(true)
-    setMessage(null)
+    setError(null)
     try {
-      const data = await patientsApi.list({ search: s || undefined, page: p, pageSize })
+      const data = await patientsApi.list({ search: query || undefined, page, pageSize: PAGE_SIZE })
+      if (id !== requestId.current) return
       setPatients(data.items)
       setTotal(data.total)
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      if (id === requestId.current) setError(getErrorMessage(err))
     } finally {
-      setLoading(false)
+      if (id === requestId.current) setLoading(false)
     }
-  }
+  }, [query, page])
 
   useEffect(() => {
-    loadPatients()
-  }, [])
+    load()
+  }, [load])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setPage(1)
-    setAppliedSearch(search)
-    loadPatients(1, search)
-  }
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const handleCreate = async (values: PatientFormValues) => {
     try {
@@ -75,89 +99,125 @@ export default function Patients() {
         notes: values.notes || undefined,
       })
       setShowCreate(false)
-      setMessage({
-        // El paciente se creó igual; `failed` se resalta para que el staff reintente la invitación.
-        type: created.invitationStatus === 'failed' ? 'err' : 'ok',
-        text: createdMessage(created.invitationStatus, created.email),
-      })
-      loadPatients(1, appliedSearch)
+      const text = createdMessage(created.invitationStatus, created.email)
+      // El paciente se creó igual; `failed` se resalta para que el staff reintente la invitación.
+      if (created.invitationStatus === 'failed') toast.error(text)
+      else toast.success(text)
+      if (page === 1) load()
+      else setPage(1)
     } catch (err) {
-      setMessage({
-        type: 'err',
-        text: getErrorMessage(err),
-      })
+      toast.error(getErrorMessage(err))
       throw err
     }
   }
 
+  const openCreate = () => setShowCreate(true)
+
   return (
     <div className="page">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+      <PageHeader
+        title="Pacientes"
+        subtitle={loading && total === 0 ? undefined : `${total} paciente${total === 1 ? '' : 's'}${query ? ` para "${query}"` : ''}`}
+        actions={
+          <button type="button" className="btn btn--primary clin-desktop-action" onClick={openCreate}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              person_add
+            </span>
+            Crear paciente
+          </button>
+        }
+      />
 
-      <section className="card">
-        <form onSubmit={handleSearch} className="search-bar">
+      <section className="card patients-card">
+        <div className="clin-search">
+          <span className="material-symbols-outlined clin-search-icon" aria-hidden="true">
+            search
+          </span>
+          <label htmlFor="patients-search" className="sr-only">
+            Buscar pacientes
+          </label>
           <input
-            placeholder="Buscar por nombre, apellido, teléfono o email..."
+            id="patients-search"
+            type="search"
+            placeholder="Buscar por nombre, teléfono o email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
           />
-          <button type="submit" className="btn-primary">
-            Buscar
-          </button>
-        </form>
-        {appliedSearch && (
-          <p className="text-muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-            Resultados de "{appliedSearch}" · {total} paciente(s)
-          </p>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2>Pacientes ({total})</h2>
-          <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={() => setShowCreate(true)}>
-            + Crear paciente
-          </button>
         </div>
 
-        {loading ? (
-          <p>Cargando...</p>
+        {loading && patients.length === 0 ? (
+          <StateView state="loading" title="Cargando pacientes..." />
+        ) : error ? (
+          <StateView
+            state="error"
+            message={error}
+            action={
+              <button type="button" className="btn btn--ghost" onClick={load}>
+                Reintentar
+              </button>
+            }
+          />
         ) : patients.length === 0 ? (
-          <div className="empty-state">No se encontraron pacientes.</div>
+          <StateView
+            state="empty"
+            icon="group"
+            title={query ? 'Sin resultados' : 'Aún no hay pacientes'}
+            message={query ? `No hay pacientes que coincidan con "${query}".` : 'Crea el primer paciente para empezar.'}
+            action={
+              !query && (
+                <button type="button" className="btn btn--primary" onClick={openCreate}>
+                  Crear paciente
+                </button>
+              )
+            }
+          />
         ) : (
-          <table className="table">
+          <table className="table table--stack patients-table" aria-busy={loading || undefined}>
             <thead>
               <tr>
-                <th>Paciente</th>
-                <th>Email</th>
-                <th>Teléfono</th>
-                <th>Estado</th>
+                <th scope="col">Paciente</th>
+                <th scope="col">Email</th>
+                <th scope="col">Teléfono</th>
+                <th scope="col">Estado</th>
               </tr>
             </thead>
             <tbody>
               {patients.map((p) => (
-                <tr key={p.id}>
-                  <td>
+                // Toda la fila abre la ficha; el enlace del nombre da acceso por teclado.
+                <tr key={p.id} className="clin-row-link" onClick={() => navigate(`/pacientes/${p.id}`)}>
+                  <td className="patients-name-cell">
                     <div className="patient-name">
                       {p.profilePhotoUrl ? (
                         <AuthImage
                           fileName={p.profilePhotoUrl}
-                          alt={p.fullName}
+                          alt=""
                           className="table-avatar"
                           fallbackText={p.firstName[0]}
                         />
                       ) : (
-                        <span className="table-avatar empty">{p.firstName[0]}</span>
+                        <span className={`table-avatar empty ${avatarClass(p.id)}`} aria-hidden="true">
+                          {initialsOf(p.fullName)}
+                        </span>
                       )}
-                      <a className="row-link" onClick={() => navigate(`/pacientes/${p.id}`)}>
+                      <Link
+                        to={`/pacientes/${p.id}`}
+                        className="row-link"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {p.fullName}
-                      </a>
+                      </Link>
+                      <span className="material-symbols-outlined patients-chevron" aria-hidden="true">
+                        chevron_right
+                      </span>
                     </div>
                   </td>
-                  <td>{p.email}</td>
-                  <td>{p.phone ?? '—'}</td>
-                  <td>
-                    <span className="badge">{p.status}</span>
+                  <td data-label="Email" className="clin-break">
+                    {p.email}
+                  </td>
+                  <td data-label="Teléfono">{p.phone ?? '—'}</td>
+                  <td data-label="Estado">
+                    <StatusBadge status={p.status} />
                   </td>
                 </tr>
               ))}
@@ -165,16 +225,13 @@ export default function Patients() {
           </table>
         )}
 
-        {totalPages > 1 && (
-          <div className="pagination">
+        {totalPages > 1 && !error && (
+          <nav className="pagination" aria-label="Paginación">
             <button
               type="button"
-              className="btn-ghost"
-              disabled={page <= 1}
-              onClick={() => {
-                setPage(page - 1)
-                loadPatients(page - 1)
-              }}
+              className="btn btn--ghost"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
             >
               Anterior
             </button>
@@ -183,18 +240,21 @@ export default function Patients() {
             </span>
             <button
               type="button"
-              className="btn-ghost"
-              disabled={page >= totalPages}
-              onClick={() => {
-                setPage(page + 1)
-                loadPatients(page + 1)
-              }}
+              className="btn btn--ghost"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
             >
               Siguiente
             </button>
-          </div>
+          </nav>
         )}
       </section>
+
+      <button type="button" className="clin-fab" onClick={openCreate} aria-label="Crear paciente">
+        <span className="material-symbols-outlined" aria-hidden="true">
+          person_add
+        </span>
+      </button>
 
       {showCreate && (
         <PatientForm

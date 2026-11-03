@@ -64,16 +64,16 @@ public class DashboardRepository : IDashboardRepository
     }
 
     public async Task<PatientKpis> GetPatientKpisAsync(
-        Guid tenantId, DateTime thisMonthStart, DateTime prevMonthStart, DateTime followUpCutoff, DateTime now)
+        Guid tenantId, DateTime prevMonthStartUtc, DateTime thisMonthStartUtc, DateTime nextMonthStartUtc, DateTime followUpCutoff, DateTime now)
     {
         var patients = _context.Patients.AsNoTracking().Where(p => p.TenantId == tenantId);
         var active = patients.Where(p => p.Status == UserStatus.Active);
-        var nextMonthStart = thisMonthStart.AddMonths(1);
 
         var total = await patients.CountAsync();
         var activeCount = await active.CountAsync();
-        var newThisMonth = await patients.CountAsync(p => p.CreatedAt >= thisMonthStart && p.CreatedAt < nextMonthStart);
-        var newPrevMonth = await patients.CountAsync(p => p.CreatedAt >= prevMonthStart && p.CreatedAt < thisMonthStart);
+        // CreatedAt es UTC → límites del mes local convertidos a UTC.
+        var newThisMonth = await patients.CountAsync(p => p.CreatedAt >= thisMonthStartUtc && p.CreatedAt < nextMonthStartUtc);
+        var newPrevMonth = await patients.CountAsync(p => p.CreatedAt >= prevMonthStartUtc && p.CreatedAt < thisMonthStartUtc);
         var withDiet = await active.CountAsync(p =>
             _context.Diets.Any(d => d.TenantId == tenantId && d.PatientId == p.Id));
         var withWorkout = await active.CountAsync(p =>
@@ -100,14 +100,15 @@ public class DashboardRepository : IDashboardRepository
             .CountAsync(a => a.StartAt >= from && a.StartAt < to && list.Contains(a.Status));
     }
 
-    public async Task<Dictionary<(int Year, int Month), int>> GetNewPatientsByMonthAsync(Guid tenantId, DateTime from, DateTime to)
+    public async Task<IReadOnlyList<int>> GetNewPatientsByRangesAsync(Guid tenantId, IReadOnlyList<(DateTime FromUtc, DateTime ToUtc)> ranges)
     {
-        var rows = await _context.Patients.AsNoTracking()
-            .Where(p => p.TenantId == tenantId && p.CreatedAt >= from && p.CreatedAt < to)
-            .GroupBy(p => new { p.CreatedAt.Year, p.CreatedAt.Month })
-            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
-            .ToListAsync();
-        return rows.ToDictionary(r => (r.Year, r.Month), r => r.Count);
+        // Agrupar por Year/Month de CreatedAt (UTC) desplazaría los bordes de mes locales;
+        // se cuenta cada mes local (convertido a UTC) con un Count agregado en BD.
+        var result = new List<int>(ranges.Count);
+        foreach (var (fromUtc, toUtc) in ranges)
+            result.Add(await _context.Patients.AsNoTracking()
+                .CountAsync(p => p.TenantId == tenantId && p.CreatedAt >= fromUtc && p.CreatedAt < toUtc));
+        return result;
     }
 
     public async Task<Dictionary<(int Year, int Month), int>> GetMeasurementsByMonthAsync(Guid tenantId, DateTime from, DateTime to)

@@ -3,6 +3,8 @@ import { patientPhotosApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { PatientPhotoDto } from '../api/types'
 import AuthImage from './AuthImage'
+import Modal from './Modal'
+import StateView from './ui/StateView'
 
 interface Props {
   patientId: string
@@ -11,17 +13,20 @@ interface Props {
 
 type Side = 'before' | 'after'
 
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+
 export default function PhotoHistory({ patientId, version }: Props) {
   const [photos, setPhotos] = useState<PatientPhotoDto[]>([])
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [pickerFor, setPickerFor] = useState<Side | null>(null)
   const [before, setBefore] = useState<PatientPhotoDto | null>(null)
   const [after, setAfter] = useState<PatientPhotoDto | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setMessage(null)
+    setError(null)
     try {
       const list = await patientPhotosApi.list(patientId)
       setPhotos(list)
@@ -29,7 +34,7 @@ export default function PhotoHistory({ patientId, version }: Props) {
       setAfter(list[0] ?? null)
       setBefore(list[1] ?? null)
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -46,81 +51,79 @@ export default function PhotoHistory({ patientId, version }: Props) {
     setPickerFor(null)
   }
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+  if (loading) return <StateView state="loading" title="Cargando fotos..." />
 
-  if (loading) return <p className="loading">Cargando fotos...</p>
+  const selectedId = pickerFor === 'before' ? before?.id : after?.id
 
   return (
-    <div className="card">
-      <div className="photo-history-head">
-        <h2>Historial de fotos</h2>
-        {photos.length > 0 && <span className="photo-count">{photos.length} fotos</span>}
+    <section className="card" aria-labelledby="photo-history-title">
+      <div className="panel-head">
+        <h2 id="photo-history-title">Historial de fotos</h2>
+        {photos.length > 0 && <span className="panel-head-meta">{photos.length} fotos</span>}
       </div>
 
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
-
-      {photos.length === 0 ? (
-        <p className="empty-state">
-          Aún no hay fotos registradas. Usa el botón "Foto" para tomar o subir la primera.
-        </p>
+      {error ? (
+        <StateView
+          state="error"
+          message={error}
+          action={
+            <button type="button" className="btn btn--ghost" onClick={load}>
+              Reintentar
+            </button>
+          }
+        />
+      ) : photos.length === 0 ? (
+        <StateView state="empty" icon="photo_library" title="Aún no hay fotos registradas" />
       ) : (
-        <>
-          <div className="photo-compare">
-            <div className="photo-compare-item">
-              <span className="photo-compare-label before">Antes</span>
-              {before ? (
-                <AuthImage fileName={before.fileName} className="photo-compare-img" fallbackText="Foto" />
-              ) : (
-                <div className="photo-compare-empty">Sin foto anterior</div>
-              )}
-              {before && <span className="photo-compare-date">{fmtDate(before.takenAt)}</span>}
-              <button type="button" className="btn-ghost btn-sm" onClick={() => setPickerFor('before')}>
-                Cambiar foto
-              </button>
-            </div>
-
-            <div className="photo-compare-arrow">→</div>
-
-            <div className="photo-compare-item">
-              <span className="photo-compare-label after">Después</span>
-              {after ? (
-                <AuthImage fileName={after.fileName} className="photo-compare-img" fallbackText="Foto" />
-              ) : (
-                <div className="photo-compare-empty">Sin foto reciente</div>
-              )}
-              {after && <span className="photo-compare-date">{fmtDate(after.takenAt)}</span>}
-              <button type="button" className="btn-ghost btn-sm" onClick={() => setPickerFor('after')}>
-                Cambiar foto
-              </button>
-            </div>
-          </div>
-
-          {pickerFor && (
-            <div className="modal-overlay" onClick={() => setPickerFor(null)}>
-              <div className="modal modal-photo-gallery" onClick={(e) => e.stopPropagation()}>
-                <div className="photo-history-head">
-                  <h2>{pickerFor === 'before' ? 'Elegir foto "Antes"' : 'Elegir foto "Después"'}</h2>
-                  <button type="button" className="btn-ghost" onClick={() => setPickerFor(null)}>Cerrar</button>
-                </div>
-                <div className="photo-gallery">
-                  {photos.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`photo-gallery-item ${before?.id === p.id && pickerFor === 'before' ? 'selected' : ''} ${after?.id === p.id && pickerFor === 'after' ? 'selected' : ''}`}
-                      onClick={() => pick(pickerFor, p)}
-                    >
-                      <AuthImage fileName={p.fileName} className="photo-gallery-img" fallbackText="Foto" />
-                      <span className="photo-gallery-date">{fmtDate(p.takenAt)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
+        <div className="photo-compare">
+          {(['before', 'after'] as const).map((side) => {
+            const photo = side === 'before' ? before : after
+            return (
+              <figure key={side} className="photo-compare-item">
+                <figcaption className={`photo-compare-label ${side}`}>{side === 'before' ? 'Antes' : 'Después'}</figcaption>
+                {photo ? (
+                  <AuthImage
+                    fileName={photo.fileName}
+                    alt={`Foto ${side === 'before' ? 'antes' : 'después'} del ${fmtDate(photo.takenAt)}`}
+                    className="photo-compare-img"
+                    fallbackText="Foto"
+                  />
+                ) : (
+                  <div className="photo-compare-empty">{side === 'before' ? 'Sin foto anterior' : 'Sin foto reciente'}</div>
+                )}
+                {photo && <span className="photo-compare-date">{fmtDate(photo.takenAt)}</span>}
+                <button type="button" className="btn btn--ghost btn-sm" onClick={() => setPickerFor(side)}>
+                  Cambiar foto
+                </button>
+              </figure>
+            )
+          })}
+        </div>
       )}
-    </div>
+
+      {pickerFor && (
+        <Modal
+          title={pickerFor === 'before' ? 'Elegir foto "Antes"' : 'Elegir foto "Después"'}
+          onClose={() => setPickerFor(null)}
+          className="modal-photo-gallery"
+          closeOnBackdrop
+        >
+          <div className="photo-gallery">
+            {photos.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`photo-gallery-item${selectedId === p.id ? ' selected' : ''}`}
+                aria-pressed={selectedId === p.id}
+                onClick={() => pick(pickerFor, p)}
+              >
+                <AuthImage fileName={p.fileName} alt="" className="photo-gallery-img" fallbackText="Foto" />
+                <span className="photo-gallery-date">{fmtDate(p.takenAt)}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </section>
   )
 }

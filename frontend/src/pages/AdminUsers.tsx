@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { adminApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { AdminUserDto, MembershipDto, TenantDto } from '../api/types'
@@ -6,11 +6,24 @@ import { ROLE_KEYS, roleLabel } from '../api/types'
 import { membershipLabel, membershipTenant, roleIcon, sortMemberships } from '../components/membershipUtils'
 import { useAuth } from '../context/AuthContext'
 import Modal, { ConfirmModal, DeleteConfirmModal } from '../components/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
 import { useToast } from '../context/toastContext'
 
-type Msg = { type: 'ok' | 'err'; text: string } | null
+/** Avatar con gradiente (MV-1 §8): índice 1..6 estable por id, iniciales del nombre. */
+function Avatar({ id, name }: { id: string; name: string }) {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?'
+  return (
+    <span className={`avatar av-${(Math.abs(h) % 6) + 1}`} aria-hidden="true">
+      {initials}
+    </span>
+  )
+}
 
 const PAGE_SIZE = 20
+const SEARCH_DEBOUNCE_MS = 300
 
 const fmtDate = (iso?: string | null) =>
   iso
@@ -23,6 +36,7 @@ const fmtDate = (iso?: string | null) =>
       })
     : '—'
 
+/** Rol + tenant (el tenant no aplica a Super Administrador). Campos a 1 columna en móvil. */
 function RoleTenantFields({
   role,
   tenantId,
@@ -36,12 +50,14 @@ function RoleTenantFields({
   onRole: (r: string) => void
   onTenant: (t: string) => void
 }) {
+  const ids = useId()
   const isSuper = role === 'SuperAdmin'
   return (
     <>
-      <label>
-        Rol *
+      <div className="field">
+        <label htmlFor={`${ids}-role`}>Rol *</label>
         <select
+          id={`${ids}-role`}
           value={role}
           onChange={(e) => {
             onRole(e.target.value)
@@ -55,15 +71,18 @@ function RoleTenantFields({
             </option>
           ))}
         </select>
-      </label>
+      </div>
       {isSuper ? (
-        <p className="text-muted admin-sub" style={{ alignSelf: 'center' }}>
+        <p className="admin-note">
+          <span className="material-symbols-outlined" aria-hidden="true">
+            info
+          </span>
           Super Administrador no pertenece a ningún tenant (plataforma).
         </p>
       ) : (
-        <label>
-          Tenant *
-          <select value={tenantId} onChange={(e) => onTenant(e.target.value)} required>
+        <div className="field">
+          <label htmlFor={`${ids}-tenant`}>Tenant *</label>
+          <select id={`${ids}-tenant`} value={tenantId} onChange={(e) => onTenant(e.target.value)} required>
             <option value="">Selecciona un tenant</option>
             {tenants.map((t) => (
               <option key={t.id} value={t.id} disabled={!t.isActive}>
@@ -72,7 +91,7 @@ function RoleTenantFields({
               </option>
             ))}
           </select>
-        </label>
+        </div>
       )}
     </>
   )
@@ -87,6 +106,7 @@ function CreateUserModal({
   onSaved: (u: AdminUserDto) => void
   onCancel: () => void
 }) {
+  const ids = useId()
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
@@ -117,41 +137,57 @@ function CreateUserModal({
 
   return (
     <Modal title="Crear usuario" onClose={onCancel}>
-      {error && <div className="alert err">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <label className="form-full">
-            Nombre completo *
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoFocus />
-          </label>
-          <label>
-            Email *
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <label>
-            Contraseña *
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
-          </label>
-          <RoleTenantFields
-            role={role}
-            tenantId={tenantId}
-            tenants={tenants}
-            onRole={setRole}
-            onTenant={setTenantId}
+      {error && (
+        <div className="alert err" role="alert">
+          {error}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="admin-form">
+        <div className="field">
+          <label htmlFor={`${ids}-name`}>Nombre completo *</label>
+          <input
+            id={`${ids}-name`}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            autoFocus
+            autoComplete="off"
           />
         </div>
+        <div className="field">
+          <label htmlFor={`${ids}-email`}>Email *</label>
+          <input
+            id={`${ids}-email`}
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}-pass`}>Contraseña *</label>
+          <input
+            id={`${ids}-pass`}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            autoComplete="new-password"
+            aria-describedby={`${ids}-pass-hint`}
+          />
+          <p className="field-hint" id={`${ids}-pass-hint`}>
+            Mínimo 6 caracteres.
+          </p>
+        </div>
+        <RoleTenantFields role={role} tenantId={tenantId} tenants={tenants} onRole={setRole} onTenant={setTenantId} />
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={saving}>
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn--primary" disabled={saving} aria-busy={saving || undefined}>
             {saving ? 'Creando...' : 'Crear usuario'}
           </button>
         </div>
@@ -160,15 +196,25 @@ function CreateUserModal({
   )
 }
 
+/** Hoja de edición: nombre + acciones de estado/borrado (antes eran 4 botones por fila). */
 function EditUserModal({
   user,
+  isMe,
   onSaved,
   onCancel,
+  onManage,
+  onToggle,
+  onDelete,
 }: {
   user: AdminUserDto
+  isMe: boolean
   onSaved: (u: AdminUserDto) => void
   onCancel: () => void
+  onManage: () => void
+  onToggle: () => void
+  onDelete: () => void
 }) {
+  const ids = useId()
   const [fullName, setFullName] = useState(user.fullName)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -186,21 +232,69 @@ function EditUserModal({
     }
   }
 
+  const cannotDeactivate = isMe && user.isActive
+
   return (
-    <Modal title={`Editar usuario — ${user.email}`} onClose={onCancel}>
-      {error && <div className="alert err">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <label className="form-full">
-            Nombre completo *
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoFocus />
-          </label>
+    <Modal title="Editar usuario" onClose={onCancel}>
+      <p className="admin-hint">{user.email}</p>
+      {error && (
+        <div className="alert err" role="alert">
+          {error}
         </div>
+      )}
+      <form onSubmit={handleSubmit} className="admin-form">
+        <div className="field">
+          <label htmlFor={`${ids}-name`}>Nombre completo *</label>
+          <input
+            id={`${ids}-name`}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+
+        <button type="button" className="btn btn--secondary btn--block" onClick={onManage} disabled={saving}>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            badge
+          </span>
+          Gestionar perfiles (tenant · rol)
+        </button>
+
+        <div className="admin-danger-zone">
+          <h3>Acceso</h3>
+          <p>
+            La cuenta está <strong>{user.isActive ? 'activa' : 'inactiva'}</strong>.
+            {cannotDeactivate ? ' No puedes desactivar tu propia cuenta.' : ''}
+          </p>
+          <div className="admin-danger-actions">
+            <button
+              type="button"
+              className={user.isActive ? 'btn btn-danger-soft' : 'btn btn--secondary'}
+              onClick={onToggle}
+              disabled={saving || cannotDeactivate}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                {user.isActive ? 'block' : 'check_circle'}
+              </span>
+              {user.isActive ? 'Desactivar usuario' : 'Activar usuario'}
+            </button>
+            {!isMe && (
+              <button type="button" className="btn btn-danger-soft" onClick={onDelete} disabled={saving}>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  delete
+                </span>
+                Eliminar usuario
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={saving}>
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn--primary" disabled={saving} aria-busy={saving || undefined}>
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </div>
@@ -259,8 +353,8 @@ function MembershipsModal({
   const [tenantId, setTenantId] = useState('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
-  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<MembershipDto | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -298,42 +392,49 @@ function MembershipsModal({
     }
   }
 
-  const handleRemove = async (m: MembershipDto) => {
-    setRemovingId(m.id)
+  const handleRemove = async () => {
+    if (!confirming) return
+    const m = confirming
+    setRemoving(true)
     try {
       await adminApi.removeMembership(user.id, m.id)
       toast.success(`Perfil quitado: ${membershipLabel(m)}`)
-      setConfirmId(null)
+      setConfirming(null)
       onChanged()
       await load()
     } catch (err) {
       toast.error(getErrorMessage(err))
-      setConfirmId(null)
+      setConfirming(null)
     } finally {
-      setRemovingId(null)
+      setRemoving(false)
     }
   }
 
   const isLast = memberships.length <= 1
 
   return (
+    <>
     <Modal title={`Perfiles de ${user.fullName}`} onClose={onClose} className="modal-wide">
-      <p className="text-muted">
+      <p className="admin-hint">
         {user.email} · Los cambios se aplican en el próximo inicio de sesión o renovación de token del usuario.
       </p>
 
-      <h3 className="fieldset-title">Membresías actuales</h3>
+      <h3 className="admin-section-title">Membresías actuales</h3>
       {loading && memberships.length === 0 ? (
-        <p>Cargando...</p>
+        <StateView state="loading" compact title="Cargando perfiles..." />
       ) : loadError ? (
-        <div className="alert err">
-          {loadError}{' '}
-          <button type="button" className="btn-ghost" onClick={load}>
-            Reintentar
-          </button>
-        </div>
+        <StateView
+          state="error"
+          compact
+          message={loadError}
+          action={
+            <button type="button" className="btn btn--ghost" onClick={load}>
+              Reintentar
+            </button>
+          }
+        />
       ) : memberships.length === 0 ? (
-        <p className="empty-state">Sin membresías.</p>
+        <StateView state="empty" compact icon="badge" title="Sin membresías" />
       ) : (
         <ul className="membership-admin-list">
           {sortMemberships(memberships).map((m) => {
@@ -356,61 +457,59 @@ function MembershipsModal({
                     {m.lastUsedAt ? ` · último uso ${fmtDate(m.lastUsedAt)}` : ''}
                   </span>
                 </span>
-                {confirmId === m.id ? (
-                  <span className="membership-admin-confirm" role="group" aria-label="Confirmar quitar perfil">
-                    <span>¿Quitar este perfil?</span>
-                    <button type="button" className="btn-ghost" onClick={() => setConfirmId(null)} disabled={removingId !== null}>
-                      Cancelar
-                    </button>
-                    <button type="button" className="btn-danger" onClick={() => handleRemove(m)} disabled={removingId !== null}>
-                      {removingId === m.id ? 'Quitando...' : 'Quitar'}
-                    </button>
+                <button
+                  type="button"
+                  className="btn btn--icon admin-icon-danger"
+                  onClick={() => setConfirming(m)}
+                  disabled={!!blockReason || removing}
+                  title={blockReason ?? 'Quitar perfil'}
+                  aria-label={`Quitar perfil ${membershipLabel(m)}`}
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    remove_circle
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-danger-soft btn-icon-danger"
-                    onClick={() => setConfirmId(m.id)}
-                    disabled={!!blockReason}
-                    title={blockReason ?? 'Quitar perfil'}
-                    aria-label={`Quitar perfil ${membershipLabel(m)}`}
-                  >
-                    <span className="material-symbols-outlined" aria-hidden="true">
-                      remove_circle
-                    </span>
-                  </button>
-                )}
+                </button>
               </li>
             )
           })}
         </ul>
       )}
 
-      <h3 className="fieldset-title">Agregar perfil</h3>
-      {addError && <div className="alert err">{addError}</div>}
-      <form onSubmit={handleAdd}>
-        <div className="form-grid">
-          <RoleTenantFields
-            role={role}
-            tenantId={tenantId}
-            tenants={tenants}
-            onRole={setRole}
-            onTenant={setTenantId}
-          />
+      <h3 className="admin-section-title">Agregar perfil</h3>
+      {addError && (
+        <div className="alert err" role="alert">
+          {addError}
         </div>
-        {role === 'Patient' && (
-          <p className="text-muted admin-sub">Se creará su ficha de paciente en el tenant si no existe.</p>
-        )}
+      )}
+      <form onSubmit={handleAdd} className="admin-form">
+        <div className="admin-form-grid admin-form-grid--2">
+          <RoleTenantFields role={role} tenantId={tenantId} tenants={tenants} onRole={setRole} onTenant={setTenantId} />
+        </div>
+        {role === 'Patient' && <p className="field-hint">Se creará su ficha de paciente en el tenant si no existe.</p>}
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
             Cerrar
           </button>
-          <button type="submit" className="btn-primary" disabled={adding}>
+          <button type="submit" className="btn btn--primary" disabled={adding} aria-busy={adding || undefined}>
             {adding ? 'Agregando...' : 'Agregar perfil'}
           </button>
         </div>
       </form>
     </Modal>
+
+    {/* Hermano (no hijo) del modal de perfiles: la pila de Modal gestiona Esc y foco. */}
+    {confirming && (
+      <ConfirmModal
+        title="Quitar perfil"
+        message={`¿Quitar el perfil ${membershipLabel(confirming)} de ${user.fullName}?`}
+        confirmLabel="Quitar"
+        danger
+        busy={removing}
+        onConfirm={handleRemove}
+        onCancel={() => setConfirming(null)}
+      />
+    )}
+    </>
   )
 }
 
@@ -426,7 +525,6 @@ export default function AdminUsers() {
   const [tenants, setTenants] = useState<TenantDto[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [message, setMessage] = useState<Msg>(null)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<AdminUserDto | null>(null)
   const [managing, setManaging] = useState<AdminUserDto | null>(null)
@@ -473,31 +571,35 @@ export default function AdminUsers() {
     adminApi
       .tenants()
       .then(setTenants)
-      .catch((err) => setMessage({ type: 'err', text: `No se pudieron cargar los tenants: ${getErrorMessage(err)}` }))
-  }, [])
+      .catch((err) => toast.error(`No se pudieron cargar los tenants: ${getErrorMessage(err)}`))
+  }, [toast])
+
+  // Búsqueda inmediata (sin botón "Buscar"): se aplica tras una pausa al escribir.
+  useEffect(() => {
+    const q = search.trim()
+    if (q === appliedSearch) return
+    const timer = setTimeout(() => {
+      setPage(1)
+      setAppliedSearch(q)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [search, appliedSearch])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setPage(1)
-    setAppliedSearch(search.trim())
-  }
-
   const afterSave = (text: string) => {
-    setMessage({ type: 'ok', text })
+    toast.success(text)
     load()
   }
 
   const confirmToggle = async () => {
     if (!toggling) return
     setToggleBusy(true)
-    setMessage(null)
     try {
       await adminApi.updateUser(toggling.id, { fullName: toggling.fullName, isActive: !toggling.isActive })
       afterSave(toggling.isActive ? `Usuario ${toggling.email} desactivado.` : `Usuario ${toggling.email} activado.`)
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
     } finally {
       setToggling(null)
       setToggleBusy(false)
@@ -510,7 +612,6 @@ export default function AdminUsers() {
       await adminApi.deleteUser(deleting.id)
       toast.success('Usuario eliminado')
       setDeleting(null)
-      setMessage(null)
       // Si se borró el último elemento de la página, retrocede una página.
       if (users.length === 1 && page > 1) setPage((p) => p - 1)
       else load()
@@ -522,28 +623,33 @@ export default function AdminUsers() {
 
   return (
     <div className="page admin-page">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+      <PageHeader
+        title="Usuarios"
+        subtitle={loading && total === 0 ? 'Cuentas de la plataforma' : `${total} usuario(s) en la plataforma`}
+        actions={
+          <button type="button" className="btn btn--primary" onClick={() => setCreating(true)}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              person_add
+            </span>
+            Crear usuario
+          </button>
+        }
+      />
 
       <section className="card">
-        <div className="admin-head">
-          <h2>Usuarios ({total})</h2>
-          <button
-            type="button"
-            className="btn-primary"
-            style={{ width: 'auto' }}
-            onClick={() => setCreating(true)}
-          >
-            + Crear usuario
-          </button>
-        </div>
-
-        <form onSubmit={handleSearch} className="search-bar admin-filters">
-          <input
-            placeholder="Buscar por nombre o email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Buscar usuarios"
-          />
+        <div className="admin-filters admin-filters--3" role="search">
+          <div className="admin-search">
+            <span className="material-symbols-outlined" aria-hidden="true">
+              search
+            </span>
+            <input
+              type="search"
+              placeholder="Buscar por nombre o email"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Buscar usuarios"
+            />
+          </div>
           <select
             value={tenantFilter}
             onChange={(e) => {
@@ -574,33 +680,35 @@ export default function AdminUsers() {
               </option>
             ))}
           </select>
-          <button type="submit" className="btn-primary">
-            Buscar
-          </button>
-        </form>
+        </div>
 
         {loading ? (
-          <p>Cargando...</p>
+          <StateView state="loading" compact title="Cargando usuarios..." />
         ) : loadError ? (
-          <>
-            <div className="alert err">{loadError}</div>
-            <button type="button" className="btn-ghost" onClick={load}>
-              Reintentar
-            </button>
-          </>
+          <StateView
+            state="error"
+            compact
+            message={loadError}
+            action={
+              <button type="button" className="btn btn--ghost" onClick={load}>
+                Reintentar
+              </button>
+            }
+          />
         ) : users.length === 0 ? (
-          <p className="empty-state">No se encontraron usuarios.</p>
+          <StateView state="empty" compact icon="person_search" title="No se encontraron usuarios" />
         ) : (
-          <div className="table-scroll">
-            <table className="table">
+          <div className="table-scroll table-scroll--sticky-first">
+            <table className="table table--stack admin-table">
               <thead>
                 <tr>
-                  <th>Nombre</th>
-                  <th>Email</th>
+                  <th>Usuario</th>
                   <th>Perfiles (tenant · rol)</th>
                   <th>Estado</th>
                   <th>Último acceso</th>
-                  <th>Acciones</th>
+                  <th>
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -608,60 +716,51 @@ export default function AdminUsers() {
                   const isMe = me?.id === u.id
                   return (
                     <tr key={u.id}>
-                      <td>
-                        {u.fullName}
-                        {isMe && <span className="text-muted"> (tú)</span>}
+                      <td className="admin-cell-title">
+                        <span className="admin-person">
+                          <Avatar id={u.id} name={u.fullName} />
+                          <span className="admin-person-text">
+                            <strong>{u.fullName}</strong>
+                            {isMe && <span className="text-muted"> (tú)</span>}
+                            <span className="admin-sub">{u.email}</span>
+                          </span>
+                        </span>
                       </td>
-                      <td>{u.email}</td>
-                      <td>
+                      <td data-label="Perfiles">
                         <MembershipChips user={u} onOpen={() => setManaging(u)} />
                       </td>
-                      <td>
-                        <span className={`badge ${u.isActive ? '' : 'badge-inactive'}`}>
+                      <td data-label="Estado">
+                        <span className={`badge ${u.isActive ? 'badge--success' : 'badge--neutral'}`}>
                           {u.isActive ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td>{fmtDate(u.lastLoginAt)}</td>
-                      <td>
+                      <td data-label="Último acceso" className="admin-nowrap">
+                        {fmtDate(u.lastLoginAt)}
+                      </td>
+                      <td className="admin-cell-actions">
                         <div className="admin-actions">
                           <button
                             type="button"
-                            className="btn-ghost"
-                            onClick={() => setEditing(u)}
-                            aria-label={`Editar ${u.fullName}`}
-                            title="Editar"
-                          >
-                            <span className="material-symbols-outlined">edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-ghost"
+                            className="btn btn--icon"
                             onClick={() => setManaging(u)}
                             aria-label={`Gestionar perfiles de ${u.fullName}`}
                             title="Gestionar perfiles (membresías)"
                           >
-                            <span className="material-symbols-outlined">badge</span>
+                            <span className="material-symbols-outlined" aria-hidden="true">
+                              badge
+                            </span>
                           </button>
                           <button
                             type="button"
-                            className={u.isActive ? 'btn-danger-soft' : 'btn-ghost'}
-                            onClick={() => setToggling(u)}
-                            disabled={isMe && u.isActive}
-                            title={isMe && u.isActive ? 'No puedes desactivarte a ti mismo' : undefined}
+                            className="btn btn--icon"
+                            onClick={() => setEditing(u)}
+                            aria-label={`Editar ${u.fullName}`}
+                            title="Editar, activar/desactivar o eliminar"
                           >
-                            {u.isActive ? 'Desactivar' : 'Activar'}
+                            <span className="material-symbols-outlined" aria-hidden="true">
+                              edit
+                            </span>
                           </button>
-                          {!isMe && (
-                            <button
-                              type="button"
-                              className="btn-danger-soft btn-icon-danger"
-                              onClick={() => setDeleting(u)}
-                              aria-label={`Eliminar ${u.fullName}`}
-                              title="Eliminar"
-                            >
-                              <span className="material-symbols-outlined">delete</span>
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -673,10 +772,10 @@ export default function AdminUsers() {
         )}
 
         {totalPages > 1 && (
-          <div className="pagination">
+          <nav className="pagination" aria-label="Paginación de usuarios">
             <button
               type="button"
-              className="btn-ghost"
+              className="btn btn--ghost"
               disabled={page <= 1 || loading}
               onClick={() => setPage((p) => p - 1)}
             >
@@ -687,13 +786,13 @@ export default function AdminUsers() {
             </span>
             <button
               type="button"
-              className="btn-ghost"
+              className="btn btn--ghost"
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => p + 1)}
             >
               Siguiente
             </button>
-          </div>
+          </nav>
         )}
       </section>
 
@@ -711,10 +810,23 @@ export default function AdminUsers() {
       {editing && (
         <EditUserModal
           user={editing}
+          isMe={me?.id === editing.id}
           onCancel={() => setEditing(null)}
           onSaved={(u) => {
             setEditing(null)
             afterSave(`Usuario ${u.email} actualizado.`)
+          }}
+          onManage={() => {
+            setEditing(null)
+            setManaging(editing)
+          }}
+          onToggle={() => {
+            setEditing(null)
+            setToggling(editing)
+          }}
+          onDelete={() => {
+            setEditing(null)
+            setDeleting(editing)
           }}
         />
       )}

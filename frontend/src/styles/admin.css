@@ -1,0 +1,637 @@
+/* admin.css — Panel SuperAdmin, usuarios del centro y configuración (F3-4).
+   Solo tokens (sin hex/rgba ni font-size literales). Foco: --color-focus. */
+
+/* Alias legado: botón secundario (usar .btn.btn--secondary en código nuevo). */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: var(--control-h);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.btn-secondary:hover {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+/* ==========================================================================
+   Página admin: contenedor, filtros, tablas
+   ========================================================================== */
+.admin-page {
+  max-width: 1200px;
+}
+
+.admin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.admin-head h2 {
+  margin: 0;
+}
+
+.admin-head .row-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+
+.admin-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.admin-filters input,
+.admin-filters select {
+  margin-bottom: 0;
+}
+
+.admin-search {
+  position: relative;
+}
+
+.admin-search .material-symbols-outlined {
+  position: absolute;
+  left: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-subtle);
+  font-size: var(--fs-xl);
+  pointer-events: none;
+}
+
+.admin-search input {
+  padding-left: calc(var(--sp-3) + var(--fs-xl) + var(--sp-2));
+}
+
+@media (min-width: 641px) {
+  .admin-filters--3 {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.admin-count {
+  margin: 0 0 var(--sp-3);
+  color: var(--color-muted);
+  font-size: var(--fs-sm);
+}
+
+.admin-sub {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.admin-hint {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.admin-nowrap {
+  white-space: nowrap;
+}
+
+/* Acciones por fila: botones de icono con tooltip nativo. */
+.admin-actions {
+  display: flex;
+  gap: var(--sp-1);
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-actions .btn--icon {
+  color: var(--color-text-2);
+}
+
+.admin-actions .btn--icon:focus-visible,
+.admin-icon-danger:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn--icon.admin-icon-danger {
+  color: var(--color-danger);
+}
+
+.btn--icon.admin-icon-danger:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.admin-table .admin-cell-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.admin-warn-icon {
+  margin-left: var(--sp-1);
+  vertical-align: middle;
+  font-size: var(--fs-lg);
+  color: var(--color-warning);
+  cursor: help;
+}
+
+/* Tabla apilada en móvil: la primera celda es el título de la tarjeta. */
+@media (max-width: 640px) {
+  .admin-table.table--stack td.admin-cell-title {
+    display: block;
+    text-align: left;
+    font-size: var(--fs-md);
+  }
+
+  .admin-table.table--stack td.admin-cell-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .admin-table.table--stack td.admin-cell-actions::before {
+    content: none;
+  }
+
+  .admin-table.table--stack td select {
+    max-width: 60%;
+  }
+
+  /* Chips de perfiles: pueden ajustarse en la tarjeta en vez de salirse. */
+  .admin-table.table--stack .membership-chips {
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .admin-table.table--stack .membership-chip {
+    white-space: normal;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  /* En la tarjeta no hace falta fijar la primera columna. */
+  .table-scroll--sticky-first .admin-table.table--stack td:first-child {
+    position: static;
+  }
+}
+
+/* ==========================================================================
+   Formularios en hojas/modales
+   ========================================================================== */
+.admin-form .field:last-of-type {
+  margin-bottom: 0;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+}
+
+@media (min-width: 641px) {
+  .admin-form-grid--2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .admin-form-grid .admin-form-full {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-note {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-size: var(--fs-sm);
+}
+
+.admin-note .material-symbols-outlined {
+  font-size: var(--fs-lg);
+}
+
+/* Zona de acciones de estado/borrado dentro del editor. */
+.admin-danger-zone {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-danger-zone h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text-2);
+}
+
+.admin-danger-zone p {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.admin-danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+  .admin-danger-actions > * {
+    flex: 1 1 100%;
+  }
+}
+
+.admin-section-title {
+  margin: var(--sp-5) 0 var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-primary-text);
+}
+
+.admin-section-title:first-child {
+  margin-top: 0;
+}
+
+/* ==========================================================================
+   Dashboard de plataforma
+   ========================================================================== */
+/* KPIs con icon-chip y delta (MV-1). Colores de .icon-chip/.delta: G2a. */
+.admin-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-6);
+}
+
+@media (min-width: 1025px) {
+  .admin-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+}
+
+.admin-kpis > .kpi {
+  min-width: 0;
+  margin: 0;
+  align-content: start;
+}
+
+.admin-kpis .kpi-top {
+  flex-wrap: wrap;
+}
+
+.admin-kpis .kpi-label {
+  overflow-wrap: anywhere;
+}
+
+/* Persona/tenant con avatar (.avatar.av-N de G2a). */
+.admin-person {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.admin-person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-person-text .admin-sub {
+  margin-top: 0;
+}
+
+.admin-chart svg {
+  width: 100%;
+  max-height: 240px;
+  display: block;
+}
+
+.admin-legend {
+  display: flex;
+  gap: var(--sp-4);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: var(--sp-2) 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.admin-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.admin-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.admin-swatch--users {
+  background: var(--chart-1);
+}
+
+.admin-swatch--tenants {
+  background: var(--chart-2);
+}
+
+.admin-swatch--patients {
+  background: var(--chart-3);
+}
+
+.admin-hbars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.admin-hbars li {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.admin-hbars strong {
+  text-align: right;
+}
+
+.admin-hbar-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Las tarjetas del dashboard no deben crecer por el ancho mínimo de sus tablas (UX-14). */
+.admin-grid > *,
+.admin-page > .card {
+  min-width: 0;
+}
+
+.admin-hbar-track {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-subtle);
+  overflow: hidden;
+}
+
+.admin-hbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--gradient-brand);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+@media (max-width: 768px) {
+  .admin-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-hbars li {
+    grid-template-columns: minmax(0, 100px) minmax(0, 1fr) auto;
+  }
+}
+
+/* ==========================================================================
+   Checkbox con etiqueta
+   ========================================================================== */
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-min);
+  font-size: var(--fs-sm);
+}
+
+.admin-check input {
+  width: auto;
+  margin: 0;
+}
+
+/* ==========================================================================
+   Membresías (chips en tabla y gestión en hoja)
+   ========================================================================== */
+.membership-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: inherit;
+  gap: var(--sp-1);
+}
+
+.membership-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-primary-subtle);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.membership-chip .material-symbols-outlined {
+  font-size: var(--fs-sm);
+  color: var(--color-primary-text);
+}
+
+.membership-chip.inactive {
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+}
+
+.membership-chip.more {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  width: auto;
+  min-height: 0;
+}
+
+.membership-chip.more:hover {
+  border-color: var(--color-primary);
+}
+
+.membership-admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.membership-admin-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.membership-admin-list li:last-child {
+  border-bottom: none;
+}
+
+.membership-admin-list li > .material-symbols-outlined {
+  color: var(--color-primary-text);
+}
+
+.membership-admin-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.membership-admin-body .text-muted {
+  font-size: var(--fs-xs);
+}
+
+/* ==========================================================================
+   Usuarios del centro: formulario de invitación
+   ========================================================================== */
+.invite-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--sp-3);
+  align-items: end;
+}
+
+.invite-form .field {
+  margin-bottom: var(--sp-3);
+}
+
+@media (min-width: 641px) {
+  .invite-form {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+
+  .invite-form .btn {
+    margin-bottom: var(--sp-3);
+  }
+}
+
+/* ==========================================================================
+   Configuración
+   ========================================================================== */
+.settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: var(--touch-min);
+  padding: var(--sp-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.settings-item {
+  box-shadow: var(--shadow-1);
+  transition: box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+a.settings-item:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-3);
+  transform: translateY(-3px);
+}
+
+a.settings-item:active {
+  transform: scale(0.995);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.settings-item:hover,
+  a.settings-item:active {
+    transform: none;
+  }
+}
+
+a.settings-item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.settings-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius-md);
+  background: var(--gradient-soft);
+  color: var(--color-primary-text);
+}
+
+.settings-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.settings-item-body strong {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.settings-item-body span {
+  font-size: var(--fs-sm);
+  color: var(--color-muted);
+}
+
+.settings-item-end {
+  flex-shrink: 0;
+  color: var(--color-subtle);
+}

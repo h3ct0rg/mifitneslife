@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyFitnessLife.Domain.Entities;
 
 namespace MyFitnessLife.Infrastructure.Data;
@@ -31,6 +32,42 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
     public DbSet<WorkoutExercise> WorkoutExercises => Set<WorkoutExercise>();
     public DbSet<PatientPhoto> PatientPhotos => Set<PatientPhoto>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    /// <summary>
+    /// Columnas que guardan INSTANTES UTC (se llenan con DateTime.UtcNow). Al leer se marcan
+    /// DateTimeKind.Utc para que se serialicen con "Z" (N2 zona horaria). Las columnas de HORA DE
+    /// RELOJ (Appointment.StartAt/EndAt, Measurement.VisitDate, PatientPhoto.TakenAt,
+    /// Diet.StartDate/EndDate) NO están aquí y siguen saliendo sin zona. Sin cambio de esquema.
+    /// </summary>
+    private static readonly HashSet<string> UtcDateTimeProperties = new(StringComparer.Ordinal)
+    {
+        "CreatedAt", "UpdatedAt", "LastLoginAt", "LastUsedAt", "Timestamp", "AssignedAt",
+        "ExpiresAt", "AcceptedAt", "SentAt", "UsedAt", "NextAttemptAt", "RefreshTokenExpiryTime"
+    };
+
+    private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
+        v => v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : v,
+        v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcConverter = new(
+        v => v.HasValue && v.Value.Kind == DateTimeKind.Local ? v.Value.ToUniversalTime() : v,
+        v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+    private static void ApplyUtcConverters(ModelBuilder builder)
+    {
+        foreach (var entity in builder.Model.GetEntityTypes())
+        {
+            foreach (var property in entity.GetProperties())
+            {
+                if (!UtcDateTimeProperties.Contains(property.Name))
+                    continue;
+                if (property.ClrType == typeof(DateTime))
+                    property.SetValueConverter(UtcConverter);
+                else if (property.ClrType == typeof(DateTime?))
+                    property.SetValueConverter(NullableUtcConverter);
+            }
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -297,5 +334,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, 
                 .HasForeignKey(p => p.PatientId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // Al final, cuando ya existen todas las entidades (incluidas las de Identity).
+        ApplyUtcConverters(builder);
     }
 }

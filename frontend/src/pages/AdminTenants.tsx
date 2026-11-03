@@ -1,20 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { adminApi } from '../api'
 import { getErrorMessage } from '../api/client'
 import type { TenantActivityDto, TenantDto } from '../api/types'
 import Modal, { ConfirmModal, DeleteConfirmModal } from '../components/Modal'
+import PageHeader from '../components/ui/PageHeader'
+import StateView from '../components/ui/StateView'
 import { useToast } from '../context/toastContext'
-
-type Msg = { type: 'ok' | 'err'; text: string } | null
 
 interface TenantFormValues {
   name: string
   slug: string
   description: string
-  isActive: boolean
 }
 
-const fmtDate = (iso?: string | null, withTime = false) =>
+/** Avatar con gradiente (MV-1 §8): índice 1..6 estable por id, iniciales del nombre. */
+function Avatar({ id, name }: { id: string; name: string }) {
+  let h = 0
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '?'
+  return (
+    <span className={`avatar av-${(Math.abs(h) % 6) + 1}`} aria-hidden="true">
+      {initials}
+    </span>
+  )
+}
+
+const fmtDate =(iso?: string | null, withTime = false) =>
   iso
     ? new Date(iso).toLocaleString('es-ES', {
         day: '2-digit',
@@ -24,20 +35,25 @@ const fmtDate = (iso?: string | null, withTime = false) =>
       })
     : '—'
 
+/** Hoja de crear/editar tenant. En edición incluye activar/desactivar y eliminar. */
 function TenantForm({
   tenant,
   onSaved,
   onCancel,
+  onToggle,
+  onDelete,
 }: {
   tenant: TenantDto | null
   onSaved: (t: TenantDto) => void
   onCancel: () => void
+  onToggle: (t: TenantDto) => void
+  onDelete: (t: TenantDto) => void
 }) {
+  const ids = useId()
   const [values, setValues] = useState<TenantFormValues>({
     name: tenant?.name ?? '',
     slug: tenant?.slug ?? '',
     description: tenant?.description ?? '',
-    isActive: tenant?.isActive ?? true,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +68,7 @@ function TenantForm({
         ? await adminApi.updateTenant(tenant.id, {
             name: values.name.trim(),
             description,
-            isActive: values.isActive,
+            isActive: tenant.isActive,
           })
         : await adminApi.createTenant({
             name: values.name.trim(),
@@ -69,51 +85,82 @@ function TenantForm({
 
   return (
     <Modal title={tenant ? 'Editar tenant' : 'Crear tenant'} onClose={onCancel}>
-      {error && <div className="alert err">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <label className="form-full">
-            Nombre *
-            <input
-              value={values.name}
-              onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
-              required
-              autoFocus
-            />
-          </label>
-          <label className="form-full">
-            Slug {tenant ? '' : '(opcional, se genera si se deja vacío)'}
-            <input
-              value={values.slug}
-              onChange={(e) => setValues((v) => ({ ...v, slug: e.target.value }))}
-              disabled={!!tenant}
-              placeholder="mi-clinica"
-            />
-          </label>
-          <label className="form-full">
-            Descripción
-            <textarea
-              rows={3}
-              value={values.description}
-              onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-            />
-          </label>
-          {tenant && (
-            <label className="form-full admin-check">
-              <input
-                type="checkbox"
-                checked={values.isActive}
-                onChange={(e) => setValues((v) => ({ ...v, isActive: e.target.checked }))}
-              />
-              Activo
-            </label>
+      {error && (
+        <div className="alert err" role="alert">
+          {error}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="admin-form">
+        <div className="field">
+          <label htmlFor={`${ids}-name`}>Nombre *</label>
+          <input
+            id={`${ids}-name`}
+            value={values.name}
+            onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+            required
+            autoFocus
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}-slug`}>Slug</label>
+          <input
+            id={`${ids}-slug`}
+            value={values.slug}
+            onChange={(e) => setValues((v) => ({ ...v, slug: e.target.value }))}
+            disabled={!!tenant}
+            placeholder="mi-clinica"
+            aria-describedby={tenant ? undefined : `${ids}-slug-hint`}
+            autoCapitalize="none"
+          />
+          {!tenant && (
+            <p className="field-hint" id={`${ids}-slug-hint`}>
+              Opcional: se genera a partir del nombre si lo dejas vacío.
+            </p>
           )}
         </div>
+        <div className="field">
+          <label htmlFor={`${ids}-desc`}>Descripción</label>
+          <textarea
+            id={`${ids}-desc`}
+            rows={3}
+            value={values.description}
+            onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+          />
+        </div>
+
+        {tenant && (
+          <div className="admin-danger-zone">
+            <h3>Estado y eliminación</h3>
+            <p>
+              El tenant está <strong>{tenant.isActive ? 'activo' : 'inactivo'}</strong>.
+            </p>
+            <div className="admin-danger-actions">
+              <button
+                type="button"
+                className={tenant.isActive ? 'btn btn-danger-soft' : 'btn btn--secondary'}
+                onClick={() => onToggle(tenant)}
+                disabled={saving}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  {tenant.isActive ? 'block' : 'check_circle'}
+                </span>
+                {tenant.isActive ? 'Desactivar tenant' : 'Activar tenant'}
+              </button>
+              <button type="button" className="btn btn-danger-soft" onClick={() => onDelete(tenant)} disabled={saving}>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  delete
+                </span>
+                Eliminar tenant
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={onCancel} disabled={saving}>
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={saving}>
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn--primary" disabled={saving} aria-busy={saving || undefined}>
             {saving ? 'Guardando...' : tenant ? 'Guardar cambios' : 'Crear tenant'}
           </button>
         </div>
@@ -126,7 +173,6 @@ export default function AdminTenants() {
   const [tenants, setTenants] = useState<TenantDto[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [message, setMessage] = useState<Msg>(null)
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<TenantDto | null | undefined>(undefined)
   const [toggling, setToggling] = useState<TenantDto | null>(null)
@@ -148,20 +194,6 @@ export default function AdminTenants() {
     ]
   }
 
-  const confirmDelete = async () => {
-    if (!deleting) return
-    try {
-      await adminApi.deleteTenant(deleting.id)
-      toast.success('Tenant eliminado')
-      setDeleting(null)
-      setMessage(null)
-      load()
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-      setDeleting(null)
-    }
-  }
-
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
@@ -178,6 +210,19 @@ export default function AdminTenants() {
     load()
   }, [load])
 
+  const confirmDelete = async () => {
+    if (!deleting) return
+    try {
+      await adminApi.deleteTenant(deleting.id)
+      toast.success('Tenant eliminado')
+      setDeleting(null)
+      load()
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+      setDeleting(null)
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return tenants
@@ -192,31 +237,35 @@ export default function AdminTenants() {
   const handleSaved = (saved: TenantDto) => {
     const isEdit = !!editing
     setEditing(undefined)
-    setMessage({
-      type: 'ok',
-      text: isEdit ? `Tenant "${saved.name}" actualizado.` : `Tenant "${saved.name}" creado (slug: ${saved.slug}).`,
-    })
+    toast.success(isEdit ? `Tenant "${saved.name}" actualizado.` : `Tenant "${saved.name}" creado (slug: ${saved.slug}).`)
     load()
+  }
+
+  // Las acciones de estado/borrado se abren desde la hoja de edición: se cierra la hoja y se pide confirmación.
+  const requestToggle = (t: TenantDto) => {
+    setEditing(undefined)
+    setToggling(t)
+  }
+
+  const requestDelete = (t: TenantDto) => {
+    setEditing(undefined)
+    setDeleting(t)
   }
 
   const confirmToggle = async () => {
     if (!toggling) return
     setToggleBusy(true)
-    setMessage(null)
     try {
       await adminApi.updateTenant(toggling.id, {
         name: toggling.name,
         description: toggling.description ?? undefined,
         isActive: !toggling.isActive,
       })
-      setMessage({
-        type: 'ok',
-        text: toggling.isActive ? `Tenant "${toggling.name}" desactivado.` : `Tenant "${toggling.name}" activado.`,
-      })
+      toast.success(toggling.isActive ? `Tenant "${toggling.name}" desactivado.` : `Tenant "${toggling.name}" activado.`)
       setToggling(null)
       load()
     } catch (err) {
-      setMessage({ type: 'err', text: getErrorMessage(err) })
+      toast.error(getErrorMessage(err))
       setToggling(null)
     } finally {
       setToggleBusy(false)
@@ -239,46 +288,58 @@ export default function AdminTenants() {
 
   return (
     <div className="page admin-page">
-      {message && <div className={`alert ${message.type}`}>{message.text}</div>}
+      <PageHeader
+        title="Tenants"
+        subtitle={loading ? 'Centros de la plataforma' : `${tenants.length} centro(s) en la plataforma`}
+        actions={
+          <button type="button" className="btn btn--primary" onClick={() => setEditing(null)}>
+            <span className="material-symbols-outlined" aria-hidden="true">
+              add
+            </span>
+            Crear tenant
+          </button>
+        }
+      />
 
       <section className="card">
-        <div className="admin-head">
-          <h2>Tenants ({tenants.length})</h2>
-          <button
-            type="button"
-            className="btn-primary"
-            style={{ width: 'auto' }}
-            onClick={() => setEditing(null)}
-          >
-            + Crear tenant
-          </button>
-        </div>
-
-        <div className="search-bar admin-filters">
-          <input
-            placeholder="Buscar por nombre, slug o descripción..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Buscar tenants"
-          />
+        <div className="admin-filters">
+          <div className="admin-search">
+            <span className="material-symbols-outlined" aria-hidden="true">
+              search
+            </span>
+            <input
+              type="search"
+              placeholder="Buscar por nombre, slug o descripción"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Buscar tenants"
+            />
+          </div>
         </div>
 
         {loading ? (
-          <p>Cargando...</p>
+          <StateView state="loading" compact title="Cargando tenants..." />
         ) : loadError ? (
-          <>
-            <div className="alert err">{loadError}</div>
-            <button type="button" className="btn-ghost" onClick={load}>
-              Reintentar
-            </button>
-          </>
+          <StateView
+            state="error"
+            compact
+            message={loadError}
+            action={
+              <button type="button" className="btn btn--ghost" onClick={load}>
+                Reintentar
+              </button>
+            }
+          />
         ) : filtered.length === 0 ? (
-          <p className="empty-state">
-            {tenants.length === 0 ? 'Aún no hay tenants.' : 'Ningún tenant coincide con la búsqueda.'}
-          </p>
+          <StateView
+            state="empty"
+            compact
+            icon="domain"
+            title={tenants.length === 0 ? 'Aún no hay tenants' : 'Ningún tenant coincide con la búsqueda'}
+          />
         ) : (
-          <div className="table-scroll">
-            <table className="table">
+          <div className="table-scroll table-scroll--sticky-first">
+            <table className="table table--stack admin-table">
               <thead>
                 <tr>
                   <th>Nombre</th>
@@ -287,60 +348,57 @@ export default function AdminTenants() {
                   <th>Usuarios</th>
                   <th>Pacientes</th>
                   <th>Creado</th>
-                  <th>Acciones</th>
+                  <th>
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((t) => (
                   <tr key={t.id}>
-                    <td>
-                      <strong>{t.name}</strong>
-                      {t.description && <div className="text-muted admin-sub">{t.description}</div>}
+                    <td className="admin-cell-title">
+                      <span className="admin-person">
+                        <Avatar id={t.id} name={t.name} />
+                        <span className="admin-person-text">
+                          <strong>{t.name}</strong>
+                          {t.description && <span className="admin-sub">{t.description}</span>}
+                        </span>
+                      </span>
                     </td>
-                    <td>{t.slug}</td>
-                    <td>
-                      <span className={`badge ${t.isActive ? '' : 'badge-inactive'}`}>
+                    <td data-label="Slug">{t.slug}</td>
+                    <td data-label="Estado">
+                      <span className={`badge ${t.isActive ? 'badge--success' : 'badge--neutral'}`}>
                         {t.isActive ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
-                    <td>{t.userCount}</td>
-                    <td>{t.patientCount ?? 0}</td>
-                    <td>{fmtDate(t.createdAt)}</td>
-                    <td>
+                    <td data-label="Usuarios">{t.userCount}</td>
+                    <td data-label="Pacientes">{t.patientCount ?? 0}</td>
+                    <td data-label="Creado" className="admin-nowrap">
+                      {fmtDate(t.createdAt)}
+                    </td>
+                    <td className="admin-cell-actions">
                       <div className="admin-actions">
                         <button
                           type="button"
-                          className="btn-ghost"
-                          onClick={() => setEditing(t)}
-                          aria-label={`Editar ${t.name}`}
-                          title="Editar"
-                        >
-                          <span className="material-symbols-outlined">edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
+                          className="btn btn--icon"
                           onClick={() => openActivity(t)}
                           aria-label={`Ver actividad de ${t.name}`}
                           title="Ver actividad"
                         >
-                          <span className="material-symbols-outlined">history</span>
+                          <span className="material-symbols-outlined" aria-hidden="true">
+                            history
+                          </span>
                         </button>
                         <button
                           type="button"
-                          className={t.isActive ? 'btn-danger-soft' : 'btn-ghost'}
-                          onClick={() => setToggling(t)}
+                          className="btn btn--icon"
+                          onClick={() => setEditing(t)}
+                          aria-label={`Editar ${t.name}`}
+                          title="Editar, activar/desactivar o eliminar"
                         >
-                          {t.isActive ? 'Desactivar' : 'Activar'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-danger-soft btn-icon-danger"
-                          onClick={() => setDeleting(t)}
-                          aria-label={`Eliminar ${t.name}`}
-                          title="Eliminar"
-                        >
-                          <span className="material-symbols-outlined">delete</span>
+                          <span className="material-symbols-outlined" aria-hidden="true">
+                            edit
+                          </span>
                         </button>
                       </div>
                     </td>
@@ -353,7 +411,13 @@ export default function AdminTenants() {
       </section>
 
       {editing !== undefined && (
-        <TenantForm tenant={editing} onSaved={handleSaved} onCancel={() => setEditing(undefined)} />
+        <TenantForm
+          tenant={editing}
+          onSaved={handleSaved}
+          onCancel={() => setEditing(undefined)}
+          onToggle={requestToggle}
+          onDelete={requestDelete}
+        />
       )}
 
       {toggling && (
@@ -389,20 +453,25 @@ export default function AdminTenants() {
           title={`Actividad — ${activityFor.name}`}
           onClose={() => setActivityFor(null)}
           className="modal-wide"
+          footer={
+            <button type="button" className="btn btn--ghost" onClick={() => setActivityFor(null)}>
+              Cerrar
+            </button>
+          }
         >
-          <p className="text-muted">
+          <p className="admin-hint">
             {activityFor.userCount} usuario(s) · {activityFor.patientCount ?? 0} paciente(s) · última actividad{' '}
             {fmtDate(activityFor.lastActivityAt, true)}
           </p>
           {activityLoading ? (
-            <p>Cargando...</p>
+            <StateView state="loading" compact title="Cargando actividad..." />
           ) : activityError ? (
-            <div className="alert err">{activityError}</div>
+            <StateView state="error" compact message={activityError} />
           ) : activity.length === 0 ? (
-            <p className="empty-state">Sin actividad registrada.</p>
+            <StateView state="empty" compact icon="history" title="Sin actividad registrada" />
           ) : (
             <div className="table-scroll">
-              <table className="table">
+              <table className="table table--stack admin-table">
                 <thead>
                   <tr>
                     <th>Fecha</th>
@@ -414,21 +483,16 @@ export default function AdminTenants() {
                 <tbody>
                   {activity.map((a, i) => (
                     <tr key={`${a.timestamp}-${i}`}>
-                      <td>{fmtDate(a.timestamp, true)}</td>
-                      <td>{a.action}</td>
-                      <td>{a.entity}</td>
-                      <td>{a.userEmail || '—'}</td>
+                      <td className="admin-cell-title">{fmtDate(a.timestamp, true)}</td>
+                      <td data-label="Acción">{a.action}</td>
+                      <td data-label="Entidad">{a.entity}</td>
+                      <td data-label="Usuario">{a.userEmail || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={() => setActivityFor(null)}>
-              Cerrar
-            </button>
-          </div>
         </Modal>
       )}
     </div>

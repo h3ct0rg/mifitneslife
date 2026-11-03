@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { DashboardMonthDto } from '../api/types'
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -8,7 +9,7 @@ function monthShort(ym: string): string {
   return name ? `${name} ${y?.slice(2) ?? ''}`.trim() : ym
 }
 
-/** Paleta categórica validada (CVD) — orden fijo; colores en index.css (--mgmt-*). */
+/** Series en orden fijo; colores por tema (--chart-1..4, MV-2) en clinical.css. */
 const STACK = [
   { key: 'completed', label: 'Completadas', cls: 'mgmt-completed' },
   { key: 'cancelled', label: 'Canceladas', cls: 'mgmt-cancelled' },
@@ -32,6 +33,19 @@ export default function ManagementChart({ data }: { data: DashboardMonthDto[] })
     Math.max(0, ...data.map((d) => Math.max(d.completed + d.cancelled + d.noShow, d.newPatients))),
   )
   const ticks = [max, max / 2, 0]
+  // useId puede contener «» o ':'; se limpia para usarlo en url(#…).
+  const gradId = `mgmt-grad-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  // Línea + área de "nuevos pacientes" (MV-1: trazo de 3px, relleno degradado .32→0).
+  // Coordenadas 0..100 sobre el área; x = centro de cada columna.
+  const pts = data.map((d, i) => ({
+    x: ((i + 0.5) / Math.max(1, data.length)) * 100,
+    y: 100 - (d.newPatients / max) * 100,
+  }))
+  const line = pts.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(' ')
+  const area = pts.length
+    ? `${line} L${pts[pts.length - 1].x.toFixed(2)},100 L${pts[0].x.toFixed(2)},100 Z`
+    : ''
 
   return (
     <figure className="mgmt-chart">
@@ -58,6 +72,18 @@ export default function ManagementChart({ data }: { data: DashboardMonthDto[] })
               <span key={t} />
             ))}
           </div>
+          {pts.length > 1 && (
+            <svg className="mgmt-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" className="mgmt-grad-start" />
+                  <stop offset="100%" className="mgmt-grad-end" />
+                </linearGradient>
+              </defs>
+              <path d={area} fill={`url(#${gradId})`} />
+              <path d={line} className="mgmt-line-path" vectorEffect="non-scaling-stroke" />
+            </svg>
+          )}
           <ul className="mgmt-cols">
             {data.map((d) => {
               const label = `${monthShort(d.month)}: ${d.completed} completadas, ${d.cancelled} canceladas, ${d.noShow} no asistió, ${d.newPatients} nuevos pacientes`

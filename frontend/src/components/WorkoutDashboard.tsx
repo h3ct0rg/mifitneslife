@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { workoutPlansApi } from '../api'
 import type { WorkoutPlanDto } from '../api/types'
 import ExerciseMedia from './ExerciseMedia'
+import StateView from './ui/StateView'
 
 interface Props {
   patientId: string
@@ -29,17 +30,18 @@ export default function WorkoutDashboard({ patientId, version }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId, version])
 
-  if (loading) return <p className="loading">Cargando rutina...</p>
+  if (loading) return <StateView state="loading" title="Cargando rutina..." />
   if (!plan) return null
 
   const totalExercises = plan.days.reduce((a, d) => a + d.exercises.length, 0)
 
   return (
-    <div className="card workout-dashboard">
-      <div className="diet-dashboard-head">
+    <section className="card workout-dashboard" aria-labelledby="workout-dashboard-title">
+      <div className="panel-head panel-head--top">
         <div>
-          <h2>Rutina asignada: {plan.name}</h2>
-          {plan.objective && <p className="diet-dashboard-objective">{plan.objective}</p>}
+          <p className="panel-eyebrow">Rutina asignada</p>
+          <h2 id="workout-dashboard-title">{plan.name}</h2>
+          {plan.objective && <p className="panel-subtitle">{plan.objective}</p>}
         </div>
         <div className="workout-dash-stats">
           <div><span>Días</span><strong>{plan.days.length}</strong></div>
@@ -59,7 +61,11 @@ export default function WorkoutDashboard({ patientId, version }: Props) {
                 <div key={ex.id} className="workout-dash-exercise">
                   <div className="workout-dash-ex-media">
                     <ExerciseMedia gifUrl={ex.exerciseGifUrl} alt={ex.exerciseName} />
-                    {!ex.exerciseGifUrl && <span>🎯</span>}
+                    {!ex.exerciseGifUrl && (
+                      <span className="material-symbols-outlined" aria-hidden="true">
+                        fitness_center
+                      </span>
+                    )}
                   </div>
                   <div className="workout-dash-ex-info">
                     <strong>{ex.exerciseName}</strong>
@@ -76,12 +82,12 @@ export default function WorkoutDashboard({ patientId, version }: Props) {
                 </div>
               ))}
               {day.exercises.length === 0 && (
-                <p className="meal-empty">Sin ejercicios en este día.</p>
+                <p className="panel-empty">Sin ejercicios en este día.</p>
               )}
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   )
 }
